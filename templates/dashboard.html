@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><title>Dashboard</title></head>
+<body>
+  <h2>Welcome, {{ user.username }}!</h2>
+  <p>This is your dashboard.</p>
+  <p><a href="{% url 'logout' %}">Logout</a></p>
+  
+<h2>Dashboard for {{ user.username }}</h2>
+
+{% if application %}
+  <h3>Application Status: {{ application.status|title }}</h3>
+  <ul>
+    <li><strong>Full Name:</strong> {{ application.full_name }}</li>
+    <li><strong>ID Number:</strong> {{ application.id_number }}</li>
+    <li><strong>DOB:</strong> {{ application.dob }}</li>
+    <li><strong>Business Name:</strong> {{ application.business_name }}</li>
+    <li><strong>Submitted:</strong> {{ application.submitted_at }}</li>
+  </ul>
+
+  {% if application.status == 'draft' %}
+    <p><a href="{% url 'submit_application' %}">Edit Your Application</a></p>
+  {% endif %}
+
+{% else %}
+  <p>No application submitted yet. <a href="{% url 'submit_application' %}">Start now</a></p>
+{% endif %}
+
+</body>
+</html>
+
