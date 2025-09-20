@@ -1,0 +1,75 @@
+From e000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: your-username <you@example.com>
+Date: YYYY-MM-DD
+Subject: [PATCH] Fix app import paths: add apps. prefix everywhere
+
+---
+
+ backend/settings.py | 5 +++++
+ apps/certificates/apps.py | 2 ++
+ apps/consultants/apps.py   | 2 ++
+ apps/decisions/apps.py     | 2 ++
+ apps/users/apps.py         | 2 ++
+ apps/vetting/apps.py       | 2 ++
+ 6 files changed, 15 insertions(+), 0 deletions(-)
+
+---
+
+diff --git a/backend/settings.py b/backend/settings.py
+index 1234567..89abcde 100644
+--- a/backend/settings.py
++++ b/backend/settings.py
+@@ -20,7 +20,12 @@ INSTALLED_APPS = [
+-    'apps.consultants',
+-    'apps.vetting',
+-    'apps.decisions',
+-    'apps.certificates',
+-    'apps.users',
++    'apps.consultants',
++    'apps.vetting',
++    'apps.decisions',
++    'apps.certificates',
++    'apps.users',
+
+ # Django built-ins
+     'django.contrib.admin',
+     'django.contrib.auth',
+@@ Note: if originally missing apps. prefix, ensure they are corrected
+diff --git a/apps/certificates/apps.py b/apps/certificates/apps.py
+index 2345678..abcdef0 100644
+--- a/apps/certificates/apps.py
++++ b/apps/certificates/apps.py
+@@ class CertificatesConfig(AppConfig):
+-    name = 'certificates'
++    name = 'apps.certificates'
+ diff --git a/apps/consultants/apps.py b/apps/consultants/apps.py
+ index 3456789..bcdef01 100644
+--- a/apps/consultants/apps.py
++++ b/apps/consultants/apps.py
+@@ class ConsultantsConfig(AppConfig):
+-    name = 'consultants'
++    name = 'apps.consultants'
+ diff --git a/apps/decisions/apps.py b/apps/decisions/apps.py
+ index 4567890..cdef012 100644
+--- a/apps/decisions/apps.py
++++ b/apps/decisions/apps.py
+@@ class DecisionsConfig(AppConfig):
+-    name = 'decisions'
++    name = 'apps.decisions'
+ diff --git a/apps/users/apps.py b/apps/users/apps.py
+ index 5678901..def0123 100644
+--- a/apps/users/apps.py
++++ b/apps/users/apps.py
+@@ class UsersConfig(AppConfig):
+-    name = 'users'
++    name = 'apps.users'
+ diff --git a/apps/vetting/apps.py b/apps/vetting/apps.py
+ index 6789012..ef01234 100644
+--- a/apps/vetting/apps.py
++++ b/apps/vetting/apps.py
+@@ class VettingConfig(AppConfig):
+-    name = 'vetting'
++    name = 'apps.vetting'
+---
+
+

@@ -21,3 +21,4 @@ staticfiles/
 
 # Environment files
 .env
+fix_app_paths.patch
