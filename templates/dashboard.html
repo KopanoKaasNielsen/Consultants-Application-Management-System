@@ -2,6 +2,14 @@
 <html>
 <head><title>Dashboard</title></head>
 <body>
+{% if messages %}
+  <ul>
+    {% for message in messages %}
+      <li style="color: green;">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
   <h2>Welcome, {{ user.username }}!</h2>
   <p>This is your dashboard.</p>
   <p><a href="{% url 'logout' %}">Logout</a></p>

@@ -1,15 +1,25 @@
-<!DOCTYPE html>
 <html>
 <head>
     <title>Consultant Application</title>
 </head>
 <body>
     <h2>Submit Consultant Application</h2>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Submit Application</button>
-    </form>
+<h2>{{ is_editing|yesno:"Edit,Submit" }} Consultant Application</h2>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+
+    {% if is_editing %}
+        <button type="submit" name="action" value="draft">Save Draft</button>
+        <button type="submit" name="action" value="submit">Submit Application</button>
+    {% else %}
+        <button type="submit" name="action" value="submit">Submit Application</button>
+    {% endif %}
+</form>
+
+<a href="{% url 'dashboard' %}">Back to Dashboard</a>
+
     <p><a href="{% url 'dashboard' %}">Back to Dashboard</a></p>
 </body>
 </html>
