@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Welcome | Consultant Application System</title>
+    <title>Welcome</title>
 </head>
 <body>
-    <h1>Welcome to the Consultant Application Management System</h1>
-
-    <p>This system allows consultants to apply, track status, and receive certificates.  
-    Immigration officers and board members can review applications securely.</p>
+    <h1>Welcome to Consultant Application System</h1>
 
     {% if user.is_authenticated %}
-        <p>You are logged in as <strong>{{ user.username }}</strong>.</p>
-        {% if user.groups.filter(name="Consultants").exists %}
-            <a href="{% url 'dashboard' %}">Continue to Dashboard</a>
-        {% else %}
-            <a href="{% url 'officer_applications_list' %}">Go to Staff Panel</a>
+        <p>Hello, {{ user.username }}!</p>
+
+        {% if user.groups.all %}
+            <p>You belong to: 
+                {% for group in user.groups.all %}
+                    {{ group.name }}{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </p>
         {% endif %}
+
+        <p><a href="{% url 'dashboard' %}">Continue</a></p>
     {% else %}
-        <a href="{% url 'login' %}">Login to Continue</a>
+        <p><a href="{% url 'login' %}">Login</a></p>
     {% endif %}
 </body>
 </html>
