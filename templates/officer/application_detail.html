@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head><title>Application Detail – Staff</title></head>
+<body>
+  {% if messages %}
+    <ul>
+      {% for message in messages %}
+        <li style="color: green;">{{ message }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2>Application: {{ application.full_name }}</h2>
+  <p><strong>Status:</strong> {{ application.status|title }}</p>
+
+  <h3>Personal</h3>
+  <ul>
+    <li>ID Number: {{ application.id_number }}</li>
+    <li>DOB: {{ application.dob }}</li>
+    <li>Gender: {{ application.get_gender_display }}</li>
+    <li>Nationality: {{ application.nationality }}</li>
+    <li>Email: {{ application.email }}</li>
+    <li>Phone: {{ application.phone_number }}</li>
+  </ul>
+
+  <h3>Business</h3>
+  <ul>
+    <li>Business Name: {{ application.business_name }}</li>
+    <li>Registration Number: {{ application.registration_number }}</li>
+  </ul>
+
+  <h3>Documents</h3>
+  <ul>
+    {% if application.photo %}<li>Photo: <a href="{{ application.photo.url }}" target="_blank">View</a></li>{% endif %}
+    {% if application.id_document %}<li>ID Document: <a href="{{ application.id_document.url }}" target="_blank">View</a></li>{% endif %}
+    {% if application.cv %}<li>CV: <a href="{{ application.cv.url }}" target="_blank">View</a></li>{% endif %}
+    {% if application.police_clearance %}<li>Police Clearance: <a href="{{ application.police_clearance.url }}" target="_blank">View</a></li>{% endif %}
+    {% if application.qualifications %}<li>Qualifications: <a href="{{ application.qualifications.url }}" target="_blank">View</a></li>{% endif %}
+    {% if application.business_certificate %}<li>Business Certificate: <a href="{{ application.business_certificate.url }}" target="_blank">View</a></li>{% endif %}
+  </ul>
+
+  <hr>
+
+  <h3>Take Action</h3>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save Action</button>
+  </form>
+
+  <h3>Recent Actions</h3>
+  <ul>
+    {% for a in recent_actions %}
+      <li>[{{ a.created_at }}] <strong>{{ a.get_action_display }}</strong> by {{ a.actor.username }} — {{ a.notes|default:"(no notes)" }}</li>
+    {% empty %}
+      <li>No actions yet.</li>
+    {% endfor %}
+  </ul>
+
+  <p><a href="{% url 'officer_applications_list' %}">Back to list</a></p>
+</body>
+</html>
+

@@ -3,12 +3,12 @@ from django.contrib.auth.decorators import login_required
 
 from .forms import ConsultantForm
 from .models import Consultant
+from django.contrib import messages
 
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
 
-from .forms import ConsultantForm
-from .models import Consultant
+
+
+
 ############################################
 @login_required
 def submit_application(request):

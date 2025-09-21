@@ -23,4 +23,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('apps.users.urls')),
     path('consultants/', include('apps.consultants.urls')),
+    path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
