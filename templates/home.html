@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome | Consultant Application System</title>
+</head>
+<body>
+    <h1>Welcome to the Consultant Application Management System</h1>
+
+    <p>This system allows consultants to apply, track status, and receive certificates.  
+    Immigration officers and board members can review applications securely.</p>
+
+    {% if user.is_authenticated %}
+        <p>You are logged in as <strong>{{ user.username }}</strong>.</p>
+        {% if user.groups.filter(name="Consultants").exists %}
+            <a href="{% url 'dashboard' %}">Continue to Dashboard</a>
+        {% else %}
+            <a href="{% url 'officer_applications_list' %}">Go to Staff Panel</a>
+        {% endif %}
+    {% else %}
+        <a href="{% url 'login' %}">Login to Continue</a>
+    {% endif %}
+</body>
+</html>

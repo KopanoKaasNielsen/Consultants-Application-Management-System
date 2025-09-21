@@ -1,7 +1,9 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
-
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect, renderfrom django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect, render
 from apps.consultants.models import Consultant
 
 def register(request):
@@ -23,3 +25,5 @@ def dashboard(request):
     return render(request, 'dashboard.html', {
         'application': application
     })
+def home_view(request):
+    return render(request, 'home.html')
