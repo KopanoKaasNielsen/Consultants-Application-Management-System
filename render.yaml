@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: consultant-app
+    env: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: consultant-db
+          property: connectionString
+
+databases:
+  - name: consultant-db
+    plan: free
