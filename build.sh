@@ -13,6 +13,6 @@ pip install -r requirements.txt
 echo "⚙️ Running migrations..."
 python manage.py migrate
 
-echo "🧪 Seeding groups and users..."
-python manage.py seed_groups
-python manage.py seed_users  # <-- this runs the user creation
+#echo "🧪 Seeding groups and users..."
+#python manage.py seed_groups
+#python manage.py seed_users  # <-- this runs the user creation

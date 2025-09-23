@@ -14,6 +14,9 @@ from pathlib import Path
 import dj_database_url
 
 DEBUG = True
+#DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
+
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,7 +32,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-ik#oto2-y*nd*m!sfsv3=cu_whneygwkfmmkd3du#qjs8*o#ce'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
+
 ALLOWED_HOSTS = ["*"]  # Render will restrict this anyway
 
 
@@ -62,6 +65,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'backend.urls'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
+LOGOUT_REDIRECT_URL = '/'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',

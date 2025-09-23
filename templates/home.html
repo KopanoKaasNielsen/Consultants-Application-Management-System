@@ -1,25 +1,21 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Welcome</title>
-</head>
-<body>
-    <h1>Welcome to Consultant Application System</h1>
+{% extends 'base.html' %}
 
-    {% if user.is_authenticated %}
-        <p>Hello, {{ user.username }}!</p>
+{% block title %}Home{% endblock %}
 
-        {% if user.groups.all %}
-            <p>You belong to: 
-                {% for group in user.groups.all %}
-                    {{ group.name }}{% if not forloop.last %}, {% endif %}
-                {% endfor %}
-            </p>
-        {% endif %}
-
-        <p><a href="{% url 'dashboard' %}">Continue</a></p>
-    {% else %}
-        <p><a href="{% url 'login' %}">Login</a></p>
-    {% endif %}
-</body>
-</html>
+{% block content %}
+  <div class="text-center">
+      <h2>Welcome to the Consultant Application Management System</h2>
+      {% if user.is_authenticated %}
+          <p>You are logged in as <strong>{{ user.username }}</strong>.</p>
+          <p>You belong to the following group(s): 
+              {% for group in user.groups.all %}
+                  {{ group.name }}{% if not forloop.last %}, {% endif %}
+              {% endfor %}
+          </p>
+          <a class="btn btn-primary" href="{% url 'dashboard' %}">Go to Dashboard</a>
+      {% else %}
+          <a class="btn btn-success" href="{% url 'login' %}">Login</a>
+          <a class="btn btn-secondary" href="{% url 'register' %}">Register</a>
+      {% endif %}
+  </div>
+{% endblock %}
