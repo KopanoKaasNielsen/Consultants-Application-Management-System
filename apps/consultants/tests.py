@@ -1,17 +1,21 @@
+import base64
 import shutil
 import tempfile
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from .forms import ConsultantForm
 from .models import Consultant
 
 
-class ConsultantFormTests(TestCase):
+class ConsultantTestMixin:
     def setUp(self):
+        super().setUp()
         self.media_root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.media_root, ignore_errors=True)
 
@@ -32,14 +36,21 @@ class ConsultantFormTests(TestCase):
         }
 
     def _valid_files(self):
+        photo_content = base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'
+        )
+
         return {
-            'photo': SimpleUploadedFile('photo.jpg', b'a' * 1024, content_type='image/jpeg'),
+            'photo': SimpleUploadedFile('photo.png', photo_content, content_type='image/png'),
             'id_document': SimpleUploadedFile('id.pdf', b'a' * 1024, content_type='application/pdf'),
             'cv': SimpleUploadedFile('cv.pdf', b'a' * 1024, content_type='application/pdf'),
             'police_clearance': SimpleUploadedFile('police.pdf', b'a' * 1024, content_type='application/pdf'),
             'qualifications': SimpleUploadedFile('qualifications.pdf', b'a' * 1024, content_type='application/pdf'),
             'business_certificate': SimpleUploadedFile('certificate.pdf', b'a' * 1024, content_type='application/pdf'),
         }
+
+
+class ConsultantFormTests(ConsultantTestMixin, TestCase):
 
     def test_clean_allows_missing_documents_when_saving_draft(self):
         form = ConsultantForm(data={**self.valid_data, 'action': 'draft'})
@@ -113,3 +124,35 @@ class ConsultantFormTests(TestCase):
         )
 
         self.assertTrue(form.is_valid(), form.errors)
+
+
+class ConsultantSubmitApplicationViewTests(ConsultantTestMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username='consultant', password='password')
+        self.client.login(username='consultant', password='password')
+        self.url = reverse('submit_application')
+
+    def test_post_draft_saves_application_as_draft(self):
+        response = self.client.post(
+            self.url,
+            {**self.valid_data, 'action': 'draft'},
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('dashboard'))
+        consultant = Consultant.objects.get(user=self.user)
+        self.assertEqual(consultant.status, 'draft')
+        messages = [message.message for message in get_messages(response.wsgi_request)]
+        self.assertIn("Draft saved. You can complete it later.", messages)
+
+    def test_post_submit_saves_application_as_submitted(self):
+        post_data = {**self.valid_data, 'action': 'submit', **self._valid_files()}
+        response = self.client.post(self.url, post_data, follow=True)
+
+        self.assertRedirects(response, reverse('dashboard'))
+        consultant = Consultant.objects.get(user=self.user)
+        self.assertEqual(consultant.status, 'submitted')
+        messages = [message.message for message in get_messages(response.wsgi_request)]
+        self.assertIn("Application submitted successfully.", messages)
