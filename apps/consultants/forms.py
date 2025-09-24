@@ -9,11 +9,15 @@ class ConsultantForm(forms.ModelForm):
             'dob': forms.DateInput(attrs={'type': 'date'}),
         }
 
-def clean(self):
+    def clean(self):
         cleaned_data = super().clean()
         required_docs = [
-            'photo', 'id_document', 'cv', 'police_clearance',
-            'qualifications', 'business_certificate'
+            'photo',
+            'id_document',
+            'cv',
+            'police_clearance',
+            'qualifications',
+            'business_certificate',
         ]
 
         for field in required_docs:
@@ -21,7 +25,7 @@ def clean(self):
             if file:
                 if file.size > 2 * 1024 * 1024:  # 2MB
                     self.add_error(field, "File size must be under 2MB.")
-                if not file.content_type in ['application/pdf', 'image/jpeg', 'image/png']:
+                if file.content_type not in ['application/pdf', 'image/jpeg', 'image/png']:
                     self.add_error(field, "Only PDF, JPG, or PNG files are allowed.")
             else:
                 self.add_error(field, "This document is required.")
