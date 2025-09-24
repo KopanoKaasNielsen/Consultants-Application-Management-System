@@ -1,17 +1,14 @@
-from django.shortcuts import render, redirect
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect, render
 
 from .forms import ConsultantForm
 from .models import Consultant
-from django.contrib import messages
 
 
-
-
-
-############################################
 @login_required
 def submit_application(request):
+    """Handle both draft saves and final submissions for a consultant."""
     application = Consultant.objects.filter(user=request.user).first()
 
     if application and application.status != 'draft':
@@ -20,23 +17,27 @@ def submit_application(request):
 
     form = ConsultantForm(request.POST or None, request.FILES or None, instance=application)
 
-    if request.method == 'POST':
-        action = request.POST.get('action')  # 'draft' or 'submit'
+    if request.method == 'POST' and form.is_valid():
+        action = request.POST.get('action', 'draft')
+        is_submission = action == 'submit'
 
-        if form.is_valid():
-            consultant = form.save(commit=False)
-            consultant.user = request.user
-            consultant.status = 'submitted' if action == 'submit' else 'draft'
-            consultant.save()
+        consultant = form.save(commit=False)
+        consultant.user = request.user
+        consultant.status = 'submitted' if is_submission else 'draft'
+        consultant.save()
 
-            if action == 'submit':
-                messages.success(request, "Application submitted successfully.")
-            else:
-                messages.info(request, "Draft saved. You can complete it later.")
+        message = (
+            "Application submitted successfully."
+            if is_submission
+            else "Draft saved. You can complete it later."
+        )
+        message_fn = messages.success if is_submission else messages.info
+        message_fn(request, message)
 
-            return redirect('dashboard')
+        return redirect('dashboard')
 
-    return render(request, 'consultants/application_form.html', {
+    context = {
         'form': form,
         'is_editing': application is not None and application.status == 'draft',
-    })
+    }
+    return render(request, 'consultants/application_form.html', context)
