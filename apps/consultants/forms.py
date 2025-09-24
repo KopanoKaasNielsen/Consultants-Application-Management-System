@@ -16,19 +16,6 @@ class ConsultantForm(forms.ModelForm):
     MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
     ALLOWED_CONTENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 
-    class Meta:
-        model = Consultant
-        exclude = ['user', 'submitted_at', 'status']
-        widgets = {
-            'dob': forms.DateInput(attrs={'type': 'date'}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.DOCUMENT_FIELDS:
-            if field in self.fields:
-                self.fields[field].required = False
-
     def clean(self):
         cleaned_data = super().clean()
         action = self.data.get('action')
@@ -51,3 +38,16 @@ class ConsultantForm(forms.ModelForm):
                         self.add_error(field, "This document is required.")
 
         return cleaned_data
+
+    class Meta:
+        model = Consultant
+        exclude = ['user', 'submitted_at', 'status']
+        widgets = {
+            'dob': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.DOCUMENT_FIELDS:
+            if field in self.fields:
+                self.fields[field].required = False
