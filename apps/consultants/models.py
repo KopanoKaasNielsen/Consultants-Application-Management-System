@@ -37,12 +37,12 @@ class Consultant(models.Model):
     registration_number = models.CharField(max_length=100, blank=True, null=True)
 
     # Documents
-    photo = models.ImageField(upload_to='documents/photos/')
-    id_document = models.FileField(upload_to='documents/id_documents/')
-    cv = models.FileField(upload_to='documents/cv/')
-    police_clearance = models.FileField(upload_to='documents/police_clearance/')
-    qualifications = models.FileField(upload_to='documents/qualifications/')
-    business_certificate = models.FileField(upload_to='documents/business_certificates/')
+    photo = models.ImageField(upload_to='documents/photos/', blank=True, null=True)
+    id_document = models.FileField(upload_to='documents/id_documents/', blank=True, null=True)
+    cv = models.FileField(upload_to='documents/cv/', blank=True, null=True)
+    police_clearance = models.FileField(upload_to='documents/police_clearance/', blank=True, null=True)
+    qualifications = models.FileField(upload_to='documents/qualifications/', blank=True, null=True)
+    business_certificate = models.FileField(upload_to='documents/business_certificates/', blank=True, null=True)
 
     # Status and metadata
     submitted_at = models.DateTimeField(auto_now_add=True)
