@@ -9,7 +9,7 @@ class ConsultantForm(forms.ModelForm):
             'dob': forms.DateInput(attrs={'type': 'date'}),
         }
 
-def clean(self):
+    def clean(self):
         cleaned_data = super().clean()
         required_docs = [
             'photo', 'id_document', 'cv', 'police_clearance',
