@@ -1,25 +1,58 @@
-from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User, Group
+from django.core.management.base import BaseCommand, CommandError
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+
+from apps.decisions.views import REVIEWER_GROUPS
+
+PASSWORD = "Testpass123!"
+
+USERS = [
+    ("consultant1", PASSWORD, ["Consultants"]),
+    ("counter1", PASSWORD, ["CounterStaff"]),
+    ("officer1", PASSWORD, ["BackOffice"]),
+    ("dis1", PASSWORD, ["DISAgents"]),
+    ("board1", PASSWORD, ["BoardCommittee"]),
+    ("senior1", PASSWORD, ["SeniorImmigration"]),
+    ("admin1", PASSWORD, ["Admins"]),
+]
+
 
 class Command(BaseCommand):
-    help = 'Seed initial users for testing'
+    help = "Seed initial users for testing"
 
     def handle(self, *args, **options):
-        users = [
-            ('consultant1', 'Testpass123!', ['Consultants']),
-            ('officer1', 'Testpass123!', ['Immigration Officers']),
-            ('dis1', 'Testpass123!', ['DIS']),
-            ('board1', 'Testpass123!', ['Board']),
-            ('admin1', 'Testpass123!', ['Admins']),
-        ]
+        required_group_names = {name for _, _, names in USERS for name in names}
 
-        for username, password, group_names in users:
-            if not User.objects.filter(username=username).exists():
-                user = User.objects.create_user(username=username, password=password)
+        groups = {}
+        missing_groups = []
+
+        for group_name in required_group_names:
+            try:
+                groups[group_name] = Group.objects.get(name=group_name)
+            except Group.DoesNotExist:
+                missing_groups.append(group_name)
+
+        if missing_groups:
+            raise CommandError(
+                "Missing groups: {}. Run 'python manage.py seed_groups' first.".format(
+                    ", ".join(sorted(missing_groups))
+                )
+            )
+
+        reviewer_groups = REVIEWER_GROUPS
+        user_model = get_user_model()
+
+        for username, password, group_names in USERS:
+            if not user_model.objects.filter(username=username).exists():
+                user = user_model.objects.create_user(username=username, password=password)
+
+                if reviewer_groups.intersection(group_names):
+                    user.is_staff = True
+
                 for group_name in group_names:
-                    group, _ = Group.objects.get_or_create(name=group_name)
-                    user.groups.add(group)
+                    user.groups.add(groups[group_name])
+
                 user.save()
-                self.stdout.write(self.style.SUCCESS(f'✅ Created {username}'))
+                self.stdout.write(self.style.SUCCESS(f"✅ Created {username}"))
             else:
-                self.stdout.write(f'ℹ️ {username} already exists')
+                self.stdout.write(f"ℹ️ {username} already exists")
