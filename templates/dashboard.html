@@ -16,7 +16,13 @@
     {% csrf_token %}
     <button type="submit">Logout</button>
   </form>
-  
+
+  {% if is_reviewer %}
+    <p>
+      <a href="{% url 'officer_applications_list' %}">Review applications</a>
+    </p>
+  {% endif %}
+
 <h2>Dashboard for {{ user.username }}</h2>
 
 {% if application %}
