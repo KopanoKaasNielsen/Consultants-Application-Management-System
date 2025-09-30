@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from .forms import ConsultantForm
 from .models import Consultant
@@ -24,6 +25,7 @@ def submit_application(request):
             consultant = form.save(commit=False)
             consultant.user = request.user
             consultant.status = 'submitted' if is_submission else 'draft'
+            consultant.submitted_at = timezone.now() if is_submission else None
             consultant.save()
 
             message = (

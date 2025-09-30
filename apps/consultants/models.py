@@ -43,7 +43,7 @@ class Consultant(models.Model):
     business_certificate = models.FileField(upload_to='documents/business_certificates/', blank=True, null=True)
 
     # Status and metadata
-    submitted_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
 
     def __str__(self):
