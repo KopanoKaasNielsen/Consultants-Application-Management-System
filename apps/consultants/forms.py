@@ -46,14 +46,7 @@ class ConsultantForm(forms.ModelForm):
             'dob': forms.DateInput(attrs={'type': 'date'}),
         }
 
-<<<<<<< HEAD
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.DOCUMENT_FIELDS:
-            if field in self.fields:
-                self.fields[field].required = False
-=======
-    def clean(self):
+def clean(self):
         cleaned_data = super().clean()
         required_docs = [
             'photo',
