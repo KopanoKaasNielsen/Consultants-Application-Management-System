@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.db.utils import OperationalError
 
 from apps.decisions.views import REVIEWER_GROUPS
 
@@ -29,6 +30,10 @@ class Command(BaseCommand):
         for group_name in required_group_names:
             try:
                 groups[group_name] = Group.objects.get(name=group_name)
+            except OperationalError as exc:
+                raise CommandError(
+                    "Database tables are missing. Run 'python manage.py migrate' before seeding users."
+                ) from exc
             except Group.DoesNotExist:
                 missing_groups.append(group_name)
 
