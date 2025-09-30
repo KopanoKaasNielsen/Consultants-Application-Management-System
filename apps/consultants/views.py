@@ -39,4 +39,5 @@ def submit_application(request):
     return render(request, 'consultants/application_form.html', {
         'form': form,
         'is_editing': application is not None and application.status == 'draft',
+        'show_save_draft': application is None or application.status == 'draft',
     })
