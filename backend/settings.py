@@ -13,8 +13,7 @@ import os
 from pathlib import Path
 import dj_database_url
 
-DEBUG = True
-#DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in {"true", "1", "yes"}
 
 
 
@@ -33,7 +32,11 @@ SECRET_KEY = 'django-insecure-ik#oto2-y*nd*m!sfsv3=cu_whneygwkfmmkd3du#qjs8*o#ce
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
-ALLOWED_HOSTS = ["*"]  # Render will restrict this anyway
+ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS")
+if ALLOWED_HOSTS_ENV:
+    ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(",") if host.strip()]
+else:
+    ALLOWED_HOSTS = ["*"]  # Render will restrict this anyway
 
 
 # Application definition
