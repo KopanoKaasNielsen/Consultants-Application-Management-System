@@ -11,7 +11,7 @@
     {{ form.as_p }}
 
     <div class="form-actions">
-      {% if is_editing %}
+      {% if show_save_draft %}
         <button type="submit" name="action" value="draft" class="btn-secondary">Save draft</button>
       {% endif %}
       <button type="submit" name="action" value="submit" class="btn-primary">Submit application</button>
