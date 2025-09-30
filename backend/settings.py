@@ -39,6 +39,18 @@ else:
     ALLOWED_HOSTS = ["*"]  # Render will restrict this anyway
 
 
+ALLOWED_HOSTS = [
+    'localhost', '127.0.0.1',
+    'consultant-app-156x.onrender.com',         # your Render URL
+]
+CSRF_TRUSTED_ORIGINS = [
+ 
+
+   'https://consultant-app-156x.onrender.com',
+]
+
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -143,7 +155,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Static & Media Configuration
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+if os.getenv('DJANGO_ENV') == 'production':
+
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
