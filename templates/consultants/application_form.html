@@ -1,25 +1,24 @@
-<html>
-<head>
-    <title>Consultant Application</title>
-</head>
-<body>
-    <h2>Submit Consultant Application</h2>
-<h2>{{ is_editing|yesno:"Edit,Submit" }} Consultant Application</h2>
+{% extends 'base.html' %}
 
-<form method="post" enctype="multipart/form-data">
+{% block title %}{{ is_editing|yesno:"Edit,Submit" }} Consultant Application{% endblock %}
+
+{% block content %}
+<section class="form-card wide">
+  <h1>{{ is_editing|yesno:"Update,Submit" }} consultant application</h1>
+  <p class="description">Provide the required details so we can review and progress your consultant profile.</p>
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {{ form.as_p }}
 
-    {% if is_editing %}
-        <button type="submit" name="action" value="draft">Save Draft</button>
-        <button type="submit" name="action" value="submit">Submit Application</button>
-    {% else %}
-        <button type="submit" name="action" value="submit">Submit Application</button>
-    {% endif %}
-</form>
-
-<a href="{% url 'dashboard' %}">Back to Dashboard</a>
-
-    <p><a href="{% url 'dashboard' %}">Back to Dashboard</a></p>
-</body>
-</html>
+    <div class="form-actions">
+      {% if is_editing %}
+        <button type="submit" name="action" value="draft" class="btn-secondary">Save draft</button>
+      {% endif %}
+      <button type="submit" name="action" value="submit" class="btn-primary">Submit application</button>
+    </div>
+  </form>
+  <div class="helper-link">
+    <a href="{% url 'dashboard' %}">Back to dashboard</a>
+  </div>
+</section>
+{% endblock %}

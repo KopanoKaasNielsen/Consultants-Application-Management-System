@@ -1,13 +1,18 @@
-<!DOCTYPE html>
-<html>
-<head><title>Register</title></head>
-<body>
-  <h2>Register</h2>
+{% extends 'base.html' %}
+
+{% block title %}Create an Account{% endblock %}
+
+{% block content %}
+<section class="form-card">
+  <h1>Create an account</h1>
+  <p class="description">Join the Consultant App platform to manage applications and track progress effortlessly.</p>
   <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
-    <button type="submit">Register</button>
+    <button type="submit" class="btn-primary">Create account</button>
   </form>
-  <p>Already have an account? <a href="{% url 'login' %}">Login</a></p>
-</body>
-</html>
+  <div class="helper-link">
+    Already have an account? <a href="{% url 'login' %}">Sign in</a>
+  </div>
+</section>
+{% endblock %}
