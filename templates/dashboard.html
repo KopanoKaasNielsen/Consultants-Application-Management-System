@@ -1,48 +1,57 @@
-<!DOCTYPE html>
-<html>
-<head><title>Dashboard</title></head>
-<body>
-{% if messages %}
-  <ul>
-    {% for message in messages %}
-      <li style="color: green;">{{ message }}</li>
-    {% endfor %}
-  </ul>
-{% endif %}
+{% extends 'base.html' %}
 
-  <h2>Welcome, {{ user.username }}!</h2>
-  <p>This is your dashboard.</p>
-  <form method="post" action="{% url 'logout' %}" style="display: inline;">
-    {% csrf_token %}
-    <button type="submit">Logout</button>
-  </form>
+{% block title %}Dashboard{% endblock %}
 
-  {% if is_reviewer %}
-    <p>
-      <a href="{% url 'officer_applications_list' %}">Review applications</a>
-    </p>
+{% block content %}
+<div class="page-stack">
+  {% if messages %}
+  <section class="data-card" aria-live="polite">
+    <ul class="message-list">
+      {% for message in messages %}
+      <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  </section>
   {% endif %}
 
-<h2>Dashboard for {{ user.username }}</h2>
+  <section class="data-card">
+    <h2>Welcome, {{ user.username }}!</h2>
+    <p class="card-subtitle">Manage your consultant application and review its latest status here.</p>
+    {% if is_reviewer %}
+    <div class="form-actions">
+      <a class="btn-primary" href="{% url 'officer_applications_list' %}">Review applications</a>
+    </div>
+    {% endif %}
+  </section>
 
-{% if application %}
-  <h3>Application Status: {{ application.status|title }}</h3>
-  <ul>
-    <li><strong>Full Name:</strong> {{ application.full_name }}</li>
-    <li><strong>ID Number:</strong> {{ application.id_number }}</li>
-    <li><strong>DOB:</strong> {{ application.dob }}</li>
-    <li><strong>Business Name:</strong> {{ application.business_name }}</li>
-    <li><strong>Submitted:</strong> {{ application.submitted_at }}</li>
-  </ul>
+  <section class="data-card">
+    <div class="card-header">
+      <h3>Your application</h3>
+      {% if application %}
+      <span class="status-pill">{{ application.status|title }}</span>
+      {% endif %}
+    </div>
 
-  {% if application.status == 'draft' %}
-    <p><a href="{% url 'submit_application' %}">Edit Your Application</a></p>
-  {% endif %}
+    {% if application %}
+    <ul class="detail-list">
+      <li><strong>Full Name:</strong> {{ application.full_name }}</li>
+      <li><strong>ID Number:</strong> {{ application.id_number }}</li>
+      <li><strong>Date of Birth:</strong> {{ application.dob }}</li>
+      <li><strong>Business Name:</strong> {{ application.business_name }}</li>
+      <li><strong>Submitted:</strong> {{ application.submitted_at }}</li>
+    </ul>
 
-{% else %}
-  <p>No application submitted yet. <a href="{% url 'submit_application' %}">Start now</a></p>
-{% endif %}
-
-</body>
-</html>
-
+    {% if application.status == 'draft' %}
+    <div class="form-actions">
+      <a class="btn-secondary" href="{% url 'submit_application' %}">Edit your application</a>
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="card-subtitle">No application submitted yet.</p>
+    <div class="form-actions">
+      <a class="btn-primary" href="{% url 'submit_application' %}">Start your application</a>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
