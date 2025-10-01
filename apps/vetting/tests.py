@@ -84,3 +84,13 @@ class VettingDashboardViewTests(TestCase):
         )
         self.consultant.refresh_from_db()
         self.assertEqual(self.consultant.status, 'rejected')
+
+    def test_can_vet_consultant(self):
+        response = self.client.post(
+            reverse('vetting_dashboard'),
+            data={'consultant_id': self.consultant.id, 'action': 'vet'},
+        )
+
+        self.consultant.refresh_from_db()
+        self.assertEqual(self.consultant.status, 'vetted')
+        self.assertRedirects(response, reverse('vetting_dashboard'))
