@@ -20,6 +20,33 @@ from apps.users.constants import (
 from apps.users.permissions import role_required, user_has_role
 
 
+class RegistrationTests(TestCase):
+    def setUp(self):
+        Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+
+    def test_register_assigns_consultant_group(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "newconsultant",
+                "password1": "complex-password-123",
+                "password2": "complex-password-123",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("login"),
+            fetch_redirect_response=False,
+        )
+
+        user = get_user_model().objects.get(username="newconsultant")
+        self.assertTrue(
+            user.groups.filter(name=CONSULTANTS_GROUP_NAME).exists(),
+            "Newly registered users should be assigned to the consultants group.",
+        )
+
+
 class SeedUsersCommandTests(TestCase):
     def test_seeded_reviewer_matches_access_control(self):
         """Ensure the seed command populates reviewer groups correctly."""
