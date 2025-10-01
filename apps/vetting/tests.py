@@ -5,7 +5,7 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from apps.consultants.models import Consultant
-from apps.users.constants import COUNTERSTAFF_GROUP_NAME
+from apps.users.constants import COUNTERSTAFF_GROUP_NAME, BOARD_COMMITTEE_GROUP_NAME
 
 
 class VettingDashboardViewTests(TestCase):
@@ -52,6 +52,17 @@ class VettingDashboardViewTests(TestCase):
         self.client.logout()
         other_user = User.objects.create_user(username='unauth', password='unauthpass')
         self.client.login(username='unauth', password='unauthpass')
+
+        response = self.client.get(reverse('vetting_dashboard'))
+        self.assertEqual(response.status_code, 403)
+
+    def test_board_member_receives_403(self):
+        self.client.logout()
+        board_user = User.objects.create_user(username='board', password='boardpass')
+        board_group, _ = Group.objects.get_or_create(name=BOARD_COMMITTEE_GROUP_NAME)
+        board_user.groups.add(board_group)
+
+        self.client.login(username='board', password='boardpass')
 
         response = self.client.get(reverse('vetting_dashboard'))
         self.assertEqual(response.status_code, 403)

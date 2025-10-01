@@ -1,17 +1,13 @@
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.consultants.models import Consultant
-from apps.users.constants import COUNTERSTAFF_GROUP_NAME
+from apps.users.constants import UserRole as Roles
+from apps.users.permissions import role_required
 
 
-@login_required
+@role_required(Roles.STAFF)
 def vetting_dashboard(request):
     """Display consultant applications for vetting staff to review."""
-
-    if not request.user.groups.filter(name=COUNTERSTAFF_GROUP_NAME).exists():
-        return HttpResponseForbidden()
 
     consultants = Consultant.objects.all().order_by("full_name")
 
