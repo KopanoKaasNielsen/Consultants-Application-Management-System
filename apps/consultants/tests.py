@@ -2,6 +2,7 @@ import io
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
@@ -10,6 +11,10 @@ from PIL import Image
 
 from .forms import ConsultantForm
 from .models import Consultant
+from apps.users.constants import (
+    BACKOFFICE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+)
 
 
 def create_image_file(name='photo.png'):
@@ -103,6 +108,8 @@ class SubmitApplicationViewTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
         self.user = user_model.objects.create_user('applicant', password='password123')
+        consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        self.user.groups.add(consultant_group)
         self.client.force_login(self.user)
         self.base_payload = {
             'full_name': 'Applicant User',
@@ -150,3 +157,15 @@ class SubmitApplicationViewTests(TestCase):
         self.assertEqual(application.status, 'submitted')
         self.assertIsNotNone(application.submitted_at)
         self.assertLess(timezone.now() - application.submitted_at, timedelta(seconds=5))
+
+    def test_non_consultant_user_receives_403(self):
+        staff_user = get_user_model().objects.create_user(
+            'staffer', password='password123'
+        )
+        staff_group, _ = Group.objects.get_or_create(name=BACKOFFICE_GROUP_NAME)
+        staff_user.groups.add(staff_group)
+
+        self.client.force_login(staff_user)
+
+        response = self.client.get(reverse('submit_application'))
+        self.assertEqual(response.status_code, 403)

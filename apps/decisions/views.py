@@ -16,6 +16,8 @@ from apps.certificates.services import (
 )
 from .forms import ActionForm
 from .models import ApplicationAction
+from apps.users.constants import UserRole as Roles
+from apps.users.permissions import user_has_role
 
 ACTION_MESSAGES = {
     "vetted": "Application has been vetted.",
@@ -23,22 +25,11 @@ ACTION_MESSAGES = {
     "rejected": "Application has been rejected.",
 }
 
-REVIEWER_GROUPS = {
-    'BackOffice',
-    'DISAgents',
-    'BoardCommittee',
-    'SeniorImmigration',
-    'Admins',
-}
+REVIEWER_ROLES = (Roles.BOARD, Roles.STAFF)
+
 
 def is_reviewer(user):
-    if not user.is_authenticated:
-        return False
-    # superusers always allowed
-    if user.is_superuser:
-        return True
-    # group membership check
-    return user.groups.filter(name__in=REVIEWER_GROUPS).exists()
+    return any(user_has_role(user, role) for role in REVIEWER_ROLES)
 
 def reviewer_required(view_func):
     @wraps(view_func)

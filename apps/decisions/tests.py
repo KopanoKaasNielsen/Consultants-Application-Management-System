@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from apps.consultants.models import Consultant
 from .models import ApplicationAction
+from apps.users.constants import BACKOFFICE_GROUP_NAME, BOARD_COMMITTEE_GROUP_NAME
 
 
 class ApplicationDecisionDocumentTests(TestCase):
@@ -95,7 +96,7 @@ class ApplicationDecisionDocumentTests(TestCase):
 class DecisionsDashboardViewTests(TestCase):
     def setUp(self):
         self.UserModel = get_user_model()
-        self.reviewer_group, _ = Group.objects.get_or_create(name="BackOffice")
+        self.reviewer_group, _ = Group.objects.get_or_create(name=BACKOFFICE_GROUP_NAME)
 
         self.reviewer = self.UserModel.objects.create_user(
             username="reviewer",
@@ -155,6 +156,19 @@ class DecisionsDashboardViewTests(TestCase):
 
         response = self.client.get(reverse("decisions_dashboard"))
         self.assertEqual(response.status_code, 403)
+
+    def test_board_member_can_access_dashboard(self):
+        board_user = self.UserModel.objects.create_user(
+            username="boardmember", email="board@example.com", password="pass1234"
+        )
+        board_group, _ = Group.objects.get_or_create(name=BOARD_COMMITTEE_GROUP_NAME)
+        board_user.groups.add(board_group)
+
+        self.client.logout()
+        self.client.login(username="boardmember", password="pass1234")
+
+        response = self.client.get(reverse("decisions_dashboard"))
+        self.assertEqual(response.status_code, 200)
 
     def test_reviewer_can_record_action(self):
         response = self.client.post(

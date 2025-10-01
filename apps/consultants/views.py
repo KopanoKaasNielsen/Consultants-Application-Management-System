@@ -1,13 +1,14 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from .forms import ConsultantForm
 from .models import Consultant
+from apps.users.constants import UserRole as Roles
+from apps.users.permissions import role_required
 
 
-@login_required
+@role_required(Roles.CONSULTANT)
 def submit_application(request):
     application = Consultant.objects.filter(user=request.user).first()
 
