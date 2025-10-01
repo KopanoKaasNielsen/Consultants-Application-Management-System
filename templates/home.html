@@ -12,10 +12,10 @@
                   {{ group.name }}{% if not forloop.last %}, {% endif %}
               {% endfor %}
           </p>
-          <a class="btn btn-primary" href="{% url 'dashboard' %}">Go to Dashboard</a>
+          <a class="btn-primary" href="{% url 'dashboard' %}">Go to Dashboard</a>
       {% else %}
-          <a class="btn btn-success" href="{% url 'login' %}">Login</a>
-          <a class="btn btn-secondary" href="{% url 'register' %}">Register</a>
+          <a class="btn-primary" href="{% url 'login' %}">Login</a>
+          <a class="btn-secondary" href="{% url 'register' %}">Register</a>
       {% endif %}
   </div>
 {% endblock %}
