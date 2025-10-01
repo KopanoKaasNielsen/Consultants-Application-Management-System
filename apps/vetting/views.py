@@ -3,13 +3,14 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.consultants.models import Consultant
+from apps.users.constants import COUNTERSTAFF_GROUP_NAME
 
 
 @login_required
 def vetting_dashboard(request):
     """Display consultant applications for vetting staff to review."""
 
-    if not request.user.groups.filter(name="vetting").exists():
+    if not request.user.groups.filter(name=COUNTERSTAFF_GROUP_NAME).exists():
         return HttpResponseForbidden()
 
     consultants = Consultant.objects.all().order_by("full_name")

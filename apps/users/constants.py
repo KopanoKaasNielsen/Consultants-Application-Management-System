@@ -1,0 +1,1 @@
+COUNTERSTAFF_GROUP_NAME = "CounterStaff"

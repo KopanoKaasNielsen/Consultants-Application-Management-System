@@ -5,12 +5,13 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from apps.consultants.models import Consultant
+from apps.users.constants import COUNTERSTAFF_GROUP_NAME
 
 
 class VettingDashboardViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='staffuser', password='testpass')
-        vetting_group, _ = Group.objects.get_or_create(name='vetting')
+        vetting_group, _ = Group.objects.get_or_create(name=COUNTERSTAFF_GROUP_NAME)
         self.user.groups.add(vetting_group)
 
         self.client = Client()
@@ -34,6 +35,18 @@ class VettingDashboardViewTests(TestCase):
         response = self.client.get(reverse('vetting_dashboard'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Jane Doe')
+
+    def test_seeded_counterstaff_user_has_access(self):
+        counter_staff_user = User.objects.create_user(
+            username='counterstaff', password='seededpass'
+        )
+        counter_staff_user.groups.add(Group.objects.get(name=COUNTERSTAFF_GROUP_NAME))
+
+        seeded_client = Client()
+        seeded_client.login(username='counterstaff', password='seededpass')
+
+        response = seeded_client.get(reverse('vetting_dashboard'))
+        self.assertEqual(response.status_code, 200)
 
     def test_unauthorized_user_redirect(self):
         self.client.logout()
