@@ -59,6 +59,9 @@ class ApplicationDecisionDocumentTests(TestCase):
         response = self.client.post(url, {"action": "approved", "notes": "Looks good"}, follow=True)
         self.assertEqual(response.status_code, 200)
 
+        messages = list(response.context["messages"])
+        self.assertIn("Application approved.", [message.message for message in messages])
+
         consultant.refresh_from_db()
         self.assertEqual(consultant.status, "approved")
         self.assertTrue(consultant.certificate_pdf)
@@ -73,6 +76,12 @@ class ApplicationDecisionDocumentTests(TestCase):
 
         response = self.client.post(url, {"action": "rejected", "notes": "Incomplete"}, follow=True)
         self.assertEqual(response.status_code, 200)
+
+        messages = list(response.context["messages"])
+        self.assertIn(
+            "Application has been rejected.",
+            [message.message for message in messages],
+        )
 
         consultant.refresh_from_db()
         self.assertEqual(consultant.status, "rejected")
@@ -203,6 +212,12 @@ class DecisionsDashboardViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
 
+        messages = list(response.context["messages"])
+        self.assertIn(
+            "Application has been vetted.",
+            [message.message for message in messages],
+        )
+
         self.consultant_vetted.refresh_from_db()
         self.assertEqual(self.consultant_vetted.status, "vetted")
         self.assertTrue(
@@ -212,6 +227,56 @@ class DecisionsDashboardViewTests(TestCase):
                 action="vetted",
             ).exists()
         )
+
+    def test_approved_application_removed_from_dashboard(self):
+        """Approving a vetted application removes it from the decision queue."""
+
+        initial_response = self.client.get(reverse("decisions_dashboard"))
+        self.assertContains(initial_response, "Vetted Applicant")
+
+        post_response = self.client.post(
+            reverse("decisions_dashboard"),
+            data={
+                "consultant_id": self.consultant_vetted.pk,
+                "action": "approved",
+                "notes": "Ready for approval.",
+            },
+            follow=True,
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        messages = list(post_response.context["messages"])
+        self.assertIn(
+            "Application approved.",
+            [message.message for message in messages],
+        )
+
+        self.consultant_vetted.refresh_from_db()
+        self.assertEqual(self.consultant_vetted.status, "approved")
+
+        dashboard_response = self.client.get(reverse("decisions_dashboard"))
+        self.assertNotContains(dashboard_response, "Vetted Applicant")
+
+    def test_dashboard_rejection_message(self):
+        response = self.client.post(
+            reverse("decisions_dashboard"),
+            data={
+                "consultant_id": self.consultant_vetted.pk,
+                "action": "rejected",
+                "notes": "Missing documents.",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        messages = list(response.context["messages"])
+        self.assertIn(
+            "Application has been rejected.",
+            [message.message for message in messages],
+        )
+
+        self.consultant_vetted.refresh_from_db()
+        self.assertEqual(self.consultant_vetted.status, "rejected")
 
     def test_missing_action_displays_error(self):
         response = self.client.post(

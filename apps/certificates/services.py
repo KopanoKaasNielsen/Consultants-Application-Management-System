@@ -50,7 +50,9 @@ def _render_pdf(title: str, paragraphs: Iterable[str]) -> ContentFile:
     return ContentFile(buffer.read())
 
 
-def generate_approval_certificate(consultant: Consultant, generated_by: Optional[str] = None):
+def generate_approval_certificate(
+    consultant: Consultant, generated_by: Optional[str] = None
+):
     """Generate an approval certificate for the consultant and persist it."""
     if consultant.certificate_pdf:
         consultant.certificate_pdf.delete(save=False)
@@ -85,7 +87,9 @@ def generate_approval_certificate(consultant: Consultant, generated_by: Optional
     return consultant.certificate_pdf
 
 
-def generate_rejection_letter(consultant: Consultant, generated_by: Optional[str] = None):
+def generate_rejection_letter(
+    consultant: Consultant, generated_by: Optional[str] = None
+):
     """Generate a rejection letter for the consultant and persist it."""
     if consultant.rejection_letter:
         consultant.rejection_letter.delete(save=False)
