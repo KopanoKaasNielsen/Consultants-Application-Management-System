@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('apps.users.urls')),
     path('consultants/', include('apps.consultants.urls')),
+    path('certificates/', include(('apps.certificates.urls', 'certificates'), namespace='certificates')),
     path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
     path('vetting/', include('apps.vetting.urls')),
 
