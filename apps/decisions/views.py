@@ -7,6 +7,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
 
 from apps.consultants.models import Consultant
+from apps.certificates.services import (
+    generate_approval_certificate,
+    generate_rejection_letter,
+)
 from .forms import ActionForm
 from .models import ApplicationAction
 
@@ -68,8 +72,16 @@ def application_detail(request, pk):
         if action_obj.action == 'vetted':
             new_status = 'vetted'
         elif action_obj.action == 'approved':
+            generate_approval_certificate(
+                application,
+                generated_by=action_obj.actor.get_full_name() or action_obj.actor.username,
+            )
             new_status = 'approved'
         elif action_obj.action == 'rejected':
+            generate_rejection_letter(
+                application,
+                generated_by=action_obj.actor.get_full_name() or action_obj.actor.username,
+            )
             new_status = 'rejected'
         else:
             new_status = application.status  # fallback

@@ -42,6 +42,12 @@ class Consultant(models.Model):
     qualifications = models.FileField(upload_to='documents/qualifications/', blank=True, null=True)
     business_certificate = models.FileField(upload_to='documents/business_certificates/', blank=True, null=True)
 
+    # Decision documents
+    certificate_pdf = models.FileField(upload_to='documents/decision_certificates/', blank=True, null=True)
+    certificate_generated_at = models.DateTimeField(blank=True, null=True)
+    rejection_letter = models.FileField(upload_to='documents/rejection_letters/', blank=True, null=True)
+    rejection_letter_generated_at = models.DateTimeField(blank=True, null=True)
+
     # Status and metadata
     submitted_at = models.DateTimeField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')

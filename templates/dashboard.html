@@ -41,6 +41,14 @@
       <li><strong>Submitted:</strong> {{ application.submitted_at }}</li>
     </ul>
 
+    {% if application.certificate_pdf or application.rejection_letter %}
+    <h4>Decision documents</h4>
+    <ul class="document-list">
+      {% if application.certificate_pdf %}<li>Approval certificate — <a href="{{ application.certificate_pdf.url }}" target="_blank" rel="noopener">Download</a></li>{% endif %}
+      {% if application.rejection_letter %}<li>Rejection letter — <a href="{{ application.rejection_letter.url }}" target="_blank" rel="noopener">Download</a></li>{% endif %}
+    </ul>
+    {% endif %}
+
     {% if application.status == 'draft' %}
     <div class="form-actions">
       <a class="btn-secondary" href="{% url 'submit_application' %}">Edit your application</a>
