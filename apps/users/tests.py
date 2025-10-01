@@ -1,9 +1,23 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.management import call_command
-from django.test import TestCase
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from apps.decisions.views import is_reviewer
+from apps.users.constants import (
+    ADMINS_GROUP_NAME,
+    BACKOFFICE_GROUP_NAME,
+    BOARD_COMMITTEE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+    COUNTERSTAFF_GROUP_NAME,
+    DISAGENTS_GROUP_NAME,
+    SENIOR_IMMIGRATION_GROUP_NAME,
+    UserRole,
+)
+from apps.users.permissions import role_required, user_has_role
 
 
 class SeedUsersCommandTests(TestCase):
@@ -27,3 +41,83 @@ class LogoutRedirectTests(TestCase):
             reverse("login"),
             fetch_redirect_response=False,
         )
+
+
+class RolePermissionTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        call_command("seed_groups")
+        self.user_model = get_user_model()
+        self.factory = RequestFactory()
+
+    def _create_user_with_groups(self, username: str, groups):
+        user = self.user_model.objects.create_user(
+            username=username,
+            email=f"{username}@example.com",
+            password="password123",
+        )
+        group_objs = Group.objects.filter(name__in=groups)
+        user.groups.set(group_objs)
+        return user
+
+    def test_user_has_role_for_each_mapping(self):
+        consultant = self._create_user_with_groups(
+            "consultant", [CONSULTANTS_GROUP_NAME]
+        )
+        staff = self._create_user_with_groups(
+            "staffer",
+            [
+                COUNTERSTAFF_GROUP_NAME,
+                BACKOFFICE_GROUP_NAME,
+                DISAGENTS_GROUP_NAME,
+                SENIOR_IMMIGRATION_GROUP_NAME,
+                ADMINS_GROUP_NAME,
+            ],
+        )
+        board = self._create_user_with_groups(
+            "board_member", [BOARD_COMMITTEE_GROUP_NAME]
+        )
+
+        self.assertTrue(user_has_role(consultant, UserRole.CONSULTANT))
+        self.assertTrue(user_has_role(staff, UserRole.STAFF))
+        self.assertTrue(user_has_role(board, UserRole.BOARD))
+
+    def test_user_has_role_rejects_unknown_membership(self):
+        outsider = self._create_user_with_groups("outsider", [])
+        self.assertFalse(user_has_role(outsider, UserRole.STAFF))
+
+    def test_user_has_role_allows_superusers(self):
+        superuser = self.user_model.objects.create_superuser(
+            username="super", email="super@example.com", password="password123"
+        )
+        self.assertTrue(user_has_role(superuser, UserRole.BOARD))
+
+    def test_role_required_allows_authorised_user(self):
+        staff_user = self._create_user_with_groups(
+            "staff_viewer", [BACKOFFICE_GROUP_NAME]
+        )
+
+        @role_required(UserRole.STAFF)
+        def sample_view(request):
+            return HttpResponse("ok")
+
+        request = self.factory.get("/sample")
+        request.user = staff_user
+
+        response = sample_view(request)
+        self.assertEqual(response.status_code, 200)
+
+    def test_role_required_blocks_unauthorised_user(self):
+        consultant = self._create_user_with_groups(
+            "consultant_viewer", [CONSULTANTS_GROUP_NAME]
+        )
+
+        @role_required(UserRole.BOARD, UserRole.STAFF)
+        def sample_view(request):
+            return HttpResponse("ok")
+
+        request = self.factory.get("/sample")
+        request.user = consultant
+
+        with self.assertRaises(PermissionDenied):
+            sample_view(request)
