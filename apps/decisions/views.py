@@ -2,7 +2,10 @@ from django.shortcuts import render
 
 # Create your views here.
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
+from functools import wraps
+
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
 
@@ -32,7 +35,71 @@ def is_reviewer(user):
     return user.groups.filter(name__in=REVIEWER_GROUPS).exists()
 
 def reviewer_required(view_func):
-    return login_required(user_passes_test(is_reviewer)(view_func))
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not is_reviewer(request.user):
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+
+    return login_required(_wrapped)
+
+
+@reviewer_required
+def decisions_dashboard(request):
+    """Dashboard for reviewers to see vetted applications and record actions."""
+
+    consultants = (
+        Consultant.objects.filter(status__in=["vetted", "approved", "rejected"])
+        .select_related("user")
+        .order_by("full_name")
+    )
+
+    form = ActionForm()
+
+    if request.method == "POST":
+        consultant_id = request.POST.get("consultant_id")
+        form = ActionForm(request.POST)
+
+        if consultant_id and form.is_valid():
+            consultant = get_object_or_404(Consultant, pk=consultant_id)
+            action_obj = form.save(commit=False)
+            action_obj.consultant = consultant
+            action_obj.actor = request.user
+            action_obj.save()
+
+            if action_obj.action == "vetted":
+                new_status = "vetted"
+            elif action_obj.action == "approved":
+                generate_approval_certificate(
+                    consultant,
+                    generated_by=action_obj.actor.get_full_name()
+                    or action_obj.actor.username,
+                )
+                new_status = "approved"
+            elif action_obj.action == "rejected":
+                generate_rejection_letter(
+                    consultant,
+                    generated_by=action_obj.actor.get_full_name()
+                    or action_obj.actor.username,
+                )
+                new_status = "rejected"
+            else:
+                new_status = consultant.status
+
+            consultant.status = new_status
+            consultant.save(update_fields=["status"])
+
+            messages.success(
+                request,
+                f"Application {consultant.full_name} marked as {new_status}.",
+            )
+            return redirect("decisions_dashboard")
+
+    return render(
+        request,
+        "officer/decisions_dashboard.html",
+        {"consultants": consultants, "form": form},
+    )
 
 @reviewer_required
 def applications_list(request):
