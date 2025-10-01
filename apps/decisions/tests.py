@@ -212,3 +212,15 @@ class DecisionsDashboardViewTests(TestCase):
                 action="vetted",
             ).exists()
         )
+
+    def test_missing_action_displays_error(self):
+        response = self.client.post(
+            reverse("decisions_dashboard"),
+            data={
+                "consultant_id": self.consultant_vetted.pk,
+                "notes": "Needs a decision.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required.")
