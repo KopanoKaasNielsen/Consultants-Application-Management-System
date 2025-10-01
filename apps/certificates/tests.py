@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
@@ -82,3 +83,24 @@ class CertificatesDashboardViewTests(TestCase):
         self.assertContains(response, "approval.pdf")
         self.assertContains(response, "rejection.pdf")
         self.assertNotContains(response, "Other Consultant")
+
+    def test_dashboard_displays_success_message_when_certificate_available(self):
+        certificate_file = SimpleUploadedFile(
+            "approval.pdf", b"certificate", content_type="application/pdf"
+        )
+
+        consultant = self._create_consultant(
+            self.user,
+            status="approved",
+            certificate_pdf=certificate_file,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(self.dashboard_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["consultant"], consultant)
+
+        messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(messages)
+        self.assertIn("Application approved!", str(messages[0]))
