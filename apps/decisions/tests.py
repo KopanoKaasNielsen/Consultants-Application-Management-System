@@ -83,6 +83,50 @@ class ApplicationDecisionDocumentTests(TestCase):
         self.assertContains(response, "Rejection letter")
 
 
+    def test_switching_from_rejection_to_approval_removes_rejection_letter(self):
+        consultant = self.create_application()
+        url = reverse("officer_application_detail", args=[consultant.pk])
+
+        reject_response = self.client.post(url, {"action": "rejected", "notes": "Needs work"}, follow=True)
+        self.assertEqual(reject_response.status_code, 200)
+
+        consultant.refresh_from_db()
+        self.assertTrue(consultant.rejection_letter)
+        self.assertFalse(consultant.certificate_pdf)
+
+        approve_response = self.client.post(url, {"action": "approved", "notes": "Updated"}, follow=True)
+        self.assertEqual(approve_response.status_code, 200)
+
+        consultant.refresh_from_db()
+        self.assertEqual(consultant.status, "approved")
+        self.assertTrue(consultant.certificate_pdf)
+        self.assertIsNotNone(consultant.certificate_generated_at)
+        self.assertFalse(consultant.rejection_letter)
+        self.assertIsNone(consultant.rejection_letter_generated_at)
+
+
+    def test_switching_from_approval_to_rejection_removes_certificate(self):
+        consultant = self.create_application()
+        url = reverse("officer_application_detail", args=[consultant.pk])
+
+        approve_response = self.client.post(url, {"action": "approved", "notes": "Looks good"}, follow=True)
+        self.assertEqual(approve_response.status_code, 200)
+
+        consultant.refresh_from_db()
+        self.assertTrue(consultant.certificate_pdf)
+        self.assertFalse(consultant.rejection_letter)
+
+        reject_response = self.client.post(url, {"action": "rejected", "notes": "Reconsidered"}, follow=True)
+        self.assertEqual(reject_response.status_code, 200)
+
+        consultant.refresh_from_db()
+        self.assertEqual(consultant.status, "rejected")
+        self.assertTrue(consultant.rejection_letter)
+        self.assertIsNotNone(consultant.rejection_letter_generated_at)
+        self.assertFalse(consultant.certificate_pdf)
+        self.assertIsNone(consultant.certificate_generated_at)
+
+
 class DecisionsDashboardViewTests(TestCase):
     def setUp(self):
         self.UserModel = get_user_model()
