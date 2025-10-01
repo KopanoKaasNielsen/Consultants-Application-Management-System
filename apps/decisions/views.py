@@ -67,6 +67,8 @@ def decisions_dashboard(request):
             action_obj.actor = request.user
             action_obj.save()
 
+            update_fields = ["status"]
+
             if action_obj.action == "vetted":
                 new_status = "vetted"
             elif action_obj.action == "approved":
@@ -76,6 +78,14 @@ def decisions_dashboard(request):
                     or action_obj.actor.username,
                 )
                 new_status = "approved"
+                update_fields.extend(
+                    [
+                        "certificate_pdf",
+                        "certificate_generated_at",
+                        "rejection_letter",
+                        "rejection_letter_generated_at",
+                    ]
+                )
             elif action_obj.action == "rejected":
                 generate_rejection_letter(
                     consultant,
@@ -83,11 +93,19 @@ def decisions_dashboard(request):
                     or action_obj.actor.username,
                 )
                 new_status = "rejected"
+                update_fields.extend(
+                    [
+                        "rejection_letter",
+                        "rejection_letter_generated_at",
+                        "certificate_pdf",
+                        "certificate_generated_at",
+                    ]
+                )
             else:
                 new_status = consultant.status
 
             consultant.status = new_status
-            consultant.save(update_fields=["status"])
+            consultant.save(update_fields=update_fields)
 
             messages.success(
                 request,
@@ -136,6 +154,8 @@ def application_detail(request, pk):
         action_obj.save()
 
         # Update the application's status based on action
+        update_fields = ['status']
+
         if action_obj.action == 'vetted':
             new_status = 'vetted'
         elif action_obj.action == 'approved':
@@ -144,17 +164,29 @@ def application_detail(request, pk):
                 generated_by=action_obj.actor.get_full_name() or action_obj.actor.username,
             )
             new_status = 'approved'
+            update_fields.extend([
+                'certificate_pdf',
+                'certificate_generated_at',
+                'rejection_letter',
+                'rejection_letter_generated_at',
+            ])
         elif action_obj.action == 'rejected':
             generate_rejection_letter(
                 application,
                 generated_by=action_obj.actor.get_full_name() or action_obj.actor.username,
             )
             new_status = 'rejected'
+            update_fields.extend([
+                'rejection_letter',
+                'rejection_letter_generated_at',
+                'certificate_pdf',
+                'certificate_generated_at',
+            ])
         else:
             new_status = application.status  # fallback
 
         application.status = new_status
-        application.save(update_fields=['status'])
+        application.save(update_fields=update_fields)
 
         messages.success(request, f"Application {application.full_name} marked as {new_status}.")
         return redirect('officer_application_detail', pk=application.pk)
