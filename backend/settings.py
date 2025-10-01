@@ -87,7 +87,9 @@ def get_allowed_hosts() -> list[str]:
     if hosts_env:
         hosts = [host.strip() for host in hosts_env.split(",") if host.strip()]
     else:
-        hosts = ["localhost", "127.0.0.1"]
+        # Include common loopback addresses plus 0.0.0.0 so that platform
+        # health checks using that host header don't trigger a 400 response.
+        hosts = ["localhost", "127.0.0.1", "0.0.0.0"]
 
     for render_host in _get_render_hosts():
         _append_unique(hosts, render_host)
