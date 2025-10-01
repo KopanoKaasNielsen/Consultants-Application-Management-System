@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Decision documents{% endblock %}
+
+{% block content %}
+<div class="page-stack">
+  {% if messages %}
+  <section class="data-card" aria-live="polite">
+    <ul class="message-list">
+      {% for message in messages %}
+      <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="data-card">
+    <h2>Your decision documents</h2>
+    <p class="card-subtitle">Access approval certificates or rejection letters that have been generated for your application.</p>
+
+    {% if consultant %}
+    <div class="card-header">
+      <h3>{{ consultant.full_name }}</h3>
+      <span class="status-pill">{{ consultant.status|title }}</span>
+    </div>
+
+    {% if consultant.certificate_pdf or consultant.rejection_letter %}
+    <ul class="document-list">
+      {% if consultant.certificate_pdf %}
+      <li>Approval certificate — <a href="{{ consultant.certificate_pdf.url }}" target="_blank" rel="noopener">Download</a></li>
+      {% endif %}
+      {% if consultant.rejection_letter %}
+      <li>Rejection letter — <a href="{{ consultant.rejection_letter.url }}" target="_blank" rel="noopener">Download</a></li>
+      {% endif %}
+    </ul>
+    {% else %}
+    <p class="card-subtitle">Decision documents will appear here once generated.</p>
+    {% endif %}
+    {% else %}
+    <p class="card-subtitle">We could not find an application linked to your account yet.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

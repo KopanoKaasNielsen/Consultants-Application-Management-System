@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Decisions dashboard{% endblock %}
+
+{% block content %}
+<div class="page-stack">
+  {% if messages %}
+  <section class="data-card" aria-live="polite">
+    <ul class="message-list">
+      {% for message in messages %}
+      <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="data-card">
+    <div class="card-header">
+      <h2>Applications requiring decisions</h2>
+      <p class="card-subtitle">Review recently vetted submissions and record the final outcome.</p>
+    </div>
+
+    {% if consultants %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th scope="col">Consultant</th>
+            <th scope="col">Status</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for consultant in consultants %}
+          <tr>
+            <td>
+              <strong>{{ consultant.full_name }}</strong><br>
+              <span class="muted">{{ consultant.business_name }}</span>
+            </td>
+            <td>{{ consultant.get_status_display|default:consultant.status|title }}</td>
+            <td>
+              <form method="post" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="consultant_id" value="{{ consultant.pk }}">
+                {{ form.action.as_widget }}
+                {{ form.notes.as_widget }}
+                <button type="submit" class="btn-primary">Record</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="card-subtitle">There are currently no vetted applications awaiting a decision.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
