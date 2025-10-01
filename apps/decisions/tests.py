@@ -5,6 +5,7 @@ from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -68,6 +69,14 @@ class ApplicationDecisionDocumentTests(TestCase):
         messages = list(response.context["messages"])
         self.assertIn("Application approved.", [message.message for message in messages])
 
+        self.assertEqual(len(mail.outbox), 1)
+        approval_email = mail.outbox[0]
+        self.assertEqual(
+            approval_email.subject,
+            "Your consultant application has been approved",
+        )
+        self.assertEqual(approval_email.to, [consultant.email])
+
         consultant.refresh_from_db()
         self.assertEqual(consultant.status, "approved")
         self.assertTrue(consultant.certificate_pdf)
@@ -88,6 +97,14 @@ class ApplicationDecisionDocumentTests(TestCase):
             "Application has been rejected.",
             [message.message for message in messages],
         )
+
+        self.assertEqual(len(mail.outbox), 1)
+        rejection_email = mail.outbox[0]
+        self.assertEqual(
+            rejection_email.subject,
+            "Update on your consultant application",
+        )
+        self.assertEqual(rejection_email.to, [consultant.email])
 
         consultant.refresh_from_db()
         self.assertEqual(consultant.status, "rejected")
@@ -228,6 +245,14 @@ class DecisionsDashboardViewTests(TestCase):
             [message.message for message in messages],
         )
 
+        self.assertEqual(len(mail.outbox), 1)
+        approval_email = mail.outbox[0]
+        self.assertEqual(
+            approval_email.subject,
+            "Your consultant application has been approved",
+        )
+        self.assertEqual(approval_email.to, [self.consultant_vetted.email])
+
         # The application should now be approved and no longer listed
         self.consultant_vetted.refresh_from_db()
         self.assertEqual(self.consultant_vetted.status, "approved")
@@ -252,6 +277,14 @@ class DecisionsDashboardViewTests(TestCase):
             "Application has been rejected.",
             [message.message for message in messages],
         )
+
+        self.assertEqual(len(mail.outbox), 1)
+        rejection_email = mail.outbox[0]
+        self.assertEqual(
+            rejection_email.subject,
+            "Update on your consultant application",
+        )
+        self.assertEqual(rejection_email.to, [self.consultant_vetted.email])
 
         self.consultant_vetted.refresh_from_db()
         self.assertEqual(self.consultant_vetted.status, "rejected")
