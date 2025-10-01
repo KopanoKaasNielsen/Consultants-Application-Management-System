@@ -14,6 +14,7 @@ from apps.certificates.services import (
     generate_approval_certificate,
     generate_rejection_letter,
 )
+from .emails import send_decision_email
 from .forms import ActionForm
 from .models import ApplicationAction
 from apps.users.constants import UserRole as Roles
@@ -88,6 +89,9 @@ def decisions_dashboard(request):
             consultant.status = new_status
             consultant.save(update_fields=["status"])
 
+            if action in {"approved", "rejected"}:
+                send_decision_email(consultant, action)
+
             messages.success(
                 request,
                 ACTION_MESSAGES.get(action, "Application updated."),
@@ -156,6 +160,9 @@ def application_detail(request, pk):
 
         application.status = new_status
         application.save(update_fields=['status'])
+
+        if action in {"approved", "rejected"}:
+            send_decision_email(application, action)
 
         messages.success(request, ACTION_MESSAGES.get(action, "Application updated."))
         return redirect('officer_application_detail', pk=application.pk)
