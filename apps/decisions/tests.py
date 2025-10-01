@@ -7,10 +7,15 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.consultants.models import Consultant
 from .models import ApplicationAction
-from apps.users.constants import BACKOFFICE_GROUP_NAME, BOARD_COMMITTEE_GROUP_NAME
+from apps.users.constants import (
+    BACKOFFICE_GROUP_NAME,
+    BOARD_COMMITTEE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+)
 
 
 class ApplicationDecisionDocumentTests(TestCase):
@@ -250,3 +255,70 @@ class DecisionsDashboardViewTests(TestCase):
 
         self.consultant_vetted.refresh_from_db()
         self.assertEqual(self.consultant_vetted.status, "rejected")
+
+
+class OfficerApplicationsListViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.UserModel = get_user_model()
+        cls.reviewer_group, _ = Group.objects.get_or_create(name=BACKOFFICE_GROUP_NAME)
+        cls.consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+
+        cls.consultants_by_status = {}
+        for index, status in enumerate(["draft", "submitted", "vetted", "approved", "rejected"], start=1):
+            user = cls.UserModel.objects.create_user(
+                username=f"consultant_{status}",
+                email=f"{status}@example.com",
+                password="pass1234",
+            )
+            cls.consultants_by_status[status] = Consultant.objects.create(
+                user=user,
+                full_name=f"Consultant {status.title()}",
+                id_number=f"ID{index:04d}",
+                dob=date(1990, 1, index if index <= 28 else 28),
+                gender="M" if index % 2 else "F",
+                nationality="Testland",
+                email=f"{status}@example.com",
+                phone_number=f"1234567{index:02d}",
+                business_name=f"Business {status.title()}",
+                registration_number=f"REG-{index:03d}",
+                status=status,
+                submitted_at=timezone.now(),
+            )
+
+    def setUp(self):
+        self.reviewer = self.UserModel.objects.create_user(
+            username="staff_reviewer",
+            email="staff@example.com",
+            password="pass1234",
+        )
+        self.reviewer.groups.add(self.reviewer_group)
+
+    def test_reviewer_sees_default_filtered_statuses(self):
+        self.client.login(username="staff_reviewer", password="pass1234")
+
+        response = self.client.get(reverse("officer_applications_list"))
+
+        self.assertEqual(response.status_code, 200)
+
+        applications = list(response.context["applications"])
+        returned_statuses = {application.status for application in applications}
+        self.assertEqual(returned_statuses, {"submitted", "vetted"})
+        self.assertEqual(response.context["active_status"], "submitted,vetted")
+
+        disallowed_statuses = {"draft", "approved", "rejected"}
+        for status in disallowed_statuses:
+            self.assertNotIn(self.consultants_by_status[status], applications)
+
+    def test_non_reviewer_gets_403(self):
+        consultant_user = self.UserModel.objects.create_user(
+            username="non_reviewer",
+            email="nonreviewer@example.com",
+            password="pass1234",
+        )
+        consultant_user.groups.add(self.consultant_group)
+
+        self.client.login(username="non_reviewer", password="pass1234")
+
+        response = self.client.get(reverse("officer_applications_list"))
+        self.assertEqual(response.status_code, 403)
