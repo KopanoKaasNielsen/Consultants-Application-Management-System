@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Vetting Dashboard{% endblock %}
+
+{% block content %}
+<h1>Vetting Dashboard</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for consultant in consultants %}
+        <tr>
+            <td>{{ consultant.full_name }}</td>
+            <td>{{ consultant.get_status_display }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="2">No consultants found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
