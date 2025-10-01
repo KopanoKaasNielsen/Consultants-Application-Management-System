@@ -43,6 +43,14 @@
       {% if application.qualifications %}<li>Qualifications — <a href="{{ application.qualifications.url }}" target="_blank" rel="noopener">View</a></li>{% endif %}
       {% if application.business_certificate %}<li>Business certificate — <a href="{{ application.business_certificate.url }}" target="_blank" rel="noopener">View</a></li>{% endif %}
     </ul>
+
+    {% if application.certificate_pdf or application.rejection_letter %}
+    <h3>Decision documents</h3>
+    <ul class="document-list">
+      {% if application.certificate_pdf %}<li>Approval certificate — <a href="{{ application.certificate_pdf.url }}" target="_blank" rel="noopener">Download</a></li>{% endif %}
+      {% if application.rejection_letter %}<li>Rejection letter — <a href="{{ application.rejection_letter.url }}" target="_blank" rel="noopener">Download</a></li>{% endif %}
+    </ul>
+    {% endif %}
   </section>
 
   <section class="form-card wide">
