@@ -46,13 +46,53 @@ def get_secret_key() -> str:
 SECRET_KEY = get_secret_key()
 
 
+def _append_unique(items: list[str], value: str) -> None:
+    """Append a value to a list only if it does not already exist."""
+
+    if value and value not in items:
+        items.append(value)
+
+
+def _clean_hostname(hostname: str) -> str:
+    """Normalise hostnames by removing protocols and trailing slashes."""
+
+    cleaned = hostname.strip().removeprefix("https://").removeprefix("http://")
+    return cleaned.rstrip("/")
+
+
+def _get_render_hosts() -> list[str]:
+    """Collect Render deployment hostnames when available."""
+
+    render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+    if not render_host:
+        return []
+
+    cleaned_host = _clean_hostname(render_host)
+    if not cleaned_host:
+        return []
+
+    hosts = [cleaned_host]
+
+    bare_host = cleaned_host.split(":", maxsplit=1)[0]
+    if bare_host and bare_host != cleaned_host:
+        hosts.append(bare_host)
+
+    return hosts
+
+
 def get_allowed_hosts() -> list[str]:
     """Build the ALLOWED_HOSTS list from the environment."""
 
-    hosts = os.getenv("DJANGO_ALLOWED_HOSTS")
-    if not hosts:
-        return ["localhost", "127.0.0.1"]
-    return [host.strip() for host in hosts.split(",") if host.strip()]
+    hosts_env = os.getenv("DJANGO_ALLOWED_HOSTS")
+    if hosts_env:
+        hosts = [host.strip() for host in hosts_env.split(",") if host.strip()]
+    else:
+        hosts = ["localhost", "127.0.0.1"]
+
+    for render_host in _get_render_hosts():
+        _append_unique(hosts, render_host)
+
+    return hosts
 
 
 ALLOWED_HOSTS = get_allowed_hosts()
@@ -63,14 +103,22 @@ def get_csrf_trusted_origins() -> list[str]:
 
     origins_env = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS")
     if origins_env:
-        return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+        origins = [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+    else:
+        origins = []
 
-    origins: list[str] = []
-    for host in ALLOWED_HOSTS:
-        if host in {"localhost", "127.0.0.1"}:
-            continue
-        scheme = "https" if not host.startswith("http") else ""
-        origins.append(f"{scheme}://{host}" if scheme else host)
+    if not origins_env:
+        for host in ALLOWED_HOSTS:
+            if host in {"localhost", "127.0.0.1"}:
+                continue
+            scheme = "https" if not host.startswith("http") else ""
+            origins.append(f"{scheme}://{host}" if scheme else host)
+
+    for render_host in _get_render_hosts():
+        scheme = "https" if not render_host.startswith("http") else ""
+        origin = f"{scheme}://{render_host}" if scheme else render_host
+        _append_unique(origins, origin)
+
     return origins
 
 
