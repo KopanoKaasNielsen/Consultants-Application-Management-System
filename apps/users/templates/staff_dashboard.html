@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Dashboard{% endblock %}
+
+{% block content %}
+  <h2>Welcome to the Staff Dashboard</h2>
+
+  <p>Hello <strong>{{ user.username }}</strong>,</p>
+  <p>This section is accessible only to staff and board members.</p>
+
+  <div style="margin-top: 20px;">
+      <ul>
+          <li><a href="{% url 'dashboard' %}">Consultant Dashboard</a></li>
+          <li><a href="{% url 'admin:index' %}">Admin Site</a></li>
+      </ul>
+  </div>
+{% endblock %}
