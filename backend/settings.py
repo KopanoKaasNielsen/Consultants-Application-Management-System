@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from django.urls import reverse_lazy
 
 import dj_database_url
 
@@ -106,7 +107,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'backend.urls'
 LOGIN_REDIRECT_URL = '/dashboard/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
+LOGOUT_REDIRECT_URL = reverse_lazy('login')
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
