@@ -168,3 +168,29 @@ class DecisionsDashboardViewTests(TestCase):
                 action="vetted",
             ).exists()
         )
+
+    def test_approved_application_removed_from_dashboard(self):
+        """Approving a vetted application removes it from the decision queue."""
+
+        # Ensure the vetted application is initially visible on the dashboard
+        initial_response = self.client.get(reverse("decisions_dashboard"))
+        self.assertContains(initial_response, "Vetted Applicant")
+
+        # Approve the application via the dashboard action form
+        post_response = self.client.post(
+            reverse("decisions_dashboard"),
+            data={
+                "consultant_id": self.consultant_vetted.pk,
+                "action": "approved",
+                "notes": "Ready for approval.",
+            },
+            follow=True,
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # The application should now be approved and no longer listed
+        self.consultant_vetted.refresh_from_db()
+        self.assertEqual(self.consultant_vetted.status, "approved")
+
+        dashboard_response = self.client.get(reverse("decisions_dashboard"))
+        self.assertNotContains(dashboard_response, "Vetted Applicant")
