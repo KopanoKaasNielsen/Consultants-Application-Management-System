@@ -17,6 +17,12 @@ from apps.certificates.services import (
 from .forms import ActionForm
 from .models import ApplicationAction
 
+ACTION_MESSAGES = {
+    "vetted": "Application has been vetted.",
+    "approved": "Application approved.",
+    "rejected": "Application has been rejected.",
+}
+
 REVIEWER_GROUPS = {
     'BackOffice',
     'DISAgents',
@@ -67,16 +73,18 @@ def decisions_dashboard(request):
             action_obj.actor = request.user
             action_obj.save()
 
-            if action_obj.action == "vetted":
+            action = action_obj.action
+
+            if action == "vetted":
                 new_status = "vetted"
-            elif action_obj.action == "approved":
+            elif action == "approved":
                 generate_approval_certificate(
                     consultant,
                     generated_by=action_obj.actor.get_full_name()
                     or action_obj.actor.username,
                 )
                 new_status = "approved"
-            elif action_obj.action == "rejected":
+            elif action == "rejected":
                 generate_rejection_letter(
                     consultant,
                     generated_by=action_obj.actor.get_full_name()
@@ -91,7 +99,7 @@ def decisions_dashboard(request):
 
             messages.success(
                 request,
-                f"Application {consultant.full_name} marked as {new_status}.",
+                ACTION_MESSAGES.get(action, "Application updated."),
             )
             return redirect("decisions_dashboard")
 
@@ -136,15 +144,17 @@ def application_detail(request, pk):
         action_obj.save()
 
         # Update the application's status based on action
-        if action_obj.action == 'vetted':
+        action = action_obj.action
+
+        if action == 'vetted':
             new_status = 'vetted'
-        elif action_obj.action == 'approved':
+        elif action == 'approved':
             generate_approval_certificate(
                 application,
                 generated_by=action_obj.actor.get_full_name() or action_obj.actor.username,
             )
             new_status = 'approved'
-        elif action_obj.action == 'rejected':
+        elif action == 'rejected':
             generate_rejection_letter(
                 application,
                 generated_by=action_obj.actor.get_full_name() or action_obj.actor.username,
@@ -156,7 +166,7 @@ def application_detail(request, pk):
         application.status = new_status
         application.save(update_fields=['status'])
 
-        messages.success(request, f"Application {application.full_name} marked as {new_status}.")
+        messages.success(request, ACTION_MESSAGES.get(action, "Application updated."))
         return redirect('officer_application_detail', pk=application.pk)
 
     # recent actions for audit trail
