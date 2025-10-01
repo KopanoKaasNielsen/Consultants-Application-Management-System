@@ -49,7 +49,7 @@ def decisions_dashboard(request):
     """Dashboard for reviewers to see vetted applications and record actions."""
 
     consultants = (
-        Consultant.objects.filter(status__in=["vetted", "approved", "rejected"])
+        Consultant.objects.filter(status="vetted")
         .select_related("user")
         .order_by("full_name")
     )
