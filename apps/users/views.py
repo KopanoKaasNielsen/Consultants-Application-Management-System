@@ -1,17 +1,22 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 
 from apps.consultants.models import Consultant
-from apps.users.constants import UserRole as Roles
+from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
 from apps.users.permissions import user_has_role
 
 def register(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
         if form.is_valid():
-            form.save()
+            user = form.save()
+            consultant_group, _ = Group.objects.get_or_create(
+                name=CONSULTANTS_GROUP_NAME
+            )
+            user.groups.add(consultant_group)
             return redirect('login')
     else:
         form = UserCreationForm()
