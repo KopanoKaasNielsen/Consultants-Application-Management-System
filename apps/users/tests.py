@@ -1,3 +1,4 @@
+import os
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -5,7 +6,7 @@ from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from apps.decisions.views import is_reviewer
@@ -20,6 +21,7 @@ from apps.users.constants import (
     UserRole,
 )
 from apps.users.permissions import role_required, user_has_role
+from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
 
 
@@ -199,3 +201,11 @@ class RolePermissionTests(TestCase):
 
         with self.assertRaises(PermissionDenied):
             sample_view(request)
+
+
+class MonitoringInitTests(SimpleTestCase):
+    def test_init_sentry_no_dsn_returns_none(self):
+        """Sentry initialisation should be a no-op when no DSN is configured."""
+
+        with patch.dict(os.environ, {"SENTRY_DSN": ""}, clear=False):
+            self.assertIsNone(settings_base.init_sentry())

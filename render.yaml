@@ -16,6 +16,12 @@ services:
         fromDatabase:
           name: consultant-db
           property: connectionString
+      - key: SENTRY_DSN
+        value: ""
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.2"
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.0"
 
 databases:
   - name: consultant-db
