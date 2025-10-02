@@ -42,8 +42,45 @@
               <form method="post" class="inline-form">
                 {% csrf_token %}
                 <input type="hidden" name="consultant_id" value="{{ consultant.pk }}">
-                {{ form.action.as_widget }}
-                {{ form.notes.as_widget }}
+                {% if form.non_field_errors %}
+                <div class="form-errors" role="alert">
+                  {{ form.non_field_errors }}
+                </div>
+                {% endif %}
+
+                {% with row_index=forloop.counter|stringformat:"s" %}
+                {% with action_field=form.action %}
+                {% with action_error_id="action-error-"|add:row_index %}
+                <div class="form-field{% if action_field.errors %} has-error{% endif %}" role="group" aria-labelledby="{{ action_field.id_for_label }}-label"{% if action_field.errors %} aria-describedby="{{ action_error_id }}"{% endif %}>
+                  <label id="{{ action_field.id_for_label }}-label" for="{{ action_field.id_for_label }}">{{ action_field.label }}</label>
+                  {{ action_field }}
+                  {% if action_field.errors %}
+                  <div class="field-errors" id="{{ action_error_id }}" role="alert" aria-live="assertive">
+                    {% for error in action_field.errors %}
+                    <p>{{ error }}</p>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
+                {% endwith %}
+                {% endwith %}
+
+                {% with notes_field=form.notes %}
+                {% with notes_error_id="notes-error-"|add:row_index %}
+                <div class="form-field{% if notes_field.errors %} has-error{% endif %}" role="group" aria-labelledby="{{ notes_field.id_for_label }}-label"{% if notes_field.errors %} aria-describedby="{{ notes_error_id }}"{% endif %}>
+                  <label id="{{ notes_field.id_for_label }}-label" for="{{ notes_field.id_for_label }}">{{ notes_field.label }}</label>
+                  {{ notes_field }}
+                  {% if notes_field.errors %}
+                  <div class="field-errors" id="{{ notes_error_id }}" role="alert" aria-live="assertive">
+                    {% for error in notes_field.errors %}
+                    <p>{{ error }}</p>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
+                {% endwith %}
+                {% endwith %}
+                {% endwith %}
                 <button type="submit" class="btn-primary">Record</button>
               </form>
             </td>
