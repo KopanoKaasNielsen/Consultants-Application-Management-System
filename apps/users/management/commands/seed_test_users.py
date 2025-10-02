@@ -1,5 +1,6 @@
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import Group, User
 
 GROUPS = {
     'officer1': 'BackOffice',
@@ -16,12 +17,14 @@ class Command(BaseCommand):
     help = "Seed test users with roles for each reviewer group"
 
     def handle(self, *args, **kwargs):
+        user_model = get_user_model()
+
         for username, groupname in GROUPS.items():
             # Get or create the group
             group, _ = Group.objects.get_or_create(name=groupname)
 
             # Get or create the user
-            user, created = User.objects.get_or_create(username=username)
+            user, created = user_model.objects.get_or_create(username=username)
             user.set_password(PASSWORD)
             user.email = f"{username}@example.com"
             user.is_active = True

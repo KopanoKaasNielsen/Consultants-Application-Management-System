@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
@@ -18,6 +20,7 @@ from apps.users.constants import (
     UserRole,
 )
 from apps.users.permissions import role_required, user_has_role
+from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
 
 
 class RegistrationTests(TestCase):
@@ -56,6 +59,54 @@ class SeedUsersCommandTests(TestCase):
 
         reviewer = get_user_model().objects.get(username="officer1")
         self.assertTrue(is_reviewer(reviewer))
+
+
+class SeedTestUsersCommandTests(TestCase):
+    @patch("apps.users.management.commands.seed_test_users.get_user_model")
+    def test_command_uses_configured_user_model(self, mock_get_user_model):
+        created_users = {}
+
+        class DummyUser:
+            def __init__(self, username):
+                self.username = username
+                self.groups = MagicMock()
+                self.is_staff = False
+                self.is_superuser = False
+                self.email = None
+                self.password = None
+
+            def set_password(self, password):
+                self.password = password
+
+            def save(self):  # pragma: no cover - mock user does not persist
+                pass
+
+        def fake_get_or_create(**kwargs):
+            username = kwargs["username"]
+            user = DummyUser(username)
+            created_users[username] = user
+            return user, True
+
+        mock_manager = MagicMock()
+        mock_manager.get_or_create.side_effect = fake_get_or_create
+        mock_user_model = MagicMock()
+        mock_user_model.objects = mock_manager
+        mock_get_user_model.return_value = mock_user_model
+
+        call_command("seed_test_users")
+
+        mock_get_user_model.assert_called_once_with()
+        self.assertEqual(mock_manager.get_or_create.call_count, len(TEST_USER_GROUPS))
+        self.assertEqual(set(created_users), set(TEST_USER_GROUPS))
+
+        for username, user in created_users.items():
+            self.assertEqual(user.password, TEST_USER_PASSWORD)
+            self.assertTrue(user.is_staff)
+            if username == "admin1":
+                self.assertTrue(user.is_superuser)
+            else:
+                self.assertFalse(user.is_superuser)
+            user.groups.set.assert_called_once()
 
 
 class LogoutRedirectTests(TestCase):
