@@ -12,7 +12,7 @@ from django.urls import reverse_lazy
 import dj_database_url
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 def get_env_bool(name: str, default: bool = False) -> bool:
