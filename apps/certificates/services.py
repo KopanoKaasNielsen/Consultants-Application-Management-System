@@ -50,10 +50,17 @@ def _render_pdf(title: str, paragraphs: Iterable[str]) -> ContentFile:
     return ContentFile(buffer.read())
 
 
-def generate_approval_certificate(consultant: Consultant, generated_by: Optional[str] = None):
+def generate_approval_certificate(
+    consultant: Consultant, generated_by: Optional[str] = None
+):
     """Generate an approval certificate for the consultant and persist it."""
     if consultant.certificate_pdf:
         consultant.certificate_pdf.delete(save=False)
+
+    if consultant.rejection_letter:
+        consultant.rejection_letter.delete(save=False)
+    consultant.rejection_letter = None
+    consultant.rejection_letter_generated_at = None
 
     issued_date = timezone.localdate().strftime("%d %B %Y")
     title = "Consultant Approval Certificate"
@@ -69,14 +76,28 @@ def generate_approval_certificate(consultant: Consultant, generated_by: Optional
     filename = f"approval-certificate-{consultant.pk}.pdf"
     consultant.certificate_pdf.save(filename, pdf_content, save=False)
     consultant.certificate_generated_at = timezone.now()
-    consultant.save(update_fields=["certificate_pdf", "certificate_generated_at"])
+    consultant.save(
+        update_fields=[
+            "certificate_pdf",
+            "certificate_generated_at",
+            "rejection_letter",
+            "rejection_letter_generated_at",
+        ]
+    )
     return consultant.certificate_pdf
 
 
-def generate_rejection_letter(consultant: Consultant, generated_by: Optional[str] = None):
+def generate_rejection_letter(
+    consultant: Consultant, generated_by: Optional[str] = None
+):
     """Generate a rejection letter for the consultant and persist it."""
     if consultant.rejection_letter:
         consultant.rejection_letter.delete(save=False)
+
+    if consultant.certificate_pdf:
+        consultant.certificate_pdf.delete(save=False)
+    consultant.certificate_pdf = None
+    consultant.certificate_generated_at = None
 
     issued_date = timezone.localdate().strftime("%d %B %Y")
     title = "Consultant Application Decision"
@@ -93,5 +114,12 @@ def generate_rejection_letter(consultant: Consultant, generated_by: Optional[str
     filename = f"rejection-letter-{consultant.pk}.pdf"
     consultant.rejection_letter.save(filename, pdf_content, save=False)
     consultant.rejection_letter_generated_at = timezone.now()
-    consultant.save(update_fields=["rejection_letter", "rejection_letter_generated_at"])
+    consultant.save(
+        update_fields=[
+            "rejection_letter",
+            "rejection_letter_generated_at",
+            "certificate_pdf",
+            "certificate_generated_at",
+        ]
+    )
     return consultant.rejection_letter

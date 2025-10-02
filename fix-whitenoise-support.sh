@@ -7,7 +7,7 @@ git checkout -b fix/whitenoise-support
 grep -qxF "whitenoise==6.6.0" requirements.txt || echo "whitenoise==6.6.0" >> requirements.txt
 
 # Step 3: Inject Whitenoise middleware into settings.py
-SETTINGS="backend/settings.py"
+SETTINGS="backend/settings/base.py"
 
 # Add middleware if not present
 grep -q "whitenoise.middleware.WhiteNoiseMiddleware" $SETTINGS || \

@@ -1,9 +1,10 @@
-"""Base Django settings for the backend project."""
+"""Shared Django settings for the backend project."""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Iterable, Sequence
 
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse_lazy
@@ -11,11 +12,11 @@ from django.urls import reverse_lazy
 import dj_database_url
 
 
-def get_env_bool(name: str, default: bool = False) -> bool:
-    """Return a boolean for an environment variable.
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-    Accepts common truthy values ("true", "1", "yes").
-    """
+
+def get_env_bool(name: str, default: bool = False) -> bool:
+    """Return a boolean for an environment variable."""
 
     value = os.getenv(name)
     if value is None:
@@ -23,27 +24,18 @@ def get_env_bool(name: str, default: bool = False) -> bool:
     return value.lower() in {"true", "1", "yes"}
 
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-DEBUG = get_env_bool("DJANGO_DEBUG", default=True)
-
-
-def get_secret_key() -> str:
+def get_secret_key(debug: bool) -> str:
     """Fetch the Django secret key from the environment."""
 
     secret_key = os.getenv("DJANGO_SECRET_KEY") or os.getenv("SECRET_KEY")
     if secret_key:
         return secret_key
-    if DEBUG:
+    if debug:
         # Provide a predictable key only for local development to avoid crashes
         return "django-insecure-development-key"
-    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production environments.")
-
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = get_secret_key()
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY must be set in production environments."
+    )
 
 
 def _append_unique(items: list[str], value: str) -> None:
@@ -80,16 +72,14 @@ def _get_render_hosts() -> list[str]:
     return hosts
 
 
-def get_allowed_hosts() -> list[str]:
+def build_allowed_hosts(default_hosts: Sequence[str] | None = None) -> list[str]:
     """Build the ALLOWED_HOSTS list from the environment."""
 
     hosts_env = os.getenv("DJANGO_ALLOWED_HOSTS")
     if hosts_env:
         hosts = [host.strip() for host in hosts_env.split(",") if host.strip()]
     else:
-        # Include common loopback addresses plus 0.0.0.0 so that platform
-        # health checks using that host header don't trigger a 400 response.
-        hosts = ["localhost", "127.0.0.1", "0.0.0.0"]
+        hosts = list(default_hosts or [])
 
     for render_host in _get_render_hosts():
         _append_unique(hosts, render_host)
@@ -97,10 +87,7 @@ def get_allowed_hosts() -> list[str]:
     return hosts
 
 
-ALLOWED_HOSTS = get_allowed_hosts()
-
-
-def get_csrf_trusted_origins() -> list[str]:
+def build_csrf_trusted_origins(allowed_hosts: Iterable[str]) -> list[str]:
     """Return CSRF trusted origins matching allowed hosts where possible."""
 
     origins_env = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS")
@@ -110,7 +97,7 @@ def get_csrf_trusted_origins() -> list[str]:
         origins = []
 
     if not origins_env:
-        for host in ALLOWED_HOSTS:
+        for host in allowed_hosts:
             if host in {"localhost", "127.0.0.1"}:
                 continue
             scheme = "https" if not host.startswith("http") else ""
@@ -123,12 +110,6 @@ def get_csrf_trusted_origins() -> list[str]:
 
     return origins
 
-
-CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins()
-
-
-
-# Application definition
 
 INSTALLED_APPS = [
     'apps.consultants',
@@ -175,18 +156,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
 DATABASES = {
     'default': dj_database_url.config(default='sqlite:///db.sqlite3', conn_max_age=600)
 }
-
-
-
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -203,40 +175,16 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
-
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# Static & Media Configuration
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-
-if os.getenv('DJANGO_ENV') == 'production':
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_DIRS: list[str] = []
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-# Simplified static file serving.
-# https://warehouse.python.org/project/whitenoise/
-
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
