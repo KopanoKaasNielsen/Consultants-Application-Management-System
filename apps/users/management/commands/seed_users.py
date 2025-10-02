@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db.utils import OperationalError
 
-from apps.decisions.views import REVIEWER_GROUPS
+from apps.users.constants import UserRole, groups_for_roles
 
 PASSWORD = "Testpass123!"
 
@@ -44,7 +44,7 @@ class Command(BaseCommand):
                 )
             )
 
-        reviewer_groups = REVIEWER_GROUPS
+        reviewer_groups = groups_for_roles((UserRole.BOARD, UserRole.STAFF))
         user_model = get_user_model()
 
         for username, password, group_names in USERS:

@@ -1,13 +1,15 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
+from .emails import send_submission_confirmation_email
 from .forms import ConsultantForm
 from .models import Consultant
+from apps.users.constants import UserRole as Roles
+from apps.users.permissions import role_required
 
 
-@login_required
+@role_required(Roles.CONSULTANT)
 def submit_application(request):
     application = Consultant.objects.filter(user=request.user).first()
 
@@ -27,6 +29,9 @@ def submit_application(request):
             consultant.status = 'submitted' if is_submission else 'draft'
             consultant.submitted_at = timezone.now() if is_submission else None
             consultant.save()
+
+            if is_submission:
+                send_submission_confirmation_email(consultant)
 
             message = (
                 "Application submitted successfully."

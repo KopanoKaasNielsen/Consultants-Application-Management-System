@@ -2,6 +2,8 @@ import io
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
@@ -10,6 +12,10 @@ from PIL import Image
 
 from .forms import ConsultantForm
 from .models import Consultant
+from apps.users.constants import (
+    BACKOFFICE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+)
 
 
 def create_image_file(name='photo.png'):
@@ -103,6 +109,8 @@ class SubmitApplicationViewTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
         self.user = user_model.objects.create_user('applicant', password='password123')
+        consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        self.user.groups.add(consultant_group)
         self.client.force_login(self.user)
         self.base_payload = {
             'full_name': 'Applicant User',
@@ -129,6 +137,7 @@ class SubmitApplicationViewTests(TestCase):
         application = Consultant.objects.get(user=self.user)
         self.assertEqual(application.status, 'draft')
         self.assertIsNone(application.submitted_at)
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_submit_sets_submitted_timestamp(self):
         # Start with a draft so we can follow the normal flow
@@ -150,3 +159,47 @@ class SubmitApplicationViewTests(TestCase):
         self.assertEqual(application.status, 'submitted')
         self.assertIsNotNone(application.submitted_at)
         self.assertLess(timezone.now() - application.submitted_at, timedelta(seconds=5))
+        self.assertEqual(len(mail.outbox), 1)
+        confirmation_email = mail.outbox[0]
+        self.assertEqual(confirmation_email.to, ['applicant@example.com'])
+        self.assertIn('Applicant User', confirmation_email.body)
+
+    def test_draft_does_not_send_email(self):
+        response = self._submit('draft')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_submission_sends_confirmation_email(self):
+        # Create a draft first to follow the expected flow
+        self._submit('draft')
+
+        files = {
+            'photo': create_image_file(),
+            'id_document': create_pdf_file(name='id.pdf'),
+            'cv': create_pdf_file(name='cv.pdf'),
+            'police_clearance': create_pdf_file(name='police.pdf'),
+            'qualifications': create_pdf_file(name='qualifications.pdf'),
+            'business_certificate': create_pdf_file(name='certificate.pdf'),
+        }
+
+        response = self._submit('submit', extra_files=files)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+
+        confirmation_email = mail.outbox[0]
+        self.assertEqual(confirmation_email.subject, 'Consultant Application Submitted')
+        self.assertEqual(confirmation_email.to, ['applicant@example.com'])
+        self.assertIn('Applicant User', confirmation_email.body)
+        self.assertIn('Applicant Biz', confirmation_email.body)
+
+    def test_non_consultant_user_receives_403(self):
+        staff_user = get_user_model().objects.create_user(
+            'staffer', password='password123'
+        )
+        staff_group, _ = Group.objects.get_or_create(name=BACKOFFICE_GROUP_NAME)
+        staff_user.groups.add(staff_group)
+
+        self.client.force_login(staff_user)
+
+        response = self.client.get(reverse('submit_application'))
+        self.assertEqual(response.status_code, 403)

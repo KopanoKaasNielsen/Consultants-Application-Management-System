@@ -11,9 +11,11 @@ from apps.certificates.services import (
     generate_rejection_letter,
 )
 from apps.consultants.models import Consultant
-
+from .emails import send_decision_email
 from .forms import ActionForm
-
+from .models import ApplicationAction
+from apps.users.constants import UserRole as Roles
+from apps.users.permissions import user_has_role
 
 ACTION_MESSAGES = {
     "vetted": "Application has been vetted.",
@@ -21,22 +23,10 @@ ACTION_MESSAGES = {
     "rejected": "Application has been rejected.",
 }
 
-REVIEWER_GROUPS = {
-    "BackOffice",
-    "DISAgents",
-    "BoardCommittee",
-    "SeniorImmigration",
-    "Admins",
-}
+REVIEWER_ROLES = (Roles.BOARD, Roles.STAFF)
 
 def is_reviewer(user):
-    if not user.is_authenticated:
-        return False
-    # superusers always allowed
-    if user.is_superuser:
-        return True
-    # group membership check
-    return user.groups.filter(name__in=REVIEWER_GROUPS).exists()
+    return any(user_has_role(user, role) for role in REVIEWER_ROLES)
 
 def reviewer_required(view_func):
     @wraps(view_func)
@@ -112,6 +102,9 @@ def decisions_dashboard(request):
             consultant.status = new_status
             consultant.save(update_fields=update_fields)
 
+            if action in {"approved", "rejected"}:
+                send_decision_email(consultant, action)
+
             messages.success(
                 request,
                 ACTION_MESSAGES.get(action, "Application updated."),
@@ -123,6 +116,7 @@ def decisions_dashboard(request):
         "officer/decisions_dashboard.html",
         {"consultants": consultants, "form": form},
     )
+
 
 @reviewer_required
 def applications_list(request):
@@ -142,6 +136,7 @@ def applications_list(request):
         'applications': qs,
         'active_status': status or 'submitted,vetted',
     })
+
 
 @reviewer_required
 @transaction.atomic
@@ -199,6 +194,9 @@ def application_detail(request, pk):
 
         application.status = new_status
         application.save(update_fields=update_fields)
+
+        if action in {"approved", "rejected"}:
+            send_decision_email(application, action)
 
         messages.success(
             request, ACTION_MESSAGES.get(action, "Application updated.")

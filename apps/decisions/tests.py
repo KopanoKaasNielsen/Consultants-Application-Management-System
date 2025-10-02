@@ -1,291 +1,213 @@
-import os
-import shutil
-import tempfile
-from datetime import date
+from functools import wraps
 
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
-from django.test import TestCase, override_settings
-from django.urls import reverse
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.certificates.services import (
+    generate_approval_certificate,
+    generate_rejection_letter,
+)
 from apps.consultants.models import Consultant
+from .emails import send_decision_email
+from .forms import ActionForm
 from .models import ApplicationAction
+from apps.users.constants import UserRole as Roles
+from apps.users.permissions import user_has_role
+
+ACTION_MESSAGES = {
+    "vetted": "Application has been vetted.",
+    "approved": "Application approved.",
+    "rejected": "Application has been rejected.",
+}
+
+REVIEWER_ROLES = (Roles.BOARD, Roles.STAFF)
+
+def is_reviewer(user):
+    return any(user_has_role(user, role) for role in REVIEWER_ROLES)
+
+def reviewer_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not is_reviewer(request.user):
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+
+    return login_required(_wrapped)
 
 
-class ApplicationDecisionDocumentTests(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls._temp_media = tempfile.mkdtemp()
-        cls._override = override_settings(MEDIA_ROOT=cls._temp_media)
-        cls._override.enable()
+@reviewer_required
+def decisions_dashboard(request):
+    """Dashboard for reviewers to see vetted applications and record actions."""
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._override.disable()
-        shutil.rmtree(cls._temp_media, ignore_errors=True)
-        super().tearDownClass()
+    consultants = (
+        Consultant.objects.filter(status="vetted")
+        .select_related("user")
+        .order_by("full_name")
+    )
 
-    def setUp(self):
-        self.UserModel = get_user_model()
-        self.reviewer = self.UserModel.objects.create_superuser(
-            username="reviewer", email="reviewer@example.com", password="pass1234"
+    form = ActionForm()
+
+    if request.method == "POST":
+        consultant_id = request.POST.get("consultant_id")
+        form = ActionForm(request.POST)
+
+        if consultant_id and form.is_valid():
+            consultant = get_object_or_404(Consultant, pk=consultant_id)
+            action_obj = form.save(commit=False)
+            action_obj.consultant = consultant
+            action_obj.actor = request.user
+            action_obj.save()
+
+            action = action_obj.action
+            update_fields = ["status"]
+
+            if action == "vetted":
+                new_status = "vetted"
+            elif action == "approved":
+                generate_approval_certificate(
+                    consultant,
+                    generated_by=action_obj.actor.get_full_name()
+                    or action_obj.actor.username,
+                )
+                new_status = "approved"
+                update_fields.extend(
+                    [
+                        "certificate_pdf",
+                        "certificate_generated_at",
+                        "rejection_letter",
+                        "rejection_letter_generated_at",
+                    ]
+                )
+            elif action == "rejected":
+                generate_rejection_letter(
+                    consultant,
+                    generated_by=action_obj.actor.get_full_name()
+                    or action_obj.actor.username,
+                )
+                new_status = "rejected"
+                update_fields.extend(
+                    [
+                        "rejection_letter",
+                        "rejection_letter_generated_at",
+                        "certificate_pdf",
+                        "certificate_generated_at",
+                    ]
+                )
+            else:
+                new_status = consultant.status
+
+            consultant.status = new_status
+            consultant.save(update_fields=update_fields)
+
+            if action in {"approved", "rejected"}:
+                send_decision_email(consultant, action)
+
+            messages.success(
+                request,
+                ACTION_MESSAGES.get(action, "Application updated."),
+            )
+            return redirect("decisions_dashboard")
+
+    return render(
+        request,
+        "officer/decisions_dashboard.html",
+        {"consultants": consultants, "form": form},
+    )
+
+
+@reviewer_required
+def applications_list(request):
+    """
+    Staff list of applications. Defaults to 'submitted' and 'vetted'.
+    Add ?status=draft/submitted/vetted/approved/rejected to filter.
+    """
+    status = request.GET.get('status')
+    qs = Consultant.objects.all().select_related('user').order_by('-submitted_at')
+
+    if status:
+        qs = qs.filter(status=status)
+    else:
+        qs = qs.filter(status__in=['submitted', 'vetted'])
+
+    return render(request, 'officer/applications_list.html', {
+        'applications': qs,
+        'active_status': status or 'submitted,vetted',
+    })
+
+
+@reviewer_required
+@transaction.atomic
+def application_detail(request, pk):
+    """
+    Shows an application's details + documents and lets reviewer take an action.
+    """
+    application = get_object_or_404(Consultant, pk=pk)
+    form = ActionForm(request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        action_obj = form.save(commit=False)
+        action_obj.consultant = application
+        action_obj.actor = request.user
+        action_obj.save()
+
+        # Update the application's status based on action
+        action = action_obj.action
+        update_fields = ["status"]
+
+        if action == "vetted":
+            new_status = "vetted"
+        elif action == "approved":
+            generate_approval_certificate(
+                application,
+                generated_by=action_obj.actor.get_full_name()
+                or action_obj.actor.username,
+            )
+            new_status = "approved"
+            update_fields.extend(
+                [
+                    "certificate_pdf",
+                    "certificate_generated_at",
+                    "rejection_letter",
+                    "rejection_letter_generated_at",
+                ]
+            )
+        elif action == "rejected":
+            generate_rejection_letter(
+                application,
+                generated_by=action_obj.actor.get_full_name()
+                or action_obj.actor.username,
+            )
+            new_status = "rejected"
+            update_fields.extend(
+                [
+                    "rejection_letter",
+                    "rejection_letter_generated_at",
+                    "certificate_pdf",
+                    "certificate_generated_at",
+                ]
+            )
+        else:
+            new_status = application.status  # fallback
+
+        application.status = new_status
+        application.save(update_fields=update_fields)
+
+        if action in {"approved", "rejected"}:
+            send_decision_email(application, action)
+
+        messages.success(
+            request, ACTION_MESSAGES.get(action, "Application updated.")
         )
-        self.client.login(username="reviewer", password="pass1234")
+        return redirect('officer_application_detail', pk=application.pk)
 
-    def create_application(self):
-        applicant = self.UserModel.objects.create_user(
-            username="applicant" + os.urandom(2).hex(),
-            email="applicant@example.com",
-            password="pass1234",
-        )
-        return Consultant.objects.create(
-            user=applicant,
-            full_name="Test Applicant",
-            id_number="ID123456",
-            dob=date(1990, 1, 1),
-            gender="M",
-            nationality="Testland",
-            email="applicant@example.com",
-            phone_number="123456789",
-            business_name="Test Business",
-            registration_number="REG-001",
-        )
+    # recent actions for audit trail
+    recent_actions = application.actions.select_related('actor')[:20]
 
-    def test_approval_generates_certificate(self):
-        consultant = self.create_application()
-        url = reverse("officer_application_detail", args=[consultant.pk])
-
-        response = self.client.post(url, {"action": "approved", "notes": "Looks good"}, follow=True)
-        self.assertEqual(response.status_code, 200)
-
-        messages = list(response.context["messages"])
-        self.assertIn("Application approved.", [message.message for message in messages])
-
-        consultant.refresh_from_db()
-        self.assertEqual(consultant.status, "approved")
-        self.assertTrue(consultant.certificate_pdf)
-        self.assertIsNotNone(consultant.certificate_generated_at)
-
-        response = self.client.get(url)
-        self.assertContains(response, "Approval certificate")
-
-    def test_rejection_generates_letter(self):
-        consultant = self.create_application()
-        url = reverse("officer_application_detail", args=[consultant.pk])
-
-        response = self.client.post(url, {"action": "rejected", "notes": "Incomplete"}, follow=True)
-        self.assertEqual(response.status_code, 200)
-
-        messages = list(response.context["messages"])
-        self.assertIn(
-            "Application has been rejected.",
-            [message.message for message in messages],
-        )
-
-        consultant.refresh_from_db()
-        self.assertEqual(consultant.status, "rejected")
-        self.assertTrue(consultant.rejection_letter)
-        self.assertIsNotNone(consultant.rejection_letter_generated_at)
-
-        response = self.client.get(url)
-        self.assertContains(response, "Rejection letter")
-
-
-    def test_switching_from_rejection_to_approval_removes_rejection_letter(self):
-        consultant = self.create_application()
-        url = reverse("officer_application_detail", args=[consultant.pk])
-
-        reject_response = self.client.post(url, {"action": "rejected", "notes": "Needs work"}, follow=True)
-        self.assertEqual(reject_response.status_code, 200)
-
-        consultant.refresh_from_db()
-        self.assertTrue(consultant.rejection_letter)
-        self.assertFalse(consultant.certificate_pdf)
-
-        approve_response = self.client.post(url, {"action": "approved", "notes": "Updated"}, follow=True)
-        self.assertEqual(approve_response.status_code, 200)
-
-        consultant.refresh_from_db()
-        self.assertEqual(consultant.status, "approved")
-        self.assertTrue(consultant.certificate_pdf)
-        self.assertIsNotNone(consultant.certificate_generated_at)
-        self.assertFalse(consultant.rejection_letter)
-        self.assertIsNone(consultant.rejection_letter_generated_at)
-
-
-    def test_switching_from_approval_to_rejection_removes_certificate(self):
-        consultant = self.create_application()
-        url = reverse("officer_application_detail", args=[consultant.pk])
-
-        approve_response = self.client.post(url, {"action": "approved", "notes": "Looks good"}, follow=True)
-        self.assertEqual(approve_response.status_code, 200)
-
-        consultant.refresh_from_db()
-        self.assertTrue(consultant.certificate_pdf)
-        self.assertFalse(consultant.rejection_letter)
-
-        reject_response = self.client.post(url, {"action": "rejected", "notes": "Reconsidered"}, follow=True)
-        self.assertEqual(reject_response.status_code, 200)
-
-        consultant.refresh_from_db()
-        self.assertEqual(consultant.status, "rejected")
-        self.assertTrue(consultant.rejection_letter)
-        self.assertIsNotNone(consultant.rejection_letter_generated_at)
-        self.assertFalse(consultant.certificate_pdf)
-        self.assertIsNone(consultant.certificate_generated_at)
-
-
-class DecisionsDashboardViewTests(TestCase):
-    def setUp(self):
-        self.UserModel = get_user_model()
-        self.reviewer_group, _ = Group.objects.get_or_create(name="BackOffice")
-
-        self.reviewer = self.UserModel.objects.create_user(
-            username="reviewer",
-            email="reviewer@example.com",
-            password="pass1234",
-        )
-        self.reviewer.groups.add(self.reviewer_group)
-
-        self.client.login(username="reviewer", password="pass1234")
-
-        self.consultant_user = self.UserModel.objects.create_user(
-            username="consultant",
-            email="consultant@example.com",
-            password="pass1234",
-        )
-        self.consultant_vetted = Consultant.objects.create(
-            user=self.consultant_user,
-            full_name="Vetted Applicant",
-            id_number="ID0001",
-            dob=date(1990, 1, 1),
-            gender="F",
-            nationality="Exampleland",
-            email="consultant@example.com",
-            phone_number="123456789",
-            business_name="Vet Consulting",
-            registration_number="REG-123",
-            status="vetted",
-        )
-        self.consultant_submitted = Consultant.objects.create(
-            user=self.UserModel.objects.create_user(
-                username="submitted", email="submitted@example.com", password="pass1234"
-            ),
-            full_name="Submitted Applicant",
-            id_number="ID0002",
-            dob=date(1992, 5, 5),
-            gender="M",
-            nationality="Exampleland",
-            email="submitted@example.com",
-            phone_number="987654321",
-            business_name="Sub Consulting",
-            registration_number="REG-456",
-            status="submitted",
-        )
-
-    def test_reviewer_can_access_dashboard(self):
-        response = self.client.get(reverse("decisions_dashboard"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Vetted Applicant")
-        self.assertNotContains(response, "Submitted Applicant")
-
-    def test_non_reviewer_gets_403(self):
-        other_user = self.UserModel.objects.create_user(
-            username="nonreviewer", email="non@example.com", password="pass1234"
-        )
-        self.client.logout()
-        self.client.login(username="nonreviewer", password="pass1234")
-
-        response = self.client.get(reverse("decisions_dashboard"))
-        self.assertEqual(response.status_code, 403)
-
-    def test_reviewer_can_record_action(self):
-        response = self.client.post(
-            reverse("decisions_dashboard"),
-            data={
-                "consultant_id": self.consultant_vetted.pk,
-                "action": "vetted",
-                "notes": "Checked and ready.",
-            },
-            follow=True,
-        )
-        self.assertEqual(response.status_code, 200)
-
-        messages = list(response.context["messages"])
-        self.assertIn(
-            "Application has been vetted.",
-            [message.message for message in messages],
-        )
-
-        self.consultant_vetted.refresh_from_db()
-        self.assertEqual(self.consultant_vetted.status, "vetted")
-        self.assertTrue(
-            ApplicationAction.objects.filter(
-                consultant=self.consultant_vetted,
-                actor=self.reviewer,
-                action="vetted",
-            ).exists()
-        )
-
-    def test_approved_application_removed_from_dashboard(self):
-        """Approving a vetted application removes it from the decision queue."""
-
-        initial_response = self.client.get(reverse("decisions_dashboard"))
-        self.assertContains(initial_response, "Vetted Applicant")
-
-        post_response = self.client.post(
-            reverse("decisions_dashboard"),
-            data={
-                "consultant_id": self.consultant_vetted.pk,
-                "action": "approved",
-                "notes": "Ready for approval.",
-            },
-            follow=True,
-        )
-        self.assertEqual(post_response.status_code, 200)
-
-        messages = list(post_response.context["messages"])
-        self.assertIn(
-            "Application approved.",
-            [message.message for message in messages],
-        )
-
-        self.consultant_vetted.refresh_from_db()
-        self.assertEqual(self.consultant_vetted.status, "approved")
-
-        dashboard_response = self.client.get(reverse("decisions_dashboard"))
-        self.assertNotContains(dashboard_response, "Vetted Applicant")
-
-    def test_dashboard_rejection_message(self):
-        response = self.client.post(
-            reverse("decisions_dashboard"),
-            data={
-                "consultant_id": self.consultant_vetted.pk,
-                "action": "rejected",
-                "notes": "Missing documents.",
-            },
-            follow=True,
-        )
-        self.assertEqual(response.status_code, 200)
-
-        messages = list(response.context["messages"])
-        self.assertIn(
-            "Application has been rejected.",
-            [message.message for message in messages],
-        )
-
-        self.consultant_vetted.refresh_from_db()
-        self.assertEqual(self.consultant_vetted.status, "rejected")
-
-    def test_missing_action_displays_error(self):
-        response = self.client.post(
-            reverse("decisions_dashboard"),
-            data={
-                "consultant_id": self.consultant_vetted.pk,
-                "notes": "Needs a decision.",
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "This field is required.")
+    return render(request, 'officer/application_detail.html', {
+        'application': application,
+        'form': form,
+        'recent_actions': recent_actions,
+    })

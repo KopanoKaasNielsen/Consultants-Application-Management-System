@@ -1,12 +1,17 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
 from apps.consultants.models import Consultant
+from apps.users.constants import (
+    BACKOFFICE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+)
 
 
 class CertificatesDashboardViewTests(TestCase):
@@ -15,6 +20,8 @@ class CertificatesDashboardViewTests(TestCase):
         self.user = self.user_model.objects.create_user(
             "consultant_user", password="strong-password"
         )
+        consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        self.user.groups.add(consultant_group)
         self.dashboard_url = reverse("certificates:certificates_dashboard")
 
     def _create_consultant(self, user, **overrides):
@@ -62,6 +69,9 @@ class CertificatesDashboardViewTests(TestCase):
             rejection_letter=rejection_file,
         )
 
+        certificate_filename = consultant.certificate_pdf.name.split("/")[-1]
+        rejection_filename = consultant.rejection_letter.name.split("/")[-1]
+
         other_user = self.user_model.objects.create_user(
             "other_user", password="strong-password"
         )
@@ -80,8 +90,8 @@ class CertificatesDashboardViewTests(TestCase):
         self.assertEqual(response.context["consultant"], consultant)
         self.assertContains(response, "Approval certificate")
         self.assertContains(response, "Rejection letter")
-        self.assertContains(response, "approval.pdf")
-        self.assertContains(response, "rejection.pdf")
+        self.assertContains(response, certificate_filename)
+        self.assertContains(response, rejection_filename)
         self.assertNotContains(response, "Other Consultant")
 
     def test_dashboard_displays_success_message_when_certificate_available(self):
@@ -104,3 +114,15 @@ class CertificatesDashboardViewTests(TestCase):
         messages = list(get_messages(response.wsgi_request))
         self.assertTrue(messages)
         self.assertIn("Application approved!", str(messages[0]))
+
+    def test_non_consultant_user_receives_403(self):
+        staff_user = self.user_model.objects.create_user(
+            "staff_only", password="strong-password"
+        )
+        staff_group, _ = Group.objects.get_or_create(name=BACKOFFICE_GROUP_NAME)
+        staff_user.groups.add(staff_group)
+
+        self.client.force_login(staff_user)
+
+        response = self.client.get(self.dashboard_url)
+        self.assertEqual(response.status_code, 403)

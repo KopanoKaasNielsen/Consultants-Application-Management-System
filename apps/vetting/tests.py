@@ -5,12 +5,13 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from apps.consultants.models import Consultant
+from apps.users.constants import COUNTERSTAFF_GROUP_NAME, BOARD_COMMITTEE_GROUP_NAME
 
 
 class VettingDashboardViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='staffuser', password='testpass')
-        vetting_group, _ = Group.objects.get_or_create(name='vetting')
+        vetting_group, _ = Group.objects.get_or_create(name=COUNTERSTAFF_GROUP_NAME)
         self.user.groups.add(vetting_group)
 
         self.client = Client()
@@ -35,10 +36,33 @@ class VettingDashboardViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Jane Doe')
 
+    def test_seeded_counterstaff_user_has_access(self):
+        counter_staff_user = User.objects.create_user(
+            username='counterstaff', password='seededpass'
+        )
+        counter_staff_user.groups.add(Group.objects.get(name=COUNTERSTAFF_GROUP_NAME))
+
+        seeded_client = Client()
+        seeded_client.login(username='counterstaff', password='seededpass')
+
+        response = seeded_client.get(reverse('vetting_dashboard'))
+        self.assertEqual(response.status_code, 200)
+
     def test_unauthorized_user_redirect(self):
         self.client.logout()
         other_user = User.objects.create_user(username='unauth', password='unauthpass')
         self.client.login(username='unauth', password='unauthpass')
+
+        response = self.client.get(reverse('vetting_dashboard'))
+        self.assertEqual(response.status_code, 403)
+
+    def test_board_member_receives_403(self):
+        self.client.logout()
+        board_user = User.objects.create_user(username='board', password='boardpass')
+        board_group, _ = Group.objects.get_or_create(name=BOARD_COMMITTEE_GROUP_NAME)
+        board_user.groups.add(board_group)
+
+        self.client.login(username='board', password='boardpass')
 
         response = self.client.get(reverse('vetting_dashboard'))
         self.assertEqual(response.status_code, 403)
@@ -60,3 +84,13 @@ class VettingDashboardViewTests(TestCase):
         )
         self.consultant.refresh_from_db()
         self.assertEqual(self.consultant.status, 'rejected')
+
+    def test_can_vet_consultant(self):
+        response = self.client.post(
+            reverse('vetting_dashboard'),
+            data={'consultant_id': self.consultant.id, 'action': 'vet'},
+        )
+
+        self.consultant.refresh_from_db()
+        self.assertEqual(self.consultant.status, 'vetted')
+        self.assertRedirects(response, reverse('vetting_dashboard'))
