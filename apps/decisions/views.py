@@ -6,14 +6,9 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.certificates.services import (
-    generate_approval_certificate,
-    generate_rejection_letter,
-)
 from apps.consultants.models import Consultant
-from .emails import send_decision_email
 from .forms import ActionForm
-from .models import ApplicationAction
+from .services import process_decision_action
 from apps.users.constants import UserRole as Roles
 from apps.users.permissions import user_has_role
 
@@ -56,54 +51,15 @@ def decisions_dashboard(request):
 
         if consultant_id and form.is_valid():
             consultant = get_object_or_404(Consultant, pk=consultant_id)
-            action_obj = form.save(commit=False)
-            action_obj.consultant = consultant
-            action_obj.actor = request.user
-            action_obj.save()
+            action = form.cleaned_data["action"]
+            notes = form.cleaned_data.get("notes", "")
 
-            action = action_obj.action
-            update_fields = ["status"]
-
-            if action == "vetted":
-                new_status = "vetted"
-            elif action == "approved":
-                generate_approval_certificate(
-                    consultant,
-                    generated_by=action_obj.actor.get_full_name()
-                    or action_obj.actor.username,
-                )
-                new_status = "approved"
-                update_fields.extend(
-                    [
-                        "certificate_pdf",
-                        "certificate_generated_at",
-                        "rejection_letter",
-                        "rejection_letter_generated_at",
-                    ]
-                )
-            elif action == "rejected":
-                generate_rejection_letter(
-                    consultant,
-                    generated_by=action_obj.actor.get_full_name()
-                    or action_obj.actor.username,
-                )
-                new_status = "rejected"
-                update_fields.extend(
-                    [
-                        "rejection_letter",
-                        "rejection_letter_generated_at",
-                        "certificate_pdf",
-                        "certificate_generated_at",
-                    ]
-                )
-            else:
-                new_status = consultant.status
-
-            consultant.status = new_status
-            consultant.save(update_fields=update_fields)
-
-            if action in {"approved", "rejected"}:
-                send_decision_email(consultant, action)
+            process_decision_action(
+                consultant,
+                action,
+                request.user,
+                notes=notes,
+            )
 
             messages.success(
                 request,
@@ -148,55 +104,15 @@ def application_detail(request, pk):
     form = ActionForm(request.POST or None)
 
     if request.method == 'POST' and form.is_valid():
-        action_obj = form.save(commit=False)
-        action_obj.consultant = application
-        action_obj.actor = request.user
-        action_obj.save()
+        action = form.cleaned_data["action"]
+        notes = form.cleaned_data.get("notes", "")
 
-        # Update the application's status based on action
-        action = action_obj.action
-        update_fields = ["status"]
-
-        if action == "vetted":
-            new_status = "vetted"
-        elif action == "approved":
-            generate_approval_certificate(
-                application,
-                generated_by=action_obj.actor.get_full_name()
-                or action_obj.actor.username,
-            )
-            new_status = "approved"
-            update_fields.extend(
-                [
-                    "certificate_pdf",
-                    "certificate_generated_at",
-                    "rejection_letter",
-                    "rejection_letter_generated_at",
-                ]
-            )
-        elif action == "rejected":
-            generate_rejection_letter(
-                application,
-                generated_by=action_obj.actor.get_full_name()
-                or action_obj.actor.username,
-            )
-            new_status = "rejected"
-            update_fields.extend(
-                [
-                    "rejection_letter",
-                    "rejection_letter_generated_at",
-                    "certificate_pdf",
-                    "certificate_generated_at",
-                ]
-            )
-        else:
-            new_status = application.status  # fallback
-
-        application.status = new_status
-        application.save(update_fields=update_fields)
-
-        if action in {"approved", "rejected"}:
-            send_decision_email(application, action)
+        process_decision_action(
+            application,
+            action,
+            request.user,
+            notes=notes,
+        )
 
         messages.success(
             request, ACTION_MESSAGES.get(action, "Application updated.")
