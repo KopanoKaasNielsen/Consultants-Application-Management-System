@@ -1,213 +1,300 @@
-from functools import wraps
+from datetime import date, timedelta
+from unittest.mock import patch
 
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
-from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect, render
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core.management import call_command
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
 
-from apps.certificates.services import (
-    generate_approval_certificate,
-    generate_rejection_letter,
-)
 from apps.consultants.models import Consultant
-from .emails import send_decision_email
-from .forms import ActionForm
-from .models import ApplicationAction
-from apps.users.constants import UserRole as Roles
-from apps.users.permissions import user_has_role
-
-ACTION_MESSAGES = {
-    "vetted": "Application has been vetted.",
-    "approved": "Application approved.",
-    "rejected": "Application has been rejected.",
-}
-
-REVIEWER_ROLES = (Roles.BOARD, Roles.STAFF)
-
-def is_reviewer(user):
-    return any(user_has_role(user, role) for role in REVIEWER_ROLES)
-
-def reviewer_required(view_func):
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if not is_reviewer(request.user):
-            raise PermissionDenied
-        return view_func(request, *args, **kwargs)
-
-    return login_required(_wrapped)
+from apps.decisions.models import ApplicationAction
+from apps.decisions.views import ACTION_MESSAGES
+from apps.users.constants import (
+    BACKOFFICE_GROUP_NAME,
+    BOARD_COMMITTEE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+)
 
 
-@reviewer_required
-def decisions_dashboard(request):
-    """Dashboard for reviewers to see vetted applications and record actions."""
+class DecisionsViewTests(TestCase):
+    """Integration-style tests covering reviewer views and actions."""
 
-    consultants = (
-        Consultant.objects.filter(status="vetted")
-        .select_related("user")
-        .order_by("full_name")
-    )
-
-    form = ActionForm()
-
-    if request.method == "POST":
-        consultant_id = request.POST.get("consultant_id")
-        form = ActionForm(request.POST)
-
-        if consultant_id and form.is_valid():
-            consultant = get_object_or_404(Consultant, pk=consultant_id)
-            action_obj = form.save(commit=False)
-            action_obj.consultant = consultant
-            action_obj.actor = request.user
-            action_obj.save()
-
-            action = action_obj.action
-            update_fields = ["status"]
-
-            if action == "vetted":
-                new_status = "vetted"
-            elif action == "approved":
-                generate_approval_certificate(
-                    consultant,
-                    generated_by=action_obj.actor.get_full_name()
-                    or action_obj.actor.username,
-                )
-                new_status = "approved"
-                update_fields.extend(
-                    [
-                        "certificate_pdf",
-                        "certificate_generated_at",
-                        "rejection_letter",
-                        "rejection_letter_generated_at",
-                    ]
-                )
-            elif action == "rejected":
-                generate_rejection_letter(
-                    consultant,
-                    generated_by=action_obj.actor.get_full_name()
-                    or action_obj.actor.username,
-                )
-                new_status = "rejected"
-                update_fields.extend(
-                    [
-                        "rejection_letter",
-                        "rejection_letter_generated_at",
-                        "certificate_pdf",
-                        "certificate_generated_at",
-                    ]
-                )
-            else:
-                new_status = consultant.status
-
-            consultant.status = new_status
-            consultant.save(update_fields=update_fields)
-
-            if action in {"approved", "rejected"}:
-                send_decision_email(consultant, action)
-
-            messages.success(
-                request,
-                ACTION_MESSAGES.get(action, "Application updated."),
-            )
-            return redirect("decisions_dashboard")
-
-    return render(
-        request,
-        "officer/decisions_dashboard.html",
-        {"consultants": consultants, "form": form},
-    )
-
-
-@reviewer_required
-def applications_list(request):
-    """
-    Staff list of applications. Defaults to 'submitted' and 'vetted'.
-    Add ?status=draft/submitted/vetted/approved/rejected to filter.
-    """
-    status = request.GET.get('status')
-    qs = Consultant.objects.all().select_related('user').order_by('-submitted_at')
-
-    if status:
-        qs = qs.filter(status=status)
-    else:
-        qs = qs.filter(status__in=['submitted', 'vetted'])
-
-    return render(request, 'officer/applications_list.html', {
-        'applications': qs,
-        'active_status': status or 'submitted,vetted',
-    })
-
-
-@reviewer_required
-@transaction.atomic
-def application_detail(request, pk):
-    """
-    Shows an application's details + documents and lets reviewer take an action.
-    """
-    application = get_object_or_404(Consultant, pk=pk)
-    form = ActionForm(request.POST or None)
-
-    if request.method == 'POST' and form.is_valid():
-        action_obj = form.save(commit=False)
-        action_obj.consultant = application
-        action_obj.actor = request.user
-        action_obj.save()
-
-        # Update the application's status based on action
-        action = action_obj.action
-        update_fields = ["status"]
-
-        if action == "vetted":
-            new_status = "vetted"
-        elif action == "approved":
-            generate_approval_certificate(
-                application,
-                generated_by=action_obj.actor.get_full_name()
-                or action_obj.actor.username,
-            )
-            new_status = "approved"
-            update_fields.extend(
-                [
-                    "certificate_pdf",
-                    "certificate_generated_at",
-                    "rejection_letter",
-                    "rejection_letter_generated_at",
-                ]
-            )
-        elif action == "rejected":
-            generate_rejection_letter(
-                application,
-                generated_by=action_obj.actor.get_full_name()
-                or action_obj.actor.username,
-            )
-            new_status = "rejected"
-            update_fields.extend(
-                [
-                    "rejection_letter",
-                    "rejection_letter_generated_at",
-                    "certificate_pdf",
-                    "certificate_generated_at",
-                ]
-            )
-        else:
-            new_status = application.status  # fallback
-
-        application.status = new_status
-        application.save(update_fields=update_fields)
-
-        if action in {"approved", "rejected"}:
-            send_decision_email(application, action)
-
-        messages.success(
-            request, ACTION_MESSAGES.get(action, "Application updated.")
+    def setUp(self):
+        super().setUp()
+        call_command("seed_groups")
+        self.user_model = get_user_model()
+        self.board_user = self._create_user(
+            "board_member", [BOARD_COMMITTEE_GROUP_NAME]
         )
-        return redirect('officer_application_detail', pk=application.pk)
+        self.staff_user = self._create_user("staff_member", [BACKOFFICE_GROUP_NAME])
+        self.non_reviewer = self._create_user(
+            "consultant_user", [CONSULTANTS_GROUP_NAME]
+        )
+        # Baseline consultants for listing/detail views
+        self.list_consultants = {
+            "draft": self._create_consultant("Draft Applicant", "draft", None),
+            "submitted": self._create_consultant(
+                "Submitted Applicant", "submitted", timezone.now()
+            ),
+            "vetted": self._create_consultant(
+                "Vetted Applicant", "vetted", timezone.now() - timedelta(days=1)
+            ),
+            "approved": self._create_consultant(
+                "Approved Applicant", "approved", timezone.now() - timedelta(days=2)
+            ),
+            "rejected": self._create_consultant(
+                "Rejected Applicant", "rejected", timezone.now() - timedelta(days=3)
+            ),
+        }
 
-    # recent actions for audit trail
-    recent_actions = application.actions.select_related('actor')[:20]
+    def _create_user(self, username, groups):
+        user = self.user_model.objects.create_user(
+            username=username,
+            email=f"{username}@example.com",
+            password="password123",
+        )
+        if groups:
+            group_objs = Group.objects.filter(name__in=groups)
+            user.groups.set(group_objs)
+        return user
 
-    return render(request, 'officer/application_detail.html', {
-        'application': application,
-        'form': form,
-        'recent_actions': recent_actions,
-    })
+    def _create_consultant(self, name, status, submitted_at):
+        user = self.user_model.objects.create_user(
+            username=f"{name.lower().replace(' ', '_')}",
+            email=f"{name.lower().replace(' ', '.')}@example.com",
+            password="password123",
+        )
+        consultant = Consultant.objects.create(
+            user=user,
+            full_name=name,
+            id_number="ID123456",
+            dob=date(1990, 1, 1),
+            gender="M",
+            nationality="Testland",
+            email=user.email,
+            phone_number="123456789",
+            business_name="Test Business",
+            registration_number="REG-001",
+            submitted_at=submitted_at,
+            status=status,
+        )
+        return consultant
+
+    def test_decisions_dashboard_access_control(self):
+        url = reverse("decisions_dashboard")
+
+        self.client.force_login(self.board_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.staff_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.non_reviewer)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_applications_list_access_control(self):
+        url = reverse("officer_applications_list")
+
+        self.client.force_login(self.board_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.staff_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.non_reviewer)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_application_detail_access_control(self):
+        detail_target = self.list_consultants["submitted"]
+        url = reverse("officer_application_detail", args=[detail_target.pk])
+
+        self.client.force_login(self.board_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.staff_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.non_reviewer)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_applications_list_default_status_filter(self):
+        url = reverse("officer_applications_list")
+        self.client.force_login(self.staff_user)
+        response = self.client.get(url)
+
+        applications = list(response.context["applications"])
+        self.assertSetEqual(
+            {app.full_name for app in applications},
+            {"Submitted Applicant", "Vetted Applicant"},
+        )
+        self.assertEqual(response.context["active_status"], "submitted,vetted")
+
+    def test_applications_list_explicit_status_filter(self):
+        url = reverse("officer_applications_list")
+        self.client.force_login(self.staff_user)
+
+        response = self.client.get(url, {"status": "approved"})
+        applications = list(response.context["applications"])
+        self.assertEqual([app.full_name for app in applications], ["Approved Applicant"])
+        self.assertEqual(response.context["active_status"], "approved")
+
+        response = self.client.get(url, {"status": "rejected"})
+        applications = list(response.context["applications"])
+        self.assertEqual([app.full_name for app in applications], ["Rejected Applicant"])
+        self.assertEqual(response.context["active_status"], "rejected")
+
+    @patch("apps.decisions.views.send_decision_email")
+    @patch("apps.decisions.views.generate_rejection_letter")
+    @patch("apps.decisions.views.generate_approval_certificate")
+    def test_decisions_dashboard_actions(
+        self,
+        mock_generate_certificate,
+        mock_generate_rejection,
+        mock_send_email,
+    ):
+        self.client.force_login(self.staff_user)
+        url = reverse("decisions_dashboard")
+
+        scenarios = {
+            "vetted": {
+                "initial_status": "submitted",
+                "expected_status": "vetted",
+                "email_called": False,
+                "certificate_called": False,
+                "rejection_called": False,
+            },
+            "approved": {
+                "initial_status": "vetted",
+                "expected_status": "approved",
+                "email_called": True,
+                "certificate_called": True,
+                "rejection_called": False,
+            },
+            "rejected": {
+                "initial_status": "vetted",
+                "expected_status": "rejected",
+                "email_called": True,
+                "certificate_called": False,
+                "rejection_called": True,
+            },
+        }
+
+        for action, expectations in scenarios.items():
+            with self.subTest(action=action):
+                consultant = self._create_consultant(
+                    f"Dashboard {action}",
+                    expectations["initial_status"],
+                    timezone.now(),
+                )
+
+                mock_send_email.reset_mock()
+                mock_generate_certificate.reset_mock()
+                mock_generate_rejection.reset_mock()
+
+                response = self.client.post(
+                    url,
+                    {
+                        "consultant_id": consultant.pk,
+                        "action": action,
+                        "notes": f"Notes for {action}",
+                    },
+                    follow=True,
+                )
+
+                self.assertRedirects(response, url)
+                consultant.refresh_from_db()
+                self.assertEqual(consultant.status, expectations["expected_status"])
+
+                messages = list(response.context["messages"])
+                self.assertTrue(messages)
+                self.assertEqual(messages[0].message, ACTION_MESSAGES[action])
+
+                self.assertEqual(mock_send_email.called, expectations["email_called"])
+                self.assertEqual(
+                    mock_generate_certificate.called,
+                    expectations["certificate_called"],
+                )
+                self.assertEqual(
+                    mock_generate_rejection.called, expectations["rejection_called"]
+                )
+
+                action_record = ApplicationAction.objects.get(consultant=consultant)
+                self.assertEqual(action_record.action, action)
+
+    @patch("apps.decisions.views.send_decision_email")
+    @patch("apps.decisions.views.generate_rejection_letter")
+    @patch("apps.decisions.views.generate_approval_certificate")
+    def test_application_detail_actions(
+        self,
+        mock_generate_certificate,
+        mock_generate_rejection,
+        mock_send_email,
+    ):
+        self.client.force_login(self.board_user)
+
+        scenarios = {
+            "vetted": {
+                "expected_status": "vetted",
+                "email_called": False,
+                "certificate_called": False,
+                "rejection_called": False,
+            },
+            "approved": {
+                "expected_status": "approved",
+                "email_called": True,
+                "certificate_called": True,
+                "rejection_called": False,
+            },
+            "rejected": {
+                "expected_status": "rejected",
+                "email_called": True,
+                "certificate_called": False,
+                "rejection_called": True,
+            },
+        }
+
+        for action, expectations in scenarios.items():
+            with self.subTest(action=action):
+                consultant = self._create_consultant(
+                    f"Detail {action}",
+                    "submitted",
+                    timezone.now(),
+                )
+                detail_url = reverse(
+                    "officer_application_detail", args=[consultant.pk]
+                )
+
+                mock_send_email.reset_mock()
+                mock_generate_certificate.reset_mock()
+                mock_generate_rejection.reset_mock()
+
+                response = self.client.post(
+                    detail_url,
+                    {
+                        "action": action,
+                        "notes": f"Detail {action} notes",
+                    },
+                    follow=True,
+                )
+
+                self.assertRedirects(response, detail_url)
+                consultant.refresh_from_db()
+                self.assertEqual(consultant.status, expectations["expected_status"])
+
+                messages = list(response.context["messages"])
+                self.assertTrue(messages)
+                self.assertEqual(messages[0].message, ACTION_MESSAGES[action])
+
+                self.assertEqual(mock_send_email.called, expectations["email_called"])
+                self.assertEqual(
+                    mock_generate_certificate.called,
+                    expectations["certificate_called"],
+                )
+                self.assertEqual(
+                    mock_generate_rejection.called, expectations["rejection_called"]
+                )
+
+                action_record = ApplicationAction.objects.get(consultant=consultant)
+                self.assertEqual(action_record.action, action)
