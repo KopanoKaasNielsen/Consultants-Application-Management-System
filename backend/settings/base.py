@@ -10,6 +10,8 @@ from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse_lazy
 
 import dj_database_url
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -111,6 +113,36 @@ def build_csrf_trusted_origins(allowed_hosts: Iterable[str]) -> list[str]:
     return origins
 
 
+def _get_sample_rate(name: str, default: float) -> float:
+    """Fetch a float configuration value from the environment."""
+
+    value = os.getenv(name)
+    if value is None:
+        return default
+
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def init_sentry() -> None:
+    """Configure Sentry monitoring when a DSN is available."""
+
+    dsn = os.getenv("SENTRY_DSN")
+    if not dsn:
+        return None
+
+    sentry_sdk.init(
+        dsn=dsn,
+        integrations=[DjangoIntegration()],
+        send_default_pii=False,
+        traces_sample_rate=_get_sample_rate("SENTRY_TRACES_SAMPLE_RATE", 0.2),
+        profiles_sample_rate=_get_sample_rate("SENTRY_PROFILES_SAMPLE_RATE", 0.0),
+    )
+    return None
+
+
 INSTALLED_APPS = [
     'apps.consultants',
     'apps.vetting',
@@ -188,3 +220,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Configure monitoring once settings are imported.
+init_sentry()
