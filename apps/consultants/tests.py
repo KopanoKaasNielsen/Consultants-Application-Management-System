@@ -1,11 +1,13 @@
 import io
-from datetime import timedelta
+import shutil
+import tempfile
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
@@ -31,6 +33,12 @@ def create_pdf_file(name='document.pdf', size=1024, content_type='application/pd
 
 class ConsultantFormTests(TestCase):
     def setUp(self):
+        self.temp_media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.temp_media)
+        override = override_settings(MEDIA_ROOT=self.temp_media)
+        override.enable()
+        self.addCleanup(override.disable)
+
         self.base_data = {
             'full_name': 'Test User',
             'id_number': 'ID123456',
@@ -42,10 +50,48 @@ class ConsultantFormTests(TestCase):
             'business_name': 'Test Business',
             'registration_number': 'REG123',
         }
+        self.model_defaults = {
+            'full_name': 'Test User',
+            'id_number': 'ID123456',
+            'dob': date(1990, 1, 1),
+            'gender': 'M',
+            'nationality': 'Testland',
+            'email': 'test@example.com',
+            'phone_number': '1234567890',
+            'business_name': 'Test Business',
+            'registration_number': 'REG123',
+        }
+        self.user_index = 0
 
     def _get_form(self, action, files=None):
         data = {**self.base_data, 'action': action}
         return ConsultantForm(data=data, files=files)
+
+    def _create_consultant_with_documents(self, **document_overrides):
+        user_model = get_user_model()
+        self.user_index += 1
+        user = user_model.objects.create_user(
+            username=f'consultant{self.user_index}',
+            email=f'consultant{self.user_index}@example.com',
+            password='password123',
+        )
+
+        document_defaults = {
+            'photo': create_image_file(name=f'photo_{self.user_index}.png'),
+            'id_document': create_pdf_file(name=f'id_{self.user_index}.pdf'),
+            'cv': create_pdf_file(name=f'cv_{self.user_index}.pdf'),
+            'police_clearance': create_pdf_file(name=f'police_{self.user_index}.pdf'),
+            'qualifications': create_pdf_file(name=f'qualifications_{self.user_index}.pdf'),
+            'business_certificate': create_pdf_file(name=f'certificate_{self.user_index}.pdf'),
+        }
+        document_defaults.update(document_overrides)
+
+        consultant = Consultant.objects.create(
+            user=user,
+            **self.model_defaults,
+            **document_defaults,
+        )
+        return consultant
 
     def test_draft_allows_missing_documents(self):
         form = self._get_form('draft')
@@ -103,6 +149,47 @@ class ConsultantFormTests(TestCase):
         }
         form = self._get_form('submit', files=files)
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_submit_rejects_retained_large_existing_file(self):
+        consultant = self._create_consultant_with_documents(
+            cv=create_pdf_file(
+                name='existing_cv.pdf',
+                size=ConsultantForm.MAX_FILE_SIZE + 1,
+            )
+        )
+
+        form = ConsultantForm(
+            data={**self.base_data, 'action': 'submit'},
+            instance=consultant,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('File size must be under 2MB.', form.errors['cv'])
+
+    def test_submit_rejects_retained_invalid_mime_type(self):
+        consultant = self._create_consultant_with_documents(
+            cv=create_pdf_file(
+                name='existing_cv.exe',
+                content_type='application/x-msdownload',
+            )
+        )
+
+        form = ConsultantForm(
+            data={**self.base_data, 'action': 'submit'},
+            instance=consultant,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('Only PDF, JPG, or PNG files are allowed.', form.errors['cv'])
+
+    def test_submit_rejects_cleared_document_without_replacement(self):
+        consultant = self._create_consultant_with_documents()
+
+        data = {**self.base_data, 'action': 'submit', 'cv-clear': 'on'}
+        form = ConsultantForm(data=data, instance=consultant)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('This document is required.', form.errors['cv'])
 
 
 class SubmitApplicationViewTests(TestCase):
