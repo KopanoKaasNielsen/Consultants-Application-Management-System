@@ -11,7 +11,6 @@ from .models import ApplicationAction
 from .tasks import (
     generate_approval_certificate_task,
     generate_rejection_letter_task,
-    send_decision_email_task,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - used for type checkers only
@@ -92,10 +91,8 @@ def process_decision_action(
         def queue_tasks():
             if action == "approved":
                 generate_approval_certificate_task.delay(consultant.pk, generated_by)
-                send_decision_email_task.delay(consultant.pk, action)
             elif action == "rejected":
                 generate_rejection_letter_task.delay(consultant.pk, generated_by)
-                send_decision_email_task.delay(consultant.pk, action)
             elif action == "vetted":
                 # No side-effects besides the status change.
                 pass

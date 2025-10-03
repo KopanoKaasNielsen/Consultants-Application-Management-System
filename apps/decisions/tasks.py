@@ -30,12 +30,14 @@ except ModuleNotFoundError:  # pragma: no cover - provides a fallback in tests
 def generate_approval_certificate_task(consultant_id: int, generated_by: str | None = None):
     consultant = Consultant.objects.get(pk=consultant_id)
     generate_approval_certificate(consultant, generated_by=generated_by)
+    send_decision_email_task.delay(consultant_id, "approved")
 
 
 @shared_task(name="decisions.generate_rejection_letter")
 def generate_rejection_letter_task(consultant_id: int, generated_by: str | None = None):
     consultant = Consultant.objects.get(pk=consultant_id)
     generate_rejection_letter(consultant, generated_by=generated_by)
+    send_decision_email_task.delay(consultant_id, "rejected")
 
 
 @shared_task(name="decisions.send_decision_email")
