@@ -1,10 +1,10 @@
-from django.test import TestCase
+from unittest.mock import patch
 
-# Create your tests here.
 from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from apps.consultants.models import Consultant
+from apps.decisions.models import ApplicationAction
 from apps.users.constants import COUNTERSTAFF_GROUP_NAME, BOARD_COMMITTEE_GROUP_NAME
 
 
@@ -67,30 +67,60 @@ class VettingDashboardViewTests(TestCase):
         response = self.client.get(reverse('vetting_dashboard'))
         self.assertEqual(response.status_code, 403)
 
-    def test_can_approve_consultant(self):
-        response = self.client.post(
-            reverse('vetting_dashboard'),
-            data={'consultant_id': self.consultant.id, 'action': 'approve'},
-            follow=True
-        )
-        self.consultant.refresh_from_db()
-        self.assertEqual(self.consultant.status, 'approved')
+    @patch('apps.decisions.services.transaction.on_commit')
+    @patch('apps.decisions.services.generate_rejection_letter_task.delay')
+    @patch('apps.decisions.services.generate_approval_certificate_task.delay')
+    def test_can_reject_consultant(
+        self,
+        mock_approval_delay,
+        mock_rejection_delay,
+        mock_on_commit,
+    ):
+        mock_on_commit.side_effect = lambda func, using=None: func()
 
-    def test_can_reject_consultant(self):
         response = self.client.post(
             reverse('vetting_dashboard'),
-            data={'consultant_id': self.consultant.id, 'action': 'reject'},
+            data={'consultant_id': self.consultant.id, 'action': 'rejected'},
             follow=True
         )
+
         self.consultant.refresh_from_db()
         self.assertEqual(self.consultant.status, 'rejected')
+        self.assertRedirects(response, reverse('vetting_dashboard'))
 
-    def test_can_vet_consultant(self):
+        action = ApplicationAction.objects.get(consultant=self.consultant)
+        self.assertEqual(action.action, 'rejected')
+        self.assertEqual(action.actor, self.user)
+
+        generated_by = self.user.get_full_name() or self.user.username
+        mock_rejection_delay.assert_called_once_with(self.consultant.id, generated_by)
+        mock_approval_delay.assert_not_called()
+        mock_on_commit.assert_called_once()
+
+    @patch('apps.decisions.services.transaction.on_commit')
+    @patch('apps.decisions.services.generate_rejection_letter_task.delay')
+    @patch('apps.decisions.services.generate_approval_certificate_task.delay')
+    def test_can_vet_consultant(
+        self,
+        mock_approval_delay,
+        mock_rejection_delay,
+        mock_on_commit,
+    ):
+        mock_on_commit.side_effect = lambda func, using=None: func()
+
         response = self.client.post(
             reverse('vetting_dashboard'),
-            data={'consultant_id': self.consultant.id, 'action': 'vet'},
+            data={'consultant_id': self.consultant.id, 'action': 'vetted'},
         )
 
         self.consultant.refresh_from_db()
         self.assertEqual(self.consultant.status, 'vetted')
         self.assertRedirects(response, reverse('vetting_dashboard'))
+
+        action = ApplicationAction.objects.get(consultant=self.consultant)
+        self.assertEqual(action.action, 'vetted')
+        self.assertEqual(action.actor, self.user)
+
+        mock_rejection_delay.assert_not_called()
+        mock_approval_delay.assert_not_called()
+        mock_on_commit.assert_called_once()

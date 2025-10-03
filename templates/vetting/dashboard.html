@@ -10,6 +10,7 @@
         <tr>
             <th>Name</th>
             <th>Status</th>
+            <th class="text-end">Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -17,10 +18,30 @@
         <tr>
             <td>{{ consultant.full_name }}</td>
             <td>{{ consultant.get_status_display }}</td>
+            <td class="text-end">
+                {% if consultant.status == 'submitted' %}
+                <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="consultant_id" value="{{ consultant.id }}" />
+                    {% for value, label in allowed_actions.items %}
+                        <button
+                            type="submit"
+                            name="action"
+                            value="{{ value }}"
+                            class="btn btn-sm {% if value == 'rejected' %}btn-danger{% else %}btn-primary{% endif %}"
+                        >
+                            {{ label }}
+                        </button>
+                    {% endfor %}
+                </form>
+                {% else %}
+                <span class="text-muted">No actions available</span>
+                {% endif %}
+            </td>
         </tr>
         {% empty %}
         <tr>
-            <td colspan="2">No consultants found.</td>
+            <td colspan="3">No consultants found.</td>
         </tr>
         {% endfor %}
     </tbody>

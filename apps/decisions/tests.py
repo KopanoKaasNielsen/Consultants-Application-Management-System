@@ -145,39 +145,32 @@ class DecisionsViewTests(TestCase):
         self.assertEqual([app.full_name for app in applications], ["Rejected Applicant"])
         self.assertEqual(response.context["active_status"], "rejected")
 
-    @patch("apps.decisions.views.send_decision_email")
-    @patch("apps.decisions.views.generate_rejection_letter")
-    @patch("apps.decisions.views.generate_approval_certificate")
+    @patch("apps.decisions.services.transaction.on_commit")
+    @patch("apps.decisions.services.generate_rejection_letter_task.delay")
+    @patch("apps.decisions.services.generate_approval_certificate_task.delay")
     def test_decisions_dashboard_actions(
         self,
         mock_generate_certificate,
         mock_generate_rejection,
-        mock_send_email,
+        mock_on_commit,
     ):
         self.client.force_login(self.staff_user)
         url = reverse("decisions_dashboard")
+
+        mock_on_commit.side_effect = lambda func, using=None: func()
 
         scenarios = {
             "vetted": {
                 "initial_status": "submitted",
                 "expected_status": "vetted",
-                "email_called": False,
-                "certificate_called": False,
-                "rejection_called": False,
             },
             "approved": {
                 "initial_status": "vetted",
                 "expected_status": "approved",
-                "email_called": True,
-                "certificate_called": True,
-                "rejection_called": False,
             },
             "rejected": {
                 "initial_status": "vetted",
                 "expected_status": "rejected",
-                "email_called": True,
-                "certificate_called": False,
-                "rejection_called": True,
             },
         }
 
@@ -189,9 +182,10 @@ class DecisionsViewTests(TestCase):
                     timezone.now(),
                 )
 
-                mock_send_email.reset_mock()
                 mock_generate_certificate.reset_mock()
                 mock_generate_rejection.reset_mock()
+                mock_on_commit.reset_mock()
+                mock_on_commit.side_effect = lambda func, using=None: func()
 
                 response = self.client.post(
                     url,
@@ -211,47 +205,47 @@ class DecisionsViewTests(TestCase):
                 self.assertTrue(messages)
                 self.assertEqual(messages[0].message, ACTION_MESSAGES[action])
 
-                self.assertEqual(mock_send_email.called, expectations["email_called"])
-                self.assertEqual(
-                    mock_generate_certificate.called,
-                    expectations["certificate_called"],
-                )
-                self.assertEqual(
-                    mock_generate_rejection.called, expectations["rejection_called"]
-                )
+                mock_on_commit.assert_called_once()
+                generated_by = self.staff_user.get_full_name() or self.staff_user.username
+                if action == "approved":
+                    mock_generate_certificate.assert_called_once_with(
+                        consultant.pk, generated_by
+                    )
+                    mock_generate_rejection.assert_not_called()
+                elif action == "rejected":
+                    mock_generate_rejection.assert_called_once_with(
+                        consultant.pk, generated_by
+                    )
+                    mock_generate_certificate.assert_not_called()
+                else:
+                    mock_generate_certificate.assert_not_called()
+                    mock_generate_rejection.assert_not_called()
 
                 action_record = ApplicationAction.objects.get(consultant=consultant)
                 self.assertEqual(action_record.action, action)
 
-    @patch("apps.decisions.views.send_decision_email")
-    @patch("apps.decisions.views.generate_rejection_letter")
-    @patch("apps.decisions.views.generate_approval_certificate")
+    @patch("apps.decisions.services.transaction.on_commit")
+    @patch("apps.decisions.services.generate_rejection_letter_task.delay")
+    @patch("apps.decisions.services.generate_approval_certificate_task.delay")
     def test_application_detail_actions(
         self,
         mock_generate_certificate,
         mock_generate_rejection,
-        mock_send_email,
+        mock_on_commit,
     ):
         self.client.force_login(self.board_user)
+
+        mock_on_commit.side_effect = lambda func, using=None: func()
 
         scenarios = {
             "vetted": {
                 "expected_status": "vetted",
-                "email_called": False,
-                "certificate_called": False,
-                "rejection_called": False,
             },
             "approved": {
                 "expected_status": "approved",
-                "email_called": True,
-                "certificate_called": True,
-                "rejection_called": False,
             },
             "rejected": {
                 "expected_status": "rejected",
-                "email_called": True,
-                "certificate_called": False,
-                "rejection_called": True,
             },
         }
 
@@ -266,9 +260,10 @@ class DecisionsViewTests(TestCase):
                     "officer_application_detail", args=[consultant.pk]
                 )
 
-                mock_send_email.reset_mock()
                 mock_generate_certificate.reset_mock()
                 mock_generate_rejection.reset_mock()
+                mock_on_commit.reset_mock()
+                mock_on_commit.side_effect = lambda func, using=None: func()
 
                 response = self.client.post(
                     detail_url,
@@ -287,14 +282,21 @@ class DecisionsViewTests(TestCase):
                 self.assertTrue(messages)
                 self.assertEqual(messages[0].message, ACTION_MESSAGES[action])
 
-                self.assertEqual(mock_send_email.called, expectations["email_called"])
-                self.assertEqual(
-                    mock_generate_certificate.called,
-                    expectations["certificate_called"],
-                )
-                self.assertEqual(
-                    mock_generate_rejection.called, expectations["rejection_called"]
-                )
+                mock_on_commit.assert_called_once()
+                generated_by = self.board_user.get_full_name() or self.board_user.username
+                if action == "approved":
+                    mock_generate_certificate.assert_called_once_with(
+                        consultant.pk, generated_by
+                    )
+                    mock_generate_rejection.assert_not_called()
+                elif action == "rejected":
+                    mock_generate_rejection.assert_called_once_with(
+                        consultant.pk, generated_by
+                    )
+                    mock_generate_certificate.assert_not_called()
+                else:
+                    mock_generate_certificate.assert_not_called()
+                    mock_generate_rejection.assert_not_called()
 
                 action_record = ApplicationAction.objects.get(consultant=consultant)
                 self.assertEqual(action_record.action, action)
