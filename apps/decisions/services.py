@@ -58,10 +58,12 @@ def process_decision_action(
                 consultant.rejection_letter.delete(save=False)
             consultant.rejection_letter = None
             consultant.rejection_letter_generated_at = None
+            consultant.certificate_expires_at = None
             update_fields.extend(
                 [
                     "certificate_pdf",
                     "certificate_generated_at",
+                    "certificate_expires_at",
                     "rejection_letter",
                     "rejection_letter_generated_at",
                 ]
@@ -76,12 +78,14 @@ def process_decision_action(
                 consultant.certificate_pdf.delete(save=False)
             consultant.certificate_pdf = None
             consultant.certificate_generated_at = None
+            consultant.certificate_expires_at = None
             update_fields.extend(
                 [
                     "rejection_letter",
                     "rejection_letter_generated_at",
                     "certificate_pdf",
                     "certificate_generated_at",
+                    "certificate_expires_at",
                 ]
             )
 

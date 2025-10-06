@@ -3,11 +3,13 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.certificates.models import CertificateRenewal
 from apps.consultants.models import Consultant
 from apps.decisions.models import ApplicationAction
 from apps.decisions.views import ACTION_MESSAGES
@@ -80,6 +82,23 @@ class DecisionsViewTests(TestCase):
             submitted_at=submitted_at,
             status=status,
         )
+        return consultant
+
+    def _issue_certificate(self, consultant, *, issued_days_ago=200, valid_for_days=365):
+        issued_at = timezone.now() - timedelta(days=issued_days_ago)
+        consultant.certificate_generated_at = issued_at
+        consultant.certificate_expires_at = issued_at.date() + timedelta(days=valid_for_days)
+        consultant.certificate_pdf = SimpleUploadedFile(
+            "approval.pdf", b"certificate", content_type="application/pdf"
+        )
+        consultant.save(
+            update_fields=[
+                "certificate_pdf",
+                "certificate_generated_at",
+                "certificate_expires_at",
+            ]
+        )
+        consultant.refresh_from_db()
         return consultant
 
     def test_decisions_dashboard_access_control(self):
@@ -223,6 +242,72 @@ class DecisionsViewTests(TestCase):
 
                 action_record = ApplicationAction.objects.get(consultant=consultant)
                 self.assertEqual(action_record.action, action)
+
+    def test_renewal_requests_access_control(self):
+        url = reverse("certificate_renewal_requests")
+
+        self.client.force_login(self.board_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.staff_user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.non_reviewer)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    @patch("apps.decisions.views.transaction.on_commit")
+    @patch("apps.decisions.tasks.generate_approval_certificate_task.delay")
+    def test_reviewer_can_approve_renewal(
+        self, mock_generate_certificate, mock_on_commit
+    ):
+        consultant = self._create_consultant("Renewal Applicant", "approved", timezone.now())
+        consultant = self._issue_certificate(consultant, issued_days_ago=360)
+        renewal = CertificateRenewal.objects.create(consultant=consultant)
+
+        mock_on_commit.side_effect = lambda func, using=None: func()
+
+        url = reverse("certificate_renewal_requests")
+        self.client.force_login(self.staff_user)
+
+        response = self.client.post(
+            url,
+            {
+                "renewal_id": renewal.pk,
+                "decision": "approve",
+                "notes": "All good",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, url)
+        renewal.refresh_from_db()
+        self.assertEqual(renewal.status, CertificateRenewal.Status.APPROVED)
+        mock_generate_certificate.assert_called_once_with(
+            consultant.pk, self.staff_user.get_full_name() or self.staff_user.username
+        )
+
+    def test_reviewer_can_deny_renewal(self):
+        consultant = self._create_consultant("Denied Renewal", "approved", timezone.now())
+        consultant = self._issue_certificate(consultant, issued_days_ago=360)
+        renewal = CertificateRenewal.objects.create(consultant=consultant)
+
+        url = reverse("certificate_renewal_requests")
+        self.client.force_login(self.board_user)
+
+        response = self.client.post(
+            url,
+            {
+                "renewal_id": renewal.pk,
+                "decision": "deny",
+                "notes": "Missing documentation",
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, url)
+        renewal.refresh_from_db()
+        self.assertEqual(renewal.status, CertificateRenewal.Status.DENIED)
+        self.assertEqual(renewal.notes, "Missing documentation")
 
     @patch("apps.decisions.services.transaction.on_commit")
     @patch("apps.decisions.services.generate_rejection_letter_task.delay")
