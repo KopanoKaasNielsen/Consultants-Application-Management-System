@@ -23,13 +23,36 @@ ACTION_MESSAGES = {
 
 REVIEWER_ROLES = (Roles.BOARD, Roles.STAFF)
 
-def is_reviewer(user):
+
+def _extract_roles(subject):
+    if hasattr(subject, "jwt_roles"):
+        return getattr(subject, "jwt_roles"), getattr(
+            subject, "jwt_token_present", False
+        )
+
+    if hasattr(subject, "user") and hasattr(subject.user, "jwt_roles"):
+        return getattr(subject.user, "jwt_roles"), getattr(
+            subject.user, "jwt_token_present", False
+        )
+
+    return None, False
+
+
+def is_reviewer(subject):
+    roles, token_present = _extract_roles(subject)
+    if roles is not None:
+        if any(role in roles for role in REVIEWER_ROLES):
+            return True
+        if token_present or roles:
+            return False
+
+    user = getattr(subject, "user", subject)
     return any(user_has_role(user, role) for role in REVIEWER_ROLES)
 
 def reviewer_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
-        if not is_reviewer(request.user):
+        if not is_reviewer(request):
             raise PermissionDenied
         return view_func(request, *args, **kwargs)
 

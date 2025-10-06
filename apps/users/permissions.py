@@ -70,6 +70,13 @@ def role_required(*roles: RoleLike):
             if getattr(user, "is_superuser", False):
                 return view_func(request, *args, **kwargs)
 
+            request_roles = getattr(request, "jwt_roles", None)
+            token_present = getattr(request, "jwt_token_present", False)
+            if request_roles is not None and (token_present or request_roles):
+                if any(role in request_roles for role in normalised_roles):
+                    return view_func(request, *args, **kwargs)
+                raise PermissionDenied
+
             if not user.groups.filter(name__in=allowed_groups).exists():
                 raise PermissionDenied
 
