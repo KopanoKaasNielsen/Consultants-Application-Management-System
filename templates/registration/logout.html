@@ -1,8 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head><title>Logged out</title></head>
-<body>
-  <p>You have been logged out.</p>
-  <a href="{% url 'login' %}">Login again</a>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Signed out{% endblock %}
+
+{% block content %}
+<section class="form-card">
+  <h1>Signed out</h1>
+  <p class="description">You have been logged out successfully.</p>
+  <div class="form-actions">
+    <a class="btn-primary" href="{% url 'login' %}">Sign in again</a>
+  </div>
+</section>
+{% endblock %}
