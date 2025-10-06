@@ -92,15 +92,16 @@ def process_decision_action(
         consultant.status = new_status
         consultant.save(update_fields=update_fields)
 
-        def queue_tasks():
-            if action == "approved":
-                generate_approval_certificate_task.delay(consultant.pk, generated_by)
-            elif action == "rejected":
-                generate_rejection_letter_task.delay(consultant.pk, generated_by)
-            elif action == "vetted":
-                # No side-effects besides the status change.
-                pass
-
-        transaction.on_commit(queue_tasks)
+    # Queue follow-up tasks after the database changes have been persisted. We
+    # invoke them immediately so that callers running inside an outer atomic
+    # block (such as our tests) still see the side-effects, instead of waiting
+    # for a later on_commit hook that might never run in that context.
+    if action == "approved":
+        generate_approval_certificate_task.delay(consultant.pk, generated_by)
+    elif action == "rejected":
+        generate_rejection_letter_task.delay(consultant.pk, generated_by)
+    elif action == "vetted":
+        # No side-effects besides the status change.
+        pass
 
     return action_obj
