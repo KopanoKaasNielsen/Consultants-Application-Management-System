@@ -1,8 +1,10 @@
 from django.shortcuts import render, redirect
+from django.contrib.auth import logout
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.views.decorators.http import require_POST
 
 from apps.consultants.models import Consultant
 from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
@@ -21,6 +23,15 @@ def register(request):
     else:
         form = UserCreationForm()
     return render(request, 'register.html', {'form': form})
+
+
+@require_POST
+def logout_view(request):
+    """Log out the current user via an explicit POST request."""
+
+    logout(request)
+    return redirect('login')
+
 
 @login_required
 def dashboard(request):
