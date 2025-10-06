@@ -1,0 +1,44 @@
+diff --git a/backend/settings.py b/backend/settings.py
+index abcdef1..1234567 100644
+--- a/backend/settings.py
++++ b/backend/settings.py
+@@ -1,6 +1,8 @@
+ import os
+ from pathlib import Path
+
++from django.core.exceptions import ImproperlyConfigured
++
+ DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
+ BASE_DIR = Path(__file__).resolve().parent.parent
+ 
+@@ -70,6 +72,15 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
+ 
+ # Whitenoise static files
+ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
++
++# Media config
++MEDIA_URL = "/media/"
++MEDIA_ROOT = BASE_DIR / "media"
++
++# Validate required settings (optional guard)
++if not ALLOWED_HOSTS:
++    raise ImproperlyConfigured("ALLOWED_HOSTS must not be empty")
++
++# End settings cleanup
+
+diff --git a/backend/urls.py b/backend/urls.py
+index 2345678..3456789 100644
+--- a/backend/urls.py
++++ b/backend/urls.py
+@@ -1,5 +1,7 @@
+ from django.contrib import admin
+ from django.urls import path, include
++from django.conf import settings
++from django.conf.urls.static import static
+
+ urlpatterns = [
+     path("admin/", admin.site.urls),
+     path("", include("apps.users.urls")),
+     path("consultants/", include("apps.consultants.urls")),
+ ]  + (static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) if settings.DEBUG else [])
+

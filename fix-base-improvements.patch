@@ -1,0 +1,123 @@
+From 01c85326f7cbe5198b5f5603d3bb2b1dcb1ad003 Mon Sep 17 00:00:00 2001
+From: Kopano Nielsen <knielsen@gov.bw>
+Date: Fri, 4 Oct 2025 01:30:00 +0200
+Subject: [PATCH] Fix bugs, add env config, test scaffolding, and README
+
+---
+ .env.sample                         | 6 ++++++
+ README.md                           | 29 +++++++++++++++++++++++++++++
+ apps/consultants/views.py          | 11 +++++------
+ tests/test_permissions.py          | 13 +++++++++++++
+ 4 files changed, 53 insertions(+), 6 deletions(-)
+ create mode 100644 .env.sample
+ create mode 100644 README.md
+ create mode 100644 tests/test_permissions.py
+
+diff --git a/.env.sample b/.env.sample
+new file mode 100644
+index 0000000..1a2b1b3
+--- /dev/null
++++ b/.env.sample
+@@ -0,0 +1,6 @@
++DEBUG=True
++SECRET_KEY=your-secret-key
++ALLOWED_HOSTS=localhost,127.0.0.1
++DATABASE_URL=postgres://user:pass@localhost:5432/dbname
++EMAIL_URL=smtp://user:pass@mailserver:587
++
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..b23a12e
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,29 @@
++# Consultants Application Management System (CAMS)
++
++A Django-based platform for managing consultant registration, vetting, approvals, and certificate issuance.
++
++## 🚀 Setup
++
++```bash
++git clone https://github.com/KopanoKaasNielsen/Consultants-Application-Management-System.git
++cd Consultants-Application-Management-System
++cp .env.sample .env
++pip install -r requirements.txt
++python manage.py migrate
++python manage.py runserver
++```
++
++## 🔐 Environment Variables
++
++All environment variables should be stored in a `.env` file. See `.env.sample` for required keys.
++
++## 🧪 Run tests
++
++```bash
++pytest
++```
++
++## 📦 Deployment
++
++- Use `render.yaml` or another deploy method
++- Run `collectstatic`, `migrate` and ensure `.env` is populated
++
+diff --git a/apps/consultants/views.py b/apps/consultants/views.py
+index 7f838de..3a9d1b2 100644
+--- a/apps/consultants/views.py
++++ b/apps/consultants/views.py
+@@ -13,7 +13,6 @@ from apps.certificates.services import (
+     generate_approval_certificate,
+     generate_rejection_letter,
+ )
+-from .models import ApplicationAction
+ from .emails import send_decision_email
+ from .forms import ActionForm
+ from apps.users.constants import UserRole as Roles
+@@ -61,7 +60,9 @@ def decisions_dashboard(request):
+     consultants = (
+         Consultant.objects.filter(status="vetted")
+         .select_related("user")
+-        .order_by("full_name")
++        .order_by("user__last_name", "user__first_name")  # safer field
+     )
+ 
+     form = ActionForm()
+@@ -169,7 +170,8 @@ def applications_list(request):
+     """
+     status = request.GET.get('status')
+     qs = Consultant.objects.all().select_related('user')
+-
+-    qs = qs.order_by('-submitted_at')
++
++    qs = qs.order_by('-created_at')  # ensure real field used
+     if status:
+         qs = qs.filter(status=status)
+     else:
+@@ -230,7 +232,6 @@ def application_detail(request, pk):
+     application = get_object_or_404(Consultant, pk=pk)
+     form = ActionForm(request.POST or None)
+ 
+     if request.method == 'POST' and form.is_valid():
+         action_obj = form.save(commit=False)
+         action_obj.consultant = application
+         action_obj.actor = request.user
+diff --git a/tests/test_permissions.py b/tests/test_permissions.py
+new file mode 100644
+index 0000000..5088a09
+--- /dev/null
++++ b/tests/test_permissions.py
+@@ -0,0 +1,13 @@
++import pytest
++from django.urls import reverse
++from apps.users.constants import UserRole as Roles
++
++@pytest.mark.django_db
++def test_reviewer_required_allows_roles(client, user_factory):
++    """
++    Basic test to confirm reviewer_required grants access to BOARD and STAFF.
++    """
++    for role in (Roles.BOARD, Roles.STAFF):
++        user = user_factory(role=role)
++        client.force_login(user)
++        resp = client.get(reverse("decisions_dashboard"))
++        assert resp.status_code == 200
