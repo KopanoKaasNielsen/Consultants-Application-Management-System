@@ -23,6 +23,11 @@ from apps.users.constants import (
 from apps.users.permissions import role_required, user_has_role
 from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
+from apps.users.views import (
+    IMPERSONATOR_BACKEND_SESSION_KEY,
+    IMPERSONATOR_ID_SESSION_KEY,
+    IMPERSONATOR_USERNAME_SESSION_KEY,
+)
 
 
 class RegistrationTests(TestCase):
@@ -128,6 +133,96 @@ class LogoutRedirectTests(TestCase):
         response = self.client.get(reverse("logout"))
         self.assertEqual(response.status_code, 405)
 
+
+class ImpersonationViewTests(TestCase):
+    password = "testpass123"
+
+    def setUp(self):
+        super().setUp()
+        self.user_model = get_user_model()
+        self.admin_group, _ = Group.objects.get_or_create(name=ADMINS_GROUP_NAME)
+
+        self.admin_user = self.user_model.objects.create_user(
+            username="admin",
+            password=self.password,
+            email="admin@example.com",
+        )
+        self.admin_user.groups.add(self.admin_group)
+
+        self.target_user = self.user_model.objects.create_user(
+            username="target",
+            password=self.password,
+            email="target@example.com",
+        )
+
+    def test_admin_can_impersonate_user(self):
+        self.client.login(username="admin", password=self.password)
+
+        response = self.client.post(
+            reverse("start_impersonation"),
+            {"user_id": self.target_user.pk},
+        )
+
+        self.assertRedirects(response, reverse("home"))
+
+        session = self.client.session
+        self.assertEqual(int(session.get("_auth_user_id")), self.target_user.pk)
+        self.assertEqual(session[IMPERSONATOR_ID_SESSION_KEY], self.admin_user.pk)
+        self.assertEqual(
+            session[IMPERSONATOR_USERNAME_SESSION_KEY], self.admin_user.username
+        )
+        self.assertIsNotNone(session[IMPERSONATOR_BACKEND_SESSION_KEY])
+
+    def test_non_admin_cannot_impersonate(self):
+        non_admin = self.user_model.objects.create_user(
+            username="regular",
+            password=self.password,
+        )
+
+        self.client.login(username="regular", password=self.password)
+        response = self.client.post(
+            reverse("start_impersonation"),
+            {"user_id": self.target_user.pk},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        session = self.client.session
+        self.assertNotIn(IMPERSONATOR_ID_SESSION_KEY, session)
+
+    def test_prevents_nested_impersonation(self):
+        nested_target = self.user_model.objects.create_user(
+            username="nested",
+            password=self.password,
+        )
+        nested_target.groups.add(self.admin_group)
+
+        self.client.login(username="admin", password=self.password)
+        self.client.post(reverse("start_impersonation"), {"user_id": nested_target.pk})
+
+        response = self.client.post(
+            reverse("start_impersonation"),
+            {"user_id": self.target_user.pk},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_stop_impersonation_restores_original_admin(self):
+        self.client.login(username="admin", password=self.password)
+        self.client.post(reverse("start_impersonation"), {"user_id": self.target_user.pk})
+
+        response = self.client.post(reverse("stop_impersonation"))
+
+        self.assertRedirects(
+            response,
+            reverse("impersonation_dashboard"),
+            fetch_redirect_response=False,
+        )
+
+        session = self.client.session
+        self.assertNotIn(IMPERSONATOR_ID_SESSION_KEY, session)
+        self.assertNotIn(IMPERSONATOR_USERNAME_SESSION_KEY, session)
+        self.assertNotIn(IMPERSONATOR_BACKEND_SESSION_KEY, session)
+        self.assertEqual(int(session.get("_auth_user_id")), self.admin_user.pk)
 
 class RolePermissionTests(TestCase):
     def setUp(self):

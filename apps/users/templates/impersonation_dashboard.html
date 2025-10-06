@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Impersonation Dashboard{% endblock %}
+
+{% block content %}
+<section class="page-stack">
+    <div class="form-card wide">
+        <h1>Impersonation dashboard</h1>
+        <p class="description">
+            Select a user to impersonate. While impersonating, your original administrator session is preserved and can be restored at any time.
+        </p>
+        <form method="get" class="impersonation-search">
+            <label for="user-search">Search users</label>
+            <div class="impersonation-search__controls">
+                <input id="user-search" type="search" name="q" value="{{ query }}" placeholder="Search by username">
+                <button type="submit" class="btn-secondary">Search</button>
+            </div>
+        </form>
+        {% if is_impersonating %}
+            <div class="impersonation-warning">
+                You are currently impersonating another account. Stop the active session before starting a new impersonation.
+            </div>
+        {% endif %}
+        <div class="impersonation-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">Username</th>
+                        <th scope="col">Email</th>
+                        <th scope="col" class="actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for user in users %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email|default:"—" }}</td>
+                        <td class="actions">
+                            <form method="post" action="{% url 'start_impersonation' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="user_id" value="{{ user.pk }}">
+                                <button type="submit" class="btn-primary" {% if is_impersonating %}disabled{% endif %}>Impersonate</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="3" class="empty">No users found.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

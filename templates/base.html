@@ -15,6 +15,11 @@
         <div class="brand">Consultant App</div>
         <nav class="site-nav">
         {% if user.is_authenticated %}
+            {% with user_is_admin=user.is_superuser or user.groups.filter(name='Admins').exists %}
+                {% if user_is_admin %}
+                    <a class="nav-link" href="{% url 'impersonation_dashboard' %}">Impersonation</a>
+                {% endif %}
+            {% endwith %}
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button type="submit" class="btn-link">Logout</button>
@@ -25,6 +30,18 @@
         {% endif %}
         </nav>
     </header>
+
+    {% if request.session.impersonator_username %}
+    <div class="impersonation-banner">
+        <div class="impersonation-banner__content">
+            <span>You are impersonating <strong>{{ user.username }}</strong>. Original admin: <strong>{{ request.session.impersonator_username }}</strong>.</span>
+            <form method="post" action="{% url 'stop_impersonation' %}" class="impersonation-banner__form">
+                {% csrf_token %}
+                <button type="submit" class="btn-stop-impersonation">Stop impersonating</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
 
     <main class="page-content">
         {% block content %}
