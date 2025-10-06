@@ -1,13 +1,29 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import logout
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import logout, login as auth_login, get_user_model
+from django.contrib.auth import BACKEND_SESSION_KEY
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
+from django.http import HttpResponseBadRequest
 
 from apps.consultants.models import Consultant
-from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
+from apps.users.constants import (
+    CONSULTANTS_GROUP_NAME,
+    ADMINS_GROUP_NAME,
+    UserRole as Roles,
+)
+
+
+IMPERSONATOR_ID_SESSION_KEY = 'impersonator_id'
+IMPERSONATOR_USERNAME_SESSION_KEY = 'impersonator_username'
+IMPERSONATOR_BACKEND_SESSION_KEY = 'impersonator_backend'
+
+
+def _user_is_admin(user):
+    return user.is_superuser or user.groups.filter(name=ADMINS_GROUP_NAME).exists()
+
 
 def register(request):
     if request.method == 'POST':
@@ -30,6 +46,89 @@ def logout_view(request):
 
     logout(request)
     return redirect('login')
+
+
+@login_required
+def impersonation_dashboard(request):
+    if not _user_is_admin(request.user):
+        raise PermissionDenied
+
+    query = request.GET.get('q', '').strip()
+    user_model = get_user_model()
+    users = user_model.objects.all().order_by('username')
+
+    if query:
+        users = users.filter(username__icontains=query)
+
+    users = users.exclude(pk=request.user.pk)
+
+    return render(
+        request,
+        'impersonation_dashboard.html',
+        {
+            'users': users,
+            'query': query,
+            'is_impersonating': IMPERSONATOR_ID_SESSION_KEY in request.session,
+        },
+    )
+
+
+@login_required
+@require_POST
+def start_impersonation(request):
+    if IMPERSONATOR_ID_SESSION_KEY in request.session:
+        return HttpResponseBadRequest('Already impersonating a user.')
+
+    if not _user_is_admin(request.user):
+        raise PermissionDenied
+
+    user_id = request.POST.get('user_id')
+    if not user_id:
+        return HttpResponseBadRequest('User id is required.')
+
+    user_model = get_user_model()
+    target_user = get_object_or_404(user_model, pk=user_id)
+
+    if target_user.pk == request.user.pk:
+        return HttpResponseBadRequest('Cannot impersonate yourself.')
+
+    original_user = request.user
+    backend = request.session.get(BACKEND_SESSION_KEY)
+
+    if backend is None:
+        return HttpResponseBadRequest('Authentication backend missing.')
+
+    auth_login(request, target_user, backend=backend)
+
+    request.session[IMPERSONATOR_ID_SESSION_KEY] = original_user.pk
+    request.session[IMPERSONATOR_USERNAME_SESSION_KEY] = original_user.get_username()
+    request.session[IMPERSONATOR_BACKEND_SESSION_KEY] = backend
+
+    return redirect('home')
+
+
+@login_required
+@require_POST
+def stop_impersonation(request):
+    impersonator_id = request.session.get(IMPERSONATOR_ID_SESSION_KEY)
+    impersonator_backend = request.session.get(IMPERSONATOR_BACKEND_SESSION_KEY)
+
+    if not impersonator_id or not impersonator_backend:
+        return HttpResponseBadRequest('Not currently impersonating a user.')
+
+    user_model = get_user_model()
+    original_user = get_object_or_404(user_model, pk=impersonator_id)
+
+    auth_login(request, original_user, backend=impersonator_backend)
+
+    for key in (
+        IMPERSONATOR_ID_SESSION_KEY,
+        IMPERSONATOR_USERNAME_SESSION_KEY,
+        IMPERSONATOR_BACKEND_SESSION_KEY,
+    ):
+        request.session.pop(key, None)
+
+    return redirect('impersonation_dashboard')
 
 
 @login_required
