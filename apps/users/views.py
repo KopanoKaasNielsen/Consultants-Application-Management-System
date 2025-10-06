@@ -8,7 +8,6 @@ from django.views.decorators.http import require_POST
 
 from apps.consultants.models import Consultant
 from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
-from apps.users.permissions import user_has_role
 
 def register(request):
     if request.method == 'POST':
@@ -37,13 +36,15 @@ def logout_view(request):
 def dashboard(request):
     user = request.user
 
-    if user_has_role(user, Roles.BOARD):
+    roles = getattr(request, "jwt_roles", set())
+
+    if Roles.BOARD in roles:
         return redirect('decisions_dashboard')
 
-    if user_has_role(user, Roles.STAFF):
+    if Roles.STAFF in roles:
         return redirect('vetting_dashboard')
 
-    if not user_has_role(user, Roles.CONSULTANT):
+    if Roles.CONSULTANT not in roles:
         raise PermissionDenied
 
     application = Consultant.objects.filter(user=user).first()

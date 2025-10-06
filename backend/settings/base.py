@@ -99,6 +99,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.users.middleware.JWTAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -161,3 +162,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configure monitoring once settings are imported.
 init_sentry()
+
+
+# JWT authentication configuration
+JWT_AUTH_SECRET = os.getenv("JWT_AUTH_SECRET")
+JWT_AUTH_ALGORITHM = os.getenv("JWT_AUTH_ALGORITHM", "HS256")
+_jwt_algorithms_env = os.getenv("JWT_AUTH_ALGORITHMS")
+JWT_AUTH_ALGORITHMS = (
+    tuple(algo.strip() for algo in _jwt_algorithms_env.split(",") if algo.strip())
+    if _jwt_algorithms_env
+    else None
+)
