@@ -122,6 +122,12 @@ class LogoutRedirectTests(TestCase):
             fetch_redirect_response=False,
         )
 
+    def test_logout_rejects_get_requests(self):
+        """Logging out should require a POST to prevent CSRF-able GETs."""
+
+        response = self.client.get(reverse("logout"))
+        self.assertEqual(response.status_code, 405)
+
 
 class RolePermissionTests(TestCase):
     def setUp(self):
