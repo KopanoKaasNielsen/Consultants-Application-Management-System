@@ -46,6 +46,7 @@ CSRF_TRUSTED_ORIGINS = os.getenv(
     "CSRF_TRUSTED_ORIGINS",
     "https://consultant-app-156x.onrender.com,https://*.onrender.com",
 ).split(",")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 def _get_sample_rate(name: str, default: float) -> float:
