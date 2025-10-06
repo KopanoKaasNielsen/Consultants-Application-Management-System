@@ -45,6 +45,7 @@ class Consultant(models.Model):
     # Decision documents
     certificate_pdf = models.FileField(upload_to='documents/decision_certificates/', blank=True, null=True)
     certificate_generated_at = models.DateTimeField(blank=True, null=True)
+    certificate_expires_at = models.DateField(blank=True, null=True)
     rejection_letter = models.FileField(upload_to='documents/rejection_letters/', blank=True, null=True)
     rejection_letter_generated_at = models.DateTimeField(blank=True, null=True)
 

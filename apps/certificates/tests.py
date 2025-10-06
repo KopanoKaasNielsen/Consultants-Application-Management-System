@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -6,8 +6,10 @@ from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.consultants.models import Consultant
+from apps.certificates.models import CertificateRenewal
 from apps.users.constants import (
     BACKOFFICE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
@@ -23,6 +25,7 @@ class CertificatesDashboardViewTests(TestCase):
         consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
         self.user.groups.add(consultant_group)
         self.dashboard_url = reverse("certificates:certificates_dashboard")
+        self.renewal_url = reverse("certificates:request_renewal")
 
     def _create_consultant(self, user, **overrides):
         defaults = {
@@ -39,6 +42,24 @@ class CertificatesDashboardViewTests(TestCase):
         }
         defaults.update(overrides)
         return Consultant.objects.create(user=user, **defaults)
+
+    def _create_certificate(self, consultant, *, issued_days_ago=100, valid_for_days=365):
+        issued_at = timezone.now() - timedelta(days=issued_days_ago)
+        expires_at = issued_at.date() + timedelta(days=valid_for_days)
+        consultant.certificate_generated_at = issued_at
+        consultant.certificate_expires_at = expires_at
+        consultant.certificate_pdf = SimpleUploadedFile(
+            "approval.pdf", b"certificate", content_type="application/pdf"
+        )
+        consultant.save(
+            update_fields=[
+                "certificate_generated_at",
+                "certificate_expires_at",
+                "certificate_pdf",
+            ]
+        )
+        consultant.refresh_from_db()
+        return consultant
 
     def test_dashboard_requires_authentication(self):
         response = self.client.get(self.dashboard_url)
@@ -114,6 +135,63 @@ class CertificatesDashboardViewTests(TestCase):
         messages = list(get_messages(response.wsgi_request))
         self.assertTrue(messages)
         self.assertIn("Application approved!", str(messages[0]))
+
+    def test_dashboard_shows_renewal_information(self):
+        consultant = self._create_consultant(self.user, status="approved")
+        consultant = self._create_certificate(
+            consultant, issued_days_ago=300, valid_for_days=365
+        )
+        CertificateRenewal.objects.create(
+            consultant=consultant,
+            status=CertificateRenewal.Status.PENDING,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(self.dashboard_url)
+
+        self.assertContains(response, "Renewal requested")
+        self.assertIn("renewals", response.context)
+        self.assertTrue(response.context["pending_renewal"])
+
+    def test_request_certificate_renewal_creates_pending_record(self):
+        consultant = self._create_consultant(self.user, status="approved")
+        consultant = self._create_certificate(
+            consultant, issued_days_ago=350, valid_for_days=365
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(self.renewal_url, follow=True)
+
+        self.assertRedirects(response, self.dashboard_url)
+        renewal = consultant.certificate_renewals.first()
+        self.assertIsNotNone(renewal)
+        self.assertEqual(renewal.status, CertificateRenewal.Status.PENDING)
+
+    def test_request_certificate_renewal_blocks_outside_window(self):
+        consultant = self._create_consultant(self.user, status="approved")
+        consultant = self._create_certificate(
+            consultant, issued_days_ago=10, valid_for_days=365
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(self.renewal_url, follow=True)
+
+        self.assertRedirects(response, self.dashboard_url)
+        self.assertFalse(consultant.certificate_renewals.exists())
+        messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(messages)
+        self.assertIn("Renewal requests can only be made", str(messages[0]))
+
+    def test_request_certificate_renewal_requires_active_certificate(self):
+        consultant = self._create_consultant(self.user, status="approved")
+
+        self.client.force_login(self.user)
+        response = self.client.post(self.renewal_url, follow=True)
+
+        self.assertRedirects(response, self.dashboard_url)
+        self.assertFalse(consultant.certificate_renewals.exists())
+        messages = list(get_messages(response.wsgi_request))
+        self.assertIn("active approval certificate", str(messages[0]))
 
     def test_non_consultant_user_receives_403(self):
         staff_user = self.user_model.objects.create_user(
