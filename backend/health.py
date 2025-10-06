@@ -1,4 +1,4 @@
-"""Simple health check view for uptime monitoring."""
+"""Health check views for uptime monitoring."""
 from __future__ import annotations
 
 from django.db import connections
@@ -8,6 +8,11 @@ from django.http import JsonResponse
 
 def health_view(request):
     """Return a lightweight service health response."""
+    return JsonResponse({"status": "ok"})
+
+
+def database_health_view(request):
+    """Return health information that includes database connectivity."""
     payload = {"status": "ok"}
 
     connection = connections["default"]
