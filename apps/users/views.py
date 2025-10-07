@@ -1,3 +1,7 @@
+import mimetypes
+from pathlib import Path
+from typing import Optional
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import logout, login as auth_login, get_user_model
 from django.contrib.auth import BACKEND_SESSION_KEY
@@ -231,15 +235,36 @@ def staff_consultant_detail(request, pk: int):
         ("rejection_letter", "Rejection letter"),
     ]
 
+    def format_file_size(size_bytes: Optional[int]) -> str:
+        if size_bytes is None:
+            return "Unknown size"
+        if size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+
     document_fields = []
     for field_name, label in document_field_labels:
         file_field = getattr(consultant, field_name)
         if file_field:
+            file_name = file_field.name.rsplit("/", 1)[-1]
+            extension = Path(file_name).suffix.replace(".", "").upper()
+            if not extension:
+                mime_type, _ = mimetypes.guess_type(file_name)
+                if mime_type:
+                    extension = mime_type.split("/")[-1].upper()
+
+            try:
+                size_bytes = file_field.size
+            except (OSError, ValueError):
+                size_bytes = None
+
             document_fields.append(
                 {
                     "label": label,
                     "url": file_field.url,
-                    "name": file_field.name.rsplit("/", 1)[-1],
+                    "name": file_name,
+                    "type": extension or "UNKNOWN",
+                    "size": format_file_size(size_bytes),
                 }
             )
 
