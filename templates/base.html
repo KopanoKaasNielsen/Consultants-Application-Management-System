@@ -18,6 +18,9 @@
             {% if user_is_admin %}
                 <a class="nav-link" href="{% url 'impersonation_dashboard' %}">Impersonation</a>
             {% endif %}
+            {% if user_is_board_or_staff %}
+                <a class="nav-link" href="{% url 'board_dashboard' %}">Board dashboard</a>
+            {% endif %}
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button type="submit" class="btn-link">Logout</button>
