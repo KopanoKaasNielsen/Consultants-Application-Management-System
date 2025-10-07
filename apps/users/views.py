@@ -15,7 +15,7 @@ from apps.users.constants import (
     ADMINS_GROUP_NAME,
     UserRole as Roles,
 )
-from apps.users.permissions import user_has_role
+from apps.users.permissions import role_required, user_has_role
 
 
 IMPERSONATOR_ID_SESSION_KEY = 'impersonator_id'
@@ -158,6 +158,41 @@ def board_dashboard(request):
         'board_dashboard.html',
         {
             'consultants': consultants,
+        },
+    )
+
+
+@role_required(Roles.STAFF)
+def staff_dashboard(request):
+    allowed_actions = {
+        "approved": "Approve",
+        "rejected": "Reject",
+        "incomplete": "Request Info",
+    }
+
+    if request.method == "POST":
+        consultant_id = request.POST.get("consultant_id")
+        action = request.POST.get("action")
+
+        if consultant_id and action in allowed_actions:
+            consultant = get_object_or_404(Consultant, id=consultant_id)
+            consultant.status = action
+            consultant.staff_comment = request.POST.get("comment", "").strip()
+            consultant.save(update_fields=["status", "staff_comment"])
+            return redirect("staff_dashboard")
+
+    consultants = (
+        Consultant.objects.filter(status="submitted")
+        .select_related("user")
+        .order_by("full_name")
+    )
+
+    return render(
+        request,
+        "staff_dashboard.html",
+        {
+            "consultants": consultants,
+            "allowed_actions": allowed_actions,
         },
     )
 
