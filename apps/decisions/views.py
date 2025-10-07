@@ -61,12 +61,12 @@ def reviewer_required(view_func):
 
 @reviewer_required
 def decisions_dashboard(request):
-    """Dashboard for reviewers to see vetted applications and record actions."""
+    """Dashboard for reviewers to see submitted/vetted applications and record actions."""
 
     consultants = (
-        Consultant.objects.filter(status="vetted")
+        Consultant.objects.filter(status__in=["submitted", "vetted"])
         .select_related("user")
-        .order_by("full_name")
+        .order_by("status", "-submitted_at", "full_name")
     )
 
     form = ActionForm()
