@@ -3,15 +3,42 @@
 {% block title %}Staff Dashboard{% endblock %}
 
 {% block content %}
-  <h2>Welcome to the Staff Dashboard</h2>
+  <h2>Submitted Consultant Applications</h2>
 
-  <p>Hello <strong>{{ user.username }}</strong>,</p>
-  <p>This section is accessible only to staff and board members.</p>
+  {% if consultants %}
+    <p>Select an action for each application and optionally leave an internal comment.</p>
 
-  <div style="margin-top: 20px;">
-      <ul>
-          <li><a href="{% url 'dashboard' %}">Consultant Dashboard</a></li>
-          <li><a href="{% url 'admin:index' %}">Admin Site</a></li>
-      </ul>
-  </div>
+    {% for consultant in consultants %}
+      <section class="card mb-4 p-3">
+        <form method="post" action="{% url 'staff_dashboard' %}">
+          {% csrf_token %}
+          <input type="hidden" name="consultant_id" value="{{ consultant.id }}">
+
+          <header class="mb-2">
+            <h3 class="h5 mb-1">{{ consultant.full_name }}</h3>
+            <p class="mb-0 text-muted">ID: {{ consultant.id_number }} · {{ consultant.email }}</p>
+          </header>
+
+          <div class="mb-3">
+            <label for="comment-{{ consultant.id }}" class="form-label">Internal comment</label>
+            <textarea
+              id="comment-{{ consultant.id }}"
+              name="comment"
+              class="form-control"
+              rows="3"
+              placeholder="Add a note for other staff members"
+            >{{ consultant.staff_comment|default_if_none:"" }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" name="action" value="approved" class="btn btn-success">Approve</button>
+            <button type="submit" name="action" value="rejected" class="btn btn-danger">Reject</button>
+            <button type="submit" name="action" value="incomplete" class="btn btn-warning">Mark Incomplete</button>
+          </div>
+        </form>
+      </section>
+    {% endfor %}
+  {% else %}
+    <p>No submitted applications require review at this time.</p>
+  {% endif %}
 {% endblock %}

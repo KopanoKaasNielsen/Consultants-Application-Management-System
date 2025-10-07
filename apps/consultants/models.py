@@ -11,11 +11,12 @@ class Consultant(models.Model):
     ]
 
     STATUS_CHOICES = [
-        ('draft', 'Draft'),
-        ('submitted', 'Submitted'),
-        ('vetted', 'Vetted'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
+        ("draft", "Draft"),
+        ("submitted", "Submitted"),
+        ("incomplete", "Incomplete"),
+        ("vetted", "Vetted"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
     ]
 
     # Link to the User (consultant account)
@@ -51,7 +52,8 @@ class Consultant(models.Model):
 
     # Status and metadata
     submitted_at = models.DateTimeField(blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    staff_comment = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.full_name} ({self.status})"
