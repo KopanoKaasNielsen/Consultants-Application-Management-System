@@ -69,6 +69,32 @@ class RoleBasedLoginViewTests(TestCase):
             fetch_redirect_response=False,
         )
 
+    def test_staff_group_takes_priority_over_applicant_group(self):
+        staff_group, _ = Group.objects.get_or_create(name='Staff')
+        applicant_group, _ = Group.objects.get_or_create(name='Applicant')
+
+        user = self._create_user('multiroleuser')
+        user.groups.add(applicant_group, staff_group)
+
+        response = self.client.post(
+            self.login_url,
+            {'username': user.username, 'password': self.password},
+        )
+
+        self.assertRedirects(response, '/staff-dashboard/', fetch_redirect_response=False)
+
+    def test_superuser_redirect_has_priority_over_group_memberships(self):
+        staff_group, _ = Group.objects.get_or_create(name='Staff')
+        user = self._create_user('superspecial', is_superuser=True)
+        user.groups.add(staff_group)
+
+        response = self.client.post(
+            self.login_url,
+            {'username': user.username, 'password': self.password},
+        )
+
+        self.assertRedirects(response, '/admin-dashboard/', fetch_redirect_response=False)
+
     def test_default_redirect_remains_dashboard(self):
         user = self._create_user('defaultuser')
 
