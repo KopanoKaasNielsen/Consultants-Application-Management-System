@@ -15,11 +15,9 @@
         <div class="brand">Consultant App</div>
         <nav class="site-nav">
         {% if user.is_authenticated %}
-            {% with user_is_admin=user.is_superuser or user.groups.filter(name='Admins').exists %}
-                {% if user_is_admin %}
-                    <a class="nav-link" href="{% url 'impersonation_dashboard' %}">Impersonation</a>
-                {% endif %}
-            {% endwith %}
+            {% if user_is_admin %}
+                <a class="nav-link" href="{% url 'impersonation_dashboard' %}">Impersonation</a>
+            {% endif %}
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button type="submit" class="btn-link">Logout</button>
