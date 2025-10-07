@@ -86,3 +86,26 @@ def test_consultant_token_receives_consultant_dashboard(client, jwt_config, user
     assert response.status_code == 200
     template_names = {template.name for template in response.templates if template.name}
     assert "dashboard.html" in template_names
+
+
+@pytest.mark.django_db
+def test_consultant_group_access_without_jwt(client, user_factory):
+    user = user_factory(role=UserRole.CONSULTANT)
+    client.force_login(user)
+
+    response = client.get(reverse("dashboard"))
+
+    assert response.status_code == 200
+    template_names = {template.name for template in response.templates if template.name}
+    assert "dashboard.html" in template_names
+
+
+@pytest.mark.django_db
+def test_staff_group_redirects_without_jwt(client, user_factory):
+    user = user_factory(role=UserRole.STAFF)
+    client.force_login(user)
+
+    response = client.get(reverse("dashboard"))
+
+    assert response.status_code == 302
+    assert response.url == reverse("vetting_dashboard")

@@ -1,10 +1,9 @@
 """Utilities for generating decision documents as PDFs."""
-
 from __future__ import annotations
 
 import textwrap
-from io import BytesIO
 from datetime import timedelta
+from io import BytesIO
 from typing import Iterable, Optional
 
 from django.core.files.base import ContentFile
