@@ -113,6 +113,21 @@ class DecisionsViewTests(TestCase):
         self.client.force_login(self.non_reviewer)
         self.assertEqual(self.client.get(url).status_code, 403)
 
+    def test_decisions_dashboard_lists_pending_applications(self):
+        url = reverse("decisions_dashboard")
+
+        self.client.force_login(self.board_user)
+        response = self.client.get(url)
+
+        consultants = list(response.context["consultants"])
+        self.assertEqual(
+            [consultant.full_name for consultant in consultants],
+            ["Submitted Applicant", "Vetted Applicant"],
+        )
+        self.assertTrue(
+            all(consultant.status in {"submitted", "vetted"} for consultant in consultants)
+        )
+
     def test_applications_list_access_control(self):
         url = reverse("officer_applications_list")
 
