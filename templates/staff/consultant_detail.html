@@ -72,6 +72,7 @@
             <li class="mb-2">
               <span class="fw-semibold d-block">{{ document.label }}</span>
               <a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.name }}</a>
+              <small class="text-muted d-block">{{ document.type }} · {{ document.size }}</small>
             </li>
           {% endfor %}
         </ul>
