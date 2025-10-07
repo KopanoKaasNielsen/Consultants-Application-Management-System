@@ -3,7 +3,36 @@
 {% block title %}Staff Dashboard{% endblock %}
 
 {% block content %}
-  <h2>Submitted Consultant Applications</h2>
+  <h2>Staff Dashboard</h2>
+
+  <section class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Draft</p>
+        <p class="h4 mb-0">{{ status_counts.draft|default:0 }}</p>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Submitted</p>
+        <p class="h4 mb-0">{{ status_counts.submitted|default:0 }}</p>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Approved</p>
+        <p class="h4 mb-0">{{ status_counts.approved|default:0 }}</p>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Rejected</p>
+        <p class="h4 mb-0">{{ status_counts.rejected|default:0 }}</p>
+      </div>
+    </div>
+  </section>
+
+  <h2 class="h4">Submitted Consultant Applications</h2>
 
   {% if consultants %}
     <p>Select an action for each application and optionally leave an internal comment.</p>

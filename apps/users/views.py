@@ -8,6 +8,7 @@ from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
 from django.http import HttpResponseBadRequest
+from django.db.models import Count, Q
 
 from apps.consultants.models import Consultant
 from apps.users.constants import (
@@ -187,12 +188,20 @@ def staff_dashboard(request):
         .order_by("full_name")
     )
 
+    status_counts = Consultant.objects.aggregate(
+        draft=Count("id", filter=Q(status="draft")),
+        submitted=Count("id", filter=Q(status="submitted")),
+        rejected=Count("id", filter=Q(status="rejected")),
+        approved=Count("id", filter=Q(status="approved")),
+    )
+
     return render(
         request,
         "staff_dashboard.html",
         {
             "consultants": consultants,
             "allowed_actions": allowed_actions,
+            "status_counts": status_counts,
         },
     )
 
