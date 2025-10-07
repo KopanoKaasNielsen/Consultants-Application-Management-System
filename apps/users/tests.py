@@ -224,6 +224,50 @@ class ImpersonationViewTests(TestCase):
         self.assertNotIn(IMPERSONATOR_BACKEND_SESSION_KEY, session)
         self.assertEqual(int(session.get("_auth_user_id")), self.admin_user.pk)
 
+
+class ImpersonationNavigationTests(TestCase):
+    password = "testpass123"
+
+    def setUp(self):
+        super().setUp()
+        self.user_model = get_user_model()
+        self.admin_group, _ = Group.objects.get_or_create(name=ADMINS_GROUP_NAME)
+
+    def test_admin_sees_impersonation_link(self):
+        admin = self.user_model.objects.create_user(
+            username="admin-nav",
+            password=self.password,
+            email="admin-nav@example.com",
+        )
+        admin.groups.add(self.admin_group)
+
+        self.client.login(username="admin-nav", password=self.password)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(
+            response,
+            f'href="{reverse("impersonation_dashboard")}"',
+            msg_prefix="Admin users should see the impersonation navigation link.",
+        )
+
+    def test_non_admin_does_not_see_impersonation_link(self):
+        user = self.user_model.objects.create_user(
+            username="regular-nav",
+            password=self.password,
+            email="regular-nav@example.com",
+        )
+
+        self.client.login(username="regular-nav", password=self.password)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertNotContains(
+            response,
+            f'href="{reverse("impersonation_dashboard")}"',
+            msg_prefix="Non-admin users should not see the impersonation navigation link.",
+        )
+
 class RolePermissionTests(TestCase):
     def setUp(self):
         super().setUp()
