@@ -57,6 +57,7 @@
                 <th scope="col">Full Name</th>
                 <th scope="col">Status</th>
                 <th scope="col">Submitted At</th>
+                <th scope="col">Last Updated</th>
                 <th scope="col" class="text-end">Action</th>
               </tr>
             </thead>
@@ -68,6 +69,13 @@
                   <td>
                     {% if application.submitted_at %}
                       {{ application.submitted_at|date:"M d, Y" }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if application.updated_at %}
+                      {{ application.updated_at|date:"M d, Y H:i" }}
                     {% else %}
                       —
                     {% endif %}

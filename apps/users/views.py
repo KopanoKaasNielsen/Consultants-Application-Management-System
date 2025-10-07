@@ -215,7 +215,7 @@ def staff_dashboard(request):
     recent_applications = (
         Consultant.objects.exclude(submitted_at__isnull=True)
         .select_related("user")
-        .order_by("-submitted_at", "-id")[:5]
+        .order_by("-updated_at", "-id")[:5]
     )
 
     status_counts = Consultant.objects.aggregate(
