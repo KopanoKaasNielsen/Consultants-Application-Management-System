@@ -324,7 +324,7 @@ class StaffConsultantDetailViewTests(TestCase):
         self.assertIn(reverse("login"), response.url)
 
     def test_staff_can_view_consultant_detail(self):
-        self.client.login(username=self.staff_user.username, password=self.password)
+        self.client.force_login(self.staff_user)
         url = reverse("staff_consultant_detail", args=[self.consultant.pk])
 
         response = self.client.get(url)
@@ -333,6 +333,10 @@ class StaffConsultantDetailViewTests(TestCase):
         self.assertEqual(response.context["consultant"], self.consultant)
         self.assertContains(response, self.consultant.full_name)
         self.assertContains(response, self.consultant.business_name)
+        self.assertContains(response, f"mailto:{self.consultant.email}")
+        self.assertContains(response, self.consultant.phone_number)
+        self.assertContains(response, self.consultant.id_number)
+        self.assertContains(response, self.consultant.nationality)
 
     def test_non_staff_user_denied(self):
         self.client.login(username=self.regular_user.username, password=self.password)
