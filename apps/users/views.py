@@ -14,6 +14,7 @@ from apps.users.constants import (
     ADMINS_GROUP_NAME,
     UserRole as Roles,
 )
+from apps.users.permissions import user_has_role
 
 
 IMPERSONATOR_ID_SESSION_KEY = 'impersonator_id'
@@ -135,15 +136,21 @@ def stop_impersonation(request):
 def dashboard(request):
     user = request.user
 
-    roles = getattr(request, "jwt_roles", set())
+    jwt_roles = getattr(request, "jwt_roles", None)
+    roles = set(jwt_roles or [])
 
-    if Roles.BOARD in roles:
+    def has_role(role: Roles) -> bool:
+        if role in roles:
+            return True
+        return user_has_role(user, role)
+
+    if has_role(Roles.BOARD):
         return redirect('decisions_dashboard')
 
-    if Roles.STAFF in roles:
+    if has_role(Roles.STAFF):
         return redirect('vetting_dashboard')
 
-    if Roles.CONSULTANT not in roles:
+    if not has_role(Roles.CONSULTANT):
         raise PermissionDenied
 
     application = Consultant.objects.filter(user=user).first()
