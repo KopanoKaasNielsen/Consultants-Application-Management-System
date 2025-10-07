@@ -4,6 +4,7 @@ from django.contrib.auth import BACKEND_SESSION_KEY
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
 from django.http import HttpResponseBadRequest
@@ -175,3 +176,29 @@ def dashboard(request):
     })
 def home_view(request):
     return render(request, 'home.html')
+
+
+class RoleBasedLoginView(LoginView):
+    """Login view that redirects users to dashboards based on their role."""
+
+    admin_dashboard_url = '/admin-dashboard/'
+    staff_dashboard_url = '/staff-dashboard/'
+    applicant_dashboard_url = '/applicant-dashboard/'
+
+    def get_success_url(self):
+        redirect_url = self.get_redirect_url()
+        if redirect_url:
+            return redirect_url
+
+        user = self.request.user
+
+        if user.is_superuser:
+            return self.admin_dashboard_url
+
+        if user.groups.filter(name='Staff').exists():
+            return self.staff_dashboard_url
+
+        if user.groups.filter(name='Applicant').exists():
+            return self.applicant_dashboard_url
+
+        return super().get_success_url()
