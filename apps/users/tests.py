@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -9,6 +10,7 @@ from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 
+from apps.consultants.models import Consultant
 from apps.decisions.views import is_reviewer
 from apps.users.constants import (
     ADMINS_GROUP_NAME,
@@ -267,6 +269,78 @@ class ImpersonationNavigationTests(TestCase):
             f'href="{reverse("impersonation_dashboard")}"',
             msg_prefix="Non-admin users should not see the impersonation navigation link.",
         )
+
+
+class StaffConsultantDetailViewTests(TestCase):
+    password = "viewpass123"
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_groups")
+        cls.user_model = get_user_model()
+
+        cls.staff_user = cls.user_model.objects.create_user(
+            username="staffviewer",
+            password=cls.password,
+            email="staff@example.com",
+        )
+        staff_group = Group.objects.get(name=BACKOFFICE_GROUP_NAME)
+        cls.staff_user.groups.add(staff_group)
+
+        cls.regular_user = cls.user_model.objects.create_user(
+            username="regularviewer",
+            password=cls.password,
+            email="regular@example.com",
+        )
+        consultant_group = Group.objects.get(name=CONSULTANTS_GROUP_NAME)
+        cls.regular_user.groups.add(consultant_group)
+
+        consultant_account = cls.user_model.objects.create_user(
+            username="applicant1",
+            password=cls.password,
+            email="applicant1@example.com",
+        )
+
+        cls.consultant = Consultant.objects.create(
+            user=consultant_account,
+            full_name="Jane Doe",
+            id_number="123456789",
+            dob=date(1990, 1, 1),
+            gender="F",
+            nationality="Kenyan",
+            email="jane@example.com",
+            phone_number="+254700000000",
+            business_name="Doe Consulting",
+            registration_number="REG-001",
+            status="submitted",
+            staff_comment="Needs review",
+        )
+
+    def test_login_required(self):
+        url = reverse("staff_consultant_detail", args=[self.consultant.pk])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response.url)
+
+    def test_staff_can_view_consultant_detail(self):
+        self.client.login(username=self.staff_user.username, password=self.password)
+        url = reverse("staff_consultant_detail", args=[self.consultant.pk])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["consultant"], self.consultant)
+        self.assertContains(response, self.consultant.full_name)
+        self.assertContains(response, self.consultant.business_name)
+
+    def test_non_staff_user_denied(self):
+        self.client.login(username=self.regular_user.username, password=self.password)
+        url = reverse("staff_consultant_detail", args=[self.consultant.pk])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 403)
 
 class RolePermissionTests(TestCase):
     def setUp(self):

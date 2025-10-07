@@ -213,6 +213,46 @@ def staff_dashboard(request):
     )
 
 
+@role_required(Roles.STAFF, Roles.BOARD)
+def staff_consultant_detail(request, pk: int):
+    consultant = get_object_or_404(
+        Consultant.objects.select_related("user"),
+        pk=pk,
+    )
+
+    document_field_labels = [
+        ("photo", "Profile photo"),
+        ("id_document", "ID document"),
+        ("cv", "Curriculum vitae"),
+        ("police_clearance", "Police clearance"),
+        ("qualifications", "Qualifications"),
+        ("business_certificate", "Business certificate"),
+        ("certificate_pdf", "Certificate"),
+        ("rejection_letter", "Rejection letter"),
+    ]
+
+    document_fields = []
+    for field_name, label in document_field_labels:
+        file_field = getattr(consultant, field_name)
+        if file_field:
+            document_fields.append(
+                {
+                    "label": label,
+                    "url": file_field.url,
+                    "name": file_field.name.rsplit("/", 1)[-1],
+                }
+            )
+
+    return render(
+        request,
+        "staff/consultant_detail.html",
+        {
+            "consultant": consultant,
+            "document_fields": document_fields,
+        },
+    )
+
+
 @login_required
 def dashboard(request):
     user = request.user

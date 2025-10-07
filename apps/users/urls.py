@@ -1,6 +1,11 @@
 from django.urls import path
 from . import views
-from .views import RoleBasedLoginView, home_view, staff_dashboard
+from .views import (
+    RoleBasedLoginView,
+    home_view,
+    staff_consultant_detail,
+    staff_dashboard,
+)
 
 urlpatterns = [
     path('login/', RoleBasedLoginView.as_view(template_name='registration/login.html'), name='login'),
@@ -8,6 +13,7 @@ urlpatterns = [
     path('register/', views.register, name='register'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('staff-dashboard/', staff_dashboard, name='staff_dashboard'),
+    path('staff/consultant/<int:pk>/', staff_consultant_detail, name='staff_consultant_detail'),
     path('board/', views.board_dashboard, name='board_dashboard'),
     path('impersonation/', views.impersonation_dashboard, name='impersonation_dashboard'),
     path('impersonation/start/', views.start_impersonation, name='start_impersonation'),
