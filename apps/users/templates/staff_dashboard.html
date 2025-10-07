@@ -32,6 +32,19 @@
     </div>
   </section>
 
+  <nav class="mb-4">
+    <div class="nav nav-pills flex-wrap gap-2">
+      {% for option in status_filters %}
+        <a
+          class="nav-link{% if option.is_active %} active{% endif %}"
+          href="{% url 'staff_dashboard' %}?status={{ option.value }}"
+        >
+          {{ option.label }}
+        </a>
+      {% endfor %}
+    </div>
+  </nav>
+
   <section class="card mb-4">
     <div class="card-body">
       <h3 class="h5 mb-3">Recent Applications</h3>
@@ -78,7 +91,7 @@
     </div>
   </section>
 
-  <h2 class="h4">Submitted Consultant Applications</h2>
+  <h2 class="h4">{{ active_status_label }} Consultant Applications</h2>
 
   {% if consultants %}
     <p>Select an action for each application and optionally leave an internal comment.</p>
@@ -88,6 +101,7 @@
         <form method="post" action="{% url 'staff_dashboard' %}">
           {% csrf_token %}
           <input type="hidden" name="consultant_id" value="{{ consultant.id }}">
+          <input type="hidden" name="status" value="{{ active_status }}">
 
           <header class="mb-2">
             <h3 class="h5 mb-1">{{ consultant.full_name }}</h3>
@@ -114,6 +128,6 @@
       </section>
     {% endfor %}
   {% else %}
-    <p>No submitted applications require review at this time.</p>
+    <p>No {{ active_status_label|lower }} applications require review at this time.</p>
   {% endif %}
 {% endblock %}

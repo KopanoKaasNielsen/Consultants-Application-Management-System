@@ -13,6 +13,7 @@ from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
 from django.http import HttpResponseBadRequest
 from django.db.models import Count, Q
+from django.urls import reverse
 
 from apps.consultants.models import Consultant
 from apps.users.constants import (
@@ -175,6 +176,24 @@ def staff_dashboard(request):
         "incomplete": "Request Info",
     }
 
+    status_choices = [
+        ("draft", "Draft"),
+        ("submitted", "Submitted"),
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    ]
+    status_labels = dict(status_choices)
+
+    def normalise_status(value: Optional[str]) -> str:
+        if value in status_labels:
+            return value
+        return "submitted"
+
+    if request.method == "POST":
+        active_status = normalise_status(request.POST.get("status"))
+    else:
+        active_status = normalise_status(request.GET.get("status"))
+
     if request.method == "POST":
         consultant_id = request.POST.get("consultant_id")
         action = request.POST.get("action")
@@ -184,10 +203,11 @@ def staff_dashboard(request):
             consultant.status = action
             consultant.staff_comment = request.POST.get("comment", "").strip()
             consultant.save(update_fields=["status", "staff_comment"])
-            return redirect("staff_dashboard")
+            dashboard_url = f"{reverse('staff_dashboard')}?status={active_status}"
+            return redirect(dashboard_url)
 
     consultants = (
-        Consultant.objects.filter(status="submitted")
+        Consultant.objects.filter(status=active_status)
         .select_related("user")
         .order_by("full_name")
     )
@@ -213,6 +233,16 @@ def staff_dashboard(request):
             "allowed_actions": allowed_actions,
             "status_counts": status_counts,
             "recent_applications": recent_applications,
+            "active_status": active_status,
+            "active_status_label": status_labels[active_status],
+            "status_filters": [
+                {
+                    "value": value,
+                    "label": label,
+                    "is_active": value == active_status,
+                }
+                for value, label in status_choices
+            ],
         },
     )
 

@@ -9,6 +9,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.consultants.models import Consultant
 from apps.decisions.views import is_reviewer
@@ -424,6 +425,96 @@ class RolePermissionTests(TestCase):
 
         with self.assertRaises(PermissionDenied):
             sample_view(request)
+
+
+class StaffDashboardFilterTests(TestCase):
+    password = "staffpass123"
+
+    def setUp(self):
+        super().setUp()
+        self.user_model = get_user_model()
+        self.staff_group, _ = Group.objects.get_or_create(name="Staff")
+        self.staff_user = self.user_model.objects.create_user(
+            username="staff-filter",
+            password=self.password,
+            email="staff-filter@example.com",
+        )
+        self.staff_user.groups.add(self.staff_group)
+        self.client.login(username=self.staff_user.username, password=self.password)
+
+    def create_consultant(self, status: str) -> Consultant:
+        counter = Consultant.objects.count()
+        applicant = self.user_model.objects.create_user(
+            username=f"{status}_applicant_{counter}",
+            password="pass123456",
+            email=f"{status}{counter}@example.com",
+        )
+        return Consultant.objects.create(
+            user=applicant,
+            full_name=f"{status.title()} Applicant",
+            id_number=f"{status[:5]}-{counter}",
+            dob=date(1990, 1, 1),
+            gender="M",
+            nationality="Testland",
+            email=applicant.email,
+            phone_number="1234567890",
+            business_name="Test Business",
+            status=status,
+            submitted_at=timezone.now(),
+        )
+
+    def test_defaults_to_submitted_status(self):
+        submitted = self.create_consultant("submitted")
+        self.create_consultant("approved")
+
+        response = self.client.get(reverse("staff_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["consultants"]), [submitted])
+        self.assertEqual(response.context["active_status"], "submitted")
+        self.assertEqual(response.context["active_status_label"], "Submitted")
+
+    def test_filters_by_requested_status(self):
+        approved = self.create_consultant("approved")
+        self.create_consultant("submitted")
+
+        response = self.client.get(reverse("staff_dashboard"), {"status": "approved"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["consultants"]), [approved])
+        self.assertEqual(response.context["active_status"], "approved")
+
+    def test_invalid_status_falls_back_to_default(self):
+        submitted = self.create_consultant("submitted")
+        self.create_consultant("rejected")
+
+        response = self.client.get(reverse("staff_dashboard"), {"status": "unknown"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["consultants"]), [submitted])
+        self.assertEqual(response.context["active_status"], "submitted")
+
+    def test_post_action_preserves_status_in_redirect(self):
+        consultant = self.create_consultant("approved")
+
+        response = self.client.post(
+            reverse("staff_dashboard"),
+            {
+                "consultant_id": consultant.pk,
+                "action": "rejected",
+                "status": "approved",
+                "comment": "Updated after review",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('staff_dashboard')}?status=approved",
+            fetch_redirect_response=False,
+        )
+
+        consultant.refresh_from_db()
+        self.assertEqual(consultant.status, "rejected")
 
 
 class MonitoringInitTests(SimpleTestCase):
