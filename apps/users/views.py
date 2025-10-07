@@ -188,6 +188,12 @@ def staff_dashboard(request):
         .order_by("full_name")
     )
 
+    recent_applications = (
+        Consultant.objects.exclude(submitted_at__isnull=True)
+        .select_related("user")
+        .order_by("-submitted_at", "-id")[:5]
+    )
+
     status_counts = Consultant.objects.aggregate(
         draft=Count("id", filter=Q(status="draft")),
         submitted=Count("id", filter=Q(status="submitted")),
@@ -202,6 +208,7 @@ def staff_dashboard(request):
             "consultants": consultants,
             "allowed_actions": allowed_actions,
             "status_counts": status_counts,
+            "recent_applications": recent_applications,
         },
     )
 

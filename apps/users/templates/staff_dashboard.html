@@ -32,6 +32,52 @@
     </div>
   </section>
 
+  <section class="card mb-4">
+    <div class="card-body">
+      <h3 class="h5 mb-3">Recent Applications</h3>
+
+      {% if recent_applications %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Full Name</th>
+                <th scope="col">Status</th>
+                <th scope="col">Submitted At</th>
+                <th scope="col" class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for application in recent_applications %}
+                <tr>
+                  <td>{{ application.full_name }}</td>
+                  <td>{{ application.get_status_display }}</td>
+                  <td>
+                    {% if application.submitted_at %}
+                      {{ application.submitted_at|date:"M d, Y" }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <a
+                      href="{% url 'officer_application_detail' application.pk %}"
+                      class="btn btn-outline-primary btn-sm"
+                    >
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="mb-0 text-muted">No recent applications available.</p>
+      {% endif %}
+    </div>
+  </section>
+
   <h2 class="h4">Submitted Consultant Applications</h2>
 
   {% if consultants %}
