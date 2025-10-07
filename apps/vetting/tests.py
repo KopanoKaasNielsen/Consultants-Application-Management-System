@@ -3,6 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
+from django.conf import settings
 from apps.consultants.models import Consultant
 from apps.decisions.models import ApplicationAction
 from apps.users.constants import COUNTERSTAFF_GROUP_NAME, BOARD_COMMITTEE_GROUP_NAME
@@ -66,6 +67,16 @@ class VettingDashboardViewTests(TestCase):
 
         response = self.client.get(reverse('vetting_dashboard'))
         self.assertEqual(response.status_code, 403)
+
+    def test_anonymous_user_redirects_to_login(self):
+        anonymous_client = Client()
+
+        response = anonymous_client.get(reverse('vetting_dashboard'))
+
+        self.assertEqual(response.status_code, 302)
+        login_url = settings.LOGIN_URL
+        expected_url = f"{login_url}?next={reverse('vetting_dashboard')}"
+        self.assertEqual(response.url, expected_url)
 
     @patch('apps.decisions.services.transaction.on_commit')
     @patch('apps.decisions.services.generate_rejection_letter_task.delay')
