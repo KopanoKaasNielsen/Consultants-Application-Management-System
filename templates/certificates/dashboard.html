@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block title %}Decision documents{% endblock %}
 
@@ -27,12 +27,54 @@
     {% if consultant.certificate_pdf or consultant.rejection_letter %}
     <ul class="document-list">
       {% if consultant.certificate_pdf %}
-      <li>Approval certificate — <a href="{{ consultant.certificate_pdf.url }}" target="_blank" rel="noopener">Download</a></li>
+      <li>
+        Approval certificate —
+        <a href="{{ consultant.certificate_pdf.url }}" target="_blank" rel="noopener">Download</a>
+        {% if consultant.certificate_expires_at %}
+        <br><small>Expires on {{ consultant.certificate_expires_at }}</small>
+        {% endif %}
+      </li>
       {% endif %}
       {% if consultant.rejection_letter %}
       <li>Rejection letter — <a href="{{ consultant.rejection_letter.url }}" target="_blank" rel="noopener">Download</a></li>
       {% endif %}
     </ul>
+
+    {% if consultant.certificate_pdf %}
+    <div class="renewal-actions">
+      {% if can_request_renewal %}
+      <form method="post" action="{% url 'certificates:request_renewal' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-primary">Request renewal</button>
+      </form>
+      <p class="card-subtitle">Renewal requests are available within {{ renewal_window_days }} days of expiry.</p>
+      {% elif pending_renewal %}
+      <p class="card-subtitle">Renewal requested on {{ pending_renewal.requested_at|date:'d M Y' }} — awaiting review.</p>
+      {% else %}
+      <p class="card-subtitle">
+        Renewal requests will open on
+        {% if renewal_window_opens %}
+          {{ renewal_window_opens }}
+        {% else %}
+          the renewal window
+        {% endif %}.
+      </p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if renewals %}
+    <h3>Renewal history</h3>
+    <ul class="detail-list">
+      {% for renewal in renewals %}
+      <li>
+        {{ renewal.requested_at|date:'d M Y H:i' }} — {{ renewal.get_status_display }}
+        {% if renewal.notes %}<br><small>Notes: {{ renewal.notes }}</small>{% endif %}
+        {% if renewal.processed_by %}<br><small>Processed by {{ renewal.processed_by }}</small>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
     {% else %}
     <p class="card-subtitle">Decision documents will appear here once generated.</p>
     {% endif %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Consultant Application{% endblock %}
+
+{% block content %}
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'staff_dashboard' %}">Staff dashboard</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Consultant application</li>
+    </ol>
+  </nav>
+
+  <header class="mb-4">
+    <h1 class="h3 mb-1">{{ consultant.full_name }}</h1>
+    <p class="mb-0 text-muted">
+      Application #{{ consultant.id }} · Status: {{ consultant.get_status_display }}
+      {% if consultant.submitted_at %}
+        · Submitted {{ consultant.submitted_at|date:"M d, Y" }}
+      {% endif %}
+    </p>
+  </header>
+
+  <section class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Personal information</h2>
+      <dl class="row mb-0">
+        <dt class="col-sm-4 col-lg-3">Full name</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.full_name }}</dd>
+
+        <dt class="col-sm-4 col-lg-3">ID number</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.id_number }}</dd>
+
+        <dt class="col-sm-4 col-lg-3">Date of birth</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.dob|date:"M d, Y" }}</dd>
+
+        <dt class="col-sm-4 col-lg-3">Gender</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.get_gender_display }}</dd>
+
+        <dt class="col-sm-4 col-lg-3">Nationality</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.nationality }}</dd>
+
+        <dt class="col-sm-4 col-lg-3">Email</dt>
+        <dd class="col-sm-8 col-lg-9">
+          <a href="mailto:{{ consultant.email }}">{{ consultant.email }}</a>
+        </dd>
+
+        <dt class="col-sm-4 col-lg-3">Phone number</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.phone_number }}</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Business information</h2>
+      <dl class="row mb-0">
+        <dt class="col-sm-4 col-lg-3">Business name</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.business_name }}</dd>
+
+        <dt class="col-sm-4 col-lg-3">Registration number</dt>
+        <dd class="col-sm-8 col-lg-9">{{ consultant.registration_number|default:"—" }}</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5 mb-3">Documents</h2>
+      {% if document_fields %}
+        <ul class="list-unstyled mb-0">
+          {% for document in document_fields %}
+            <li class="mb-2">
+              <span class="fw-semibold d-block">{{ document.label }}</span>
+              <a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.name }}</a>
+              <small class="text-muted d-block">{{ document.type }} · {{ document.size }}</small>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mb-0 text-muted">No documents have been uploaded.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if consultant.staff_comment %}
+    <section class="card mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Staff comment</h2>
+        <p class="mb-0">{{ consultant.staff_comment }}</p>
+      </div>
+    </section>
+  {% endif %}
+
+  <a href="{% url 'staff_dashboard' %}" class="btn btn-outline-secondary">Back to dashboard</a>
+{% endblock %}

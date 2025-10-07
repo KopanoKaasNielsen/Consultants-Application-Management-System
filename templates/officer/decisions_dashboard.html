@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block title %}Decisions dashboard{% endblock %}
 
@@ -17,7 +17,7 @@
   <section class="data-card">
     <div class="card-header">
       <h2>Applications requiring decisions</h2>
-      <p class="card-subtitle">Review recently vetted submissions and record the final outcome.</p>
+      <p class="card-subtitle">Review submitted and vetted applications to record the next decision.</p>
     </div>
 
     {% if consultants %}
@@ -90,7 +90,7 @@
       </table>
     </div>
     {% else %}
-    <p class="card-subtitle">There are currently no vetted applications awaiting a decision.</p>
+    <p class="card-subtitle">There are currently no submitted or vetted applications awaiting a decision.</p>
     {% endif %}
   </section>
 </div>

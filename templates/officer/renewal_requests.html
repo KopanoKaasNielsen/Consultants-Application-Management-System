@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Certificate Renewal Requests{% endblock %}
+
+{% block content %}
+<div class="page-stack">
+  {% if messages %}
+  <section class="data-card" aria-live="polite">
+    <ul class="message-list">
+      {% for message in messages %}
+      <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="data-card">
+    <h2>Pending renewal requests</h2>
+    {% if pending_renewals %}
+    <ul class="detail-list">
+      {% for renewal in pending_renewals %}
+      <li>
+        <strong>{{ renewal.consultant.full_name }}</strong><br>
+        Requested {{ renewal.requested_at|date:'d M Y H:i' }}
+        {% if renewal.consultant.certificate_expires_at %}
+        <br><small>Certificate expires {{ renewal.consultant.certificate_expires_at }}</small>
+        {% endif %}
+        <form method="post" class="renewal-decision-form">
+          {% csrf_token %}
+          <input type="hidden" name="renewal_id" value="{{ renewal.id }}">
+          {% if active_form_target and active_form_target.pk == renewal.pk %}
+          {{ form.as_p }}
+          {% else %}
+          {{ blank_form.as_p }}
+          {% endif %}
+          <button type="submit" class="btn-primary">Submit decision</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="card-subtitle">There are no renewal requests awaiting review.</p>
+    {% endif %}
+  </section>
+
+  <section class="data-card">
+    <h2>Recently processed</h2>
+    {% if processed_renewals %}
+    <ul class="detail-list">
+      {% for renewal in processed_renewals %}
+      <li>
+        <strong>{{ renewal.consultant.full_name }}</strong> — {{ renewal.get_status_display }}<br>
+        Requested {{ renewal.requested_at|date:'d M Y H:i' }}
+        {% if renewal.processed_at %}<br>Processed {{ renewal.processed_at|date:'d M Y H:i' }}{% endif %}
+        {% if renewal.processed_by %}<br><small>By {{ renewal.processed_by }}</small>{% endif %}
+        {% if renewal.notes %}<br><small>Notes: {{ renewal.notes }}</small>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="card-subtitle">Decisions will appear here once renewals have been processed.</p>
+    {% endif %}
+  </section>
+
+  <div class="back-link">
+    <a href="{% url 'officer_applications_list' %}">← Back to applications</a>
+  </div>
+</div>
+{% endblock %}

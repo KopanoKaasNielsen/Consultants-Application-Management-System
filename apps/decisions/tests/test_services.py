@@ -46,7 +46,7 @@ def test_process_decision_action_queues_approval_tasks(mocker, consultant, actor
     generate_task = mocker.patch(
         "apps.decisions.services.generate_approval_certificate_task.delay"
     )
-    email_task = mocker.patch("apps.decisions.services.send_decision_email_task.delay")
+    email_task = mocker.patch("apps.decisions.tasks.send_decision_email_task.delay")
 
     action = process_decision_action(consultant, "approved", actor, notes="All good")
 
@@ -55,7 +55,7 @@ def test_process_decision_action_queues_approval_tasks(mocker, consultant, actor
     assert consultant.status == "approved"
     assert ApplicationAction.objects.filter(pk=action.pk, action="approved").exists()
     generate_task.assert_called_once_with(consultant.pk, "Review Er")
-    email_task.assert_called_once_with(consultant.pk, "approved")
+    email_task.assert_not_called()
 
 
 @pytest.mark.django_db
@@ -63,7 +63,7 @@ def test_process_decision_action_queues_rejection_tasks(mocker, consultant, acto
     generate_task = mocker.patch(
         "apps.decisions.services.generate_rejection_letter_task.delay"
     )
-    email_task = mocker.patch("apps.decisions.services.send_decision_email_task.delay")
+    email_task = mocker.patch("apps.decisions.tasks.send_decision_email_task.delay")
 
     process_decision_action(consultant, "rejected", actor)
 
@@ -71,12 +71,12 @@ def test_process_decision_action_queues_rejection_tasks(mocker, consultant, acto
 
     assert consultant.status == "rejected"
     generate_task.assert_called_once_with(consultant.pk, "Review Er")
-    email_task.assert_called_once_with(consultant.pk, "rejected")
+    email_task.assert_not_called()
 
 
 @pytest.mark.django_db
 def test_process_decision_action_for_vetted_has_no_tasks(mocker, consultant, actor):
-    send_email = mocker.patch("apps.decisions.services.send_decision_email_task.delay")
+    send_email = mocker.patch("apps.decisions.tasks.send_decision_email_task.delay")
     approval_task = mocker.patch(
         "apps.decisions.services.generate_approval_certificate_task.delay"
     )

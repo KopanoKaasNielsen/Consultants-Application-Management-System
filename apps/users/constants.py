@@ -29,6 +29,7 @@ ROLE_GROUP_MAP: Dict[UserRole, Set[str]] = {
         DISAGENTS_GROUP_NAME,
         SENIOR_IMMIGRATION_GROUP_NAME,
         ADMINS_GROUP_NAME,
+        "Staff",
     },
     UserRole.BOARD: {BOARD_COMMITTEE_GROUP_NAME},
 }

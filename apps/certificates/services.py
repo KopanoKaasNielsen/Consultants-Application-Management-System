@@ -1,8 +1,8 @@
 """Utilities for generating decision documents as PDFs."""
-
 from __future__ import annotations
 
 import textwrap
+from datetime import timedelta
 from io import BytesIO
 from typing import Iterable, Optional
 
@@ -11,6 +11,7 @@ from django.utils import timezone
 from PIL import Image, ImageDraw, ImageFont
 
 from apps.consultants.models import Consultant
+from apps.certificates.models import CertificateRenewal
 
 
 PAGE_WIDTH = 1654  # approx A4 @ 150dpi
@@ -50,6 +51,9 @@ def _render_pdf(title: str, paragraphs: Iterable[str]) -> ContentFile:
     return ContentFile(buffer.read())
 
 
+CERTIFICATE_VALIDITY_DAYS = 365
+
+
 def generate_approval_certificate(
     consultant: Consultant, generated_by: Optional[str] = None
 ):
@@ -76,14 +80,33 @@ def generate_approval_certificate(
     filename = f"approval-certificate-{consultant.pk}.pdf"
     consultant.certificate_pdf.save(filename, pdf_content, save=False)
     consultant.certificate_generated_at = timezone.now()
+    consultant.certificate_expires_at = timezone.localdate() + timedelta(
+        days=CERTIFICATE_VALIDITY_DAYS
+    )
     consultant.save(
         update_fields=[
             "certificate_pdf",
             "certificate_generated_at",
+            "certificate_expires_at",
             "rejection_letter",
             "rejection_letter_generated_at",
         ]
     )
+
+    pending_renewal = (
+        consultant.certificate_renewals.filter(
+            status=CertificateRenewal.Status.PENDING
+        )
+        .order_by("requested_at")
+        .last()
+    )
+    if pending_renewal:
+        pending_renewal.status = CertificateRenewal.Status.APPROVED
+        pending_renewal.processed_at = timezone.now()
+        pending_renewal.processed_by = generated_by or ""
+        pending_renewal.save(
+            update_fields=["status", "processed_at", "processed_by"]
+        )
     return consultant.certificate_pdf
 
 
@@ -98,6 +121,7 @@ def generate_rejection_letter(
         consultant.certificate_pdf.delete(save=False)
     consultant.certificate_pdf = None
     consultant.certificate_generated_at = None
+    consultant.certificate_expires_at = None
 
     issued_date = timezone.localdate().strftime("%d %B %Y")
     title = "Consultant Application Decision"
@@ -120,6 +144,7 @@ def generate_rejection_letter(
             "rejection_letter_generated_at",
             "certificate_pdf",
             "certificate_generated_at",
+            "certificate_expires_at",
         ]
     )
     return consultant.rejection_letter

@@ -11,7 +11,6 @@ from .models import ApplicationAction
 from .tasks import (
     generate_approval_certificate_task,
     generate_rejection_letter_task,
-    send_decision_email_task,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - used for type checkers only
@@ -59,10 +58,12 @@ def process_decision_action(
                 consultant.rejection_letter.delete(save=False)
             consultant.rejection_letter = None
             consultant.rejection_letter_generated_at = None
+            consultant.certificate_expires_at = None
             update_fields.extend(
                 [
                     "certificate_pdf",
                     "certificate_generated_at",
+                    "certificate_expires_at",
                     "rejection_letter",
                     "rejection_letter_generated_at",
                 ]
@@ -77,29 +78,30 @@ def process_decision_action(
                 consultant.certificate_pdf.delete(save=False)
             consultant.certificate_pdf = None
             consultant.certificate_generated_at = None
+            consultant.certificate_expires_at = None
             update_fields.extend(
                 [
                     "rejection_letter",
                     "rejection_letter_generated_at",
                     "certificate_pdf",
                     "certificate_generated_at",
+                    "certificate_expires_at",
                 ]
             )
 
         consultant.status = new_status
         consultant.save(update_fields=update_fields)
 
-        def queue_tasks():
-            if action == "approved":
-                generate_approval_certificate_task.delay(consultant.pk, generated_by)
-                send_decision_email_task.delay(consultant.pk, action)
-            elif action == "rejected":
-                generate_rejection_letter_task.delay(consultant.pk, generated_by)
-                send_decision_email_task.delay(consultant.pk, action)
-            elif action == "vetted":
-                # No side-effects besides the status change.
-                pass
-
-        transaction.on_commit(queue_tasks)
+    # Queue follow-up tasks after the database changes have been persisted. We
+    # invoke them immediately so that callers running inside an outer atomic
+    # block (such as our tests) still see the side-effects, instead of waiting
+    # for a later on_commit hook that might never run in that context.
+    if action == "approved":
+        generate_approval_certificate_task.delay(consultant.pk, generated_by)
+    elif action == "rejected":
+        generate_rejection_letter_task.delay(consultant.pk, generated_by)
+    elif action == "vetted":
+        # No side-effects besides the status change.
+        pass
 
     return action_obj

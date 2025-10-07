@@ -1,43 +1,57 @@
-<!DOCTYPE html>
-<html>
-<head><title>Applications – Staff</title></head>
-<body>
-  <h2>Applications (Staff)</h2>
+{% extends "base.html" %}
 
-  <p>Filter:
-    <a href="?">Submitted+Vetted (default)</a> |
-    <a href="?status=draft">Draft</a> |
-    <a href="?status=submitted">Submitted</a> |
-    <a href="?status=vetted">Vetted</a> |
-    <a href="?status=approved">Approved</a> |
-    <a href="?status=rejected">Rejected</a>
-  </p>
+{% block title %}Applications – Staff{% endblock %}
 
-  <table border="1" cellpadding="6" cellspacing="0">
-    <thead>
-      <tr>
-        <th>Full Name</th>
-        <th>Business</th>
-        <th>Status</th>
-        <th>Submitted</th>
-        <th>View</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for app in applications %}
-      <tr>
-        <td>{{ app.full_name }}</td>
-        <td>{{ app.business_name }}</td>
-        <td>{{ app.status|title }}</td>
-        <td>{{ app.submitted_at }}</td>
-        <td><a href="{% url 'officer_application_detail' app.pk %}">Open</a></td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5">No applications found.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% block content %}
+<div class="page-stack">
+  <section class="data-card">
+    <div class="card-header">
+      <h2>Applications (Staff)</h2>
+      <p class="card-subtitle">Filter applications by their current status to find the records you need.</p>
+    </div>
+    <nav class="filter-nav">
+      <ul>
+        <li><a href="?">Submitted + Vetted (default)</a></li>
+        <li><a href="?status=draft">Draft</a></li>
+        <li><a href="?status=submitted">Submitted</a></li>
+        <li><a href="?status=vetted">Vetted</a></li>
+        <li><a href="?status=approved">Approved</a></li>
+        <li><a href="?status=rejected">Rejected</a></li>
+      </ul>
+    </nav>
 
-  <p><a href="{% url 'dashboard' %}">Back to Dashboard</a></p>
-</body>
-</html>
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th scope="col">Full Name</th>
+            <th scope="col">Business</th>
+            <th scope="col">Status</th>
+            <th scope="col">Submitted</th>
+            <th scope="col">View</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for app in applications %}
+          <tr>
+            <td>{{ app.full_name }}</td>
+            <td>{{ app.business_name }}</td>
+            <td>{{ app.status|title }}</td>
+            <td>{{ app.submitted_at|default:"—" }}</td>
+            <td><a class="btn-link" href="{% url 'officer_application_detail' app.pk %}">Open</a></td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="muted">No applications found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="back-link">
+    <a href="{% url 'dashboard' %}">← Back to dashboard</a>
+  </div>
+</div>
+{% endblock %}

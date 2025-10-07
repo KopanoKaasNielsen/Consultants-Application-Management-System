@@ -3,15 +3,139 @@
 {% block title %}Staff Dashboard{% endblock %}
 
 {% block content %}
-  <h2>Welcome to the Staff Dashboard</h2>
+  <h2>Staff Dashboard</h2>
 
-  <p>Hello <strong>{{ user.username }}</strong>,</p>
-  <p>This section is accessible only to staff and board members.</p>
+  <section class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Draft</p>
+        <p class="h4 mb-0">{{ status_counts.draft|default:0 }}</p>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Submitted</p>
+        <p class="h4 mb-0">{{ status_counts.submitted|default:0 }}</p>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Approved</p>
+        <p class="h4 mb-0">{{ status_counts.approved|default:0 }}</p>
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="border rounded p-3 bg-light h-100">
+        <p class="text-muted text-uppercase small mb-1">Rejected</p>
+        <p class="h4 mb-0">{{ status_counts.rejected|default:0 }}</p>
+      </div>
+    </div>
+  </section>
 
-  <div style="margin-top: 20px;">
-      <ul>
-          <li><a href="{% url 'dashboard' %}">Consultant Dashboard</a></li>
-          <li><a href="{% url 'admin:index' %}">Admin Site</a></li>
-      </ul>
-  </div>
+  <nav class="mb-4">
+    <div class="nav nav-pills flex-wrap gap-2">
+      {% for option in status_filters %}
+        <a
+          class="nav-link{% if option.is_active %} active{% endif %}"
+          href="{% url 'staff_dashboard' %}?status={{ option.value }}"
+        >
+          {{ option.label }}
+        </a>
+      {% endfor %}
+    </div>
+  </nav>
+
+  <section class="card mb-4">
+    <div class="card-body">
+      <h3 class="h5 mb-3">Recent Applications</h3>
+
+      {% if recent_applications %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Full Name</th>
+                <th scope="col">Status</th>
+                <th scope="col">Submitted At</th>
+                <th scope="col">Last Updated</th>
+                <th scope="col" class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for application in recent_applications %}
+                <tr>
+                  <td>{{ application.full_name }}</td>
+                  <td>{{ application.get_status_display }}</td>
+                  <td>
+                    {% if application.submitted_at %}
+                      {{ application.submitted_at|date:"M d, Y" }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if application.updated_at %}
+                      {{ application.updated_at|date:"M d, Y H:i" }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <a
+                      href="{% url 'staff_consultant_detail' application.pk %}"
+                      class="btn btn-outline-primary btn-sm"
+                    >
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="mb-0 text-muted">No recent applications available.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <h2 class="h4">{{ active_status_label }} Consultant Applications</h2>
+
+  {% if consultants %}
+    <p>Select an action for each application and optionally leave an internal comment.</p>
+
+    {% for consultant in consultants %}
+      <section class="card mb-4 p-3">
+        <form method="post" action="{% url 'staff_dashboard' %}">
+          {% csrf_token %}
+          <input type="hidden" name="consultant_id" value="{{ consultant.id }}">
+          <input type="hidden" name="status" value="{{ active_status }}">
+
+          <header class="mb-2">
+            <h3 class="h5 mb-1">{{ consultant.full_name }}</h3>
+            <p class="mb-0 text-muted">ID: {{ consultant.id_number }} · {{ consultant.email }}</p>
+          </header>
+
+          <div class="mb-3">
+            <label for="comment-{{ consultant.id }}" class="form-label">Internal comment</label>
+            <textarea
+              id="comment-{{ consultant.id }}"
+              name="comment"
+              class="form-control"
+              rows="3"
+              placeholder="Add a note for other staff members"
+            >{{ consultant.staff_comment|default_if_none:"" }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" name="action" value="approved" class="btn btn-success">Approve</button>
+            <button type="submit" name="action" value="rejected" class="btn btn-danger">Reject</button>
+            <button type="submit" name="action" value="incomplete" class="btn btn-warning">Mark Incomplete</button>
+          </div>
+        </form>
+      </section>
+    {% endfor %}
+  {% else %}
+    <p>No {{ active_status_label|lower }} applications require review at this time.</p>
+  {% endif %}
 {% endblock %}

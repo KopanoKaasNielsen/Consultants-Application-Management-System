@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -8,7 +9,9 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
+from apps.consultants.models import Consultant
 from apps.decisions.views import is_reviewer
 from apps.users.constants import (
     ADMINS_GROUP_NAME,
@@ -23,6 +26,11 @@ from apps.users.constants import (
 from apps.users.permissions import role_required, user_has_role
 from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
+from apps.users.views import (
+    IMPERSONATOR_BACKEND_SESSION_KEY,
+    IMPERSONATOR_ID_SESSION_KEY,
+    IMPERSONATOR_USERNAME_SESSION_KEY,
+)
 
 
 class RegistrationTests(TestCase):
@@ -122,6 +130,222 @@ class LogoutRedirectTests(TestCase):
             fetch_redirect_response=False,
         )
 
+    def test_logout_rejects_get_requests(self):
+        """Logging out should require a POST to prevent CSRF-able GETs."""
+
+        response = self.client.get(reverse("logout"))
+        self.assertEqual(response.status_code, 405)
+
+
+class ImpersonationViewTests(TestCase):
+    password = "testpass123"
+
+    def setUp(self):
+        super().setUp()
+        self.user_model = get_user_model()
+        self.admin_group, _ = Group.objects.get_or_create(name=ADMINS_GROUP_NAME)
+
+        self.admin_user = self.user_model.objects.create_user(
+            username="admin",
+            password=self.password,
+            email="admin@example.com",
+        )
+        self.admin_user.groups.add(self.admin_group)
+
+        self.target_user = self.user_model.objects.create_user(
+            username="target",
+            password=self.password,
+            email="target@example.com",
+        )
+
+    def test_admin_can_impersonate_user(self):
+        self.client.login(username="admin", password=self.password)
+
+        response = self.client.post(
+            reverse("start_impersonation"),
+            {"user_id": self.target_user.pk},
+        )
+
+        self.assertRedirects(response, reverse("home"))
+
+        session = self.client.session
+        self.assertEqual(int(session.get("_auth_user_id")), self.target_user.pk)
+        self.assertEqual(session[IMPERSONATOR_ID_SESSION_KEY], self.admin_user.pk)
+        self.assertEqual(
+            session[IMPERSONATOR_USERNAME_SESSION_KEY], self.admin_user.username
+        )
+        self.assertIsNotNone(session[IMPERSONATOR_BACKEND_SESSION_KEY])
+
+    def test_non_admin_cannot_impersonate(self):
+        non_admin = self.user_model.objects.create_user(
+            username="regular",
+            password=self.password,
+        )
+
+        self.client.login(username="regular", password=self.password)
+        response = self.client.post(
+            reverse("start_impersonation"),
+            {"user_id": self.target_user.pk},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        session = self.client.session
+        self.assertNotIn(IMPERSONATOR_ID_SESSION_KEY, session)
+
+    def test_prevents_nested_impersonation(self):
+        nested_target = self.user_model.objects.create_user(
+            username="nested",
+            password=self.password,
+        )
+        nested_target.groups.add(self.admin_group)
+
+        self.client.login(username="admin", password=self.password)
+        self.client.post(reverse("start_impersonation"), {"user_id": nested_target.pk})
+
+        response = self.client.post(
+            reverse("start_impersonation"),
+            {"user_id": self.target_user.pk},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_stop_impersonation_restores_original_admin(self):
+        self.client.login(username="admin", password=self.password)
+        self.client.post(reverse("start_impersonation"), {"user_id": self.target_user.pk})
+
+        response = self.client.post(reverse("stop_impersonation"))
+
+        self.assertRedirects(
+            response,
+            reverse("impersonation_dashboard"),
+            fetch_redirect_response=False,
+        )
+
+        session = self.client.session
+        self.assertNotIn(IMPERSONATOR_ID_SESSION_KEY, session)
+        self.assertNotIn(IMPERSONATOR_USERNAME_SESSION_KEY, session)
+        self.assertNotIn(IMPERSONATOR_BACKEND_SESSION_KEY, session)
+        self.assertEqual(int(session.get("_auth_user_id")), self.admin_user.pk)
+
+
+class ImpersonationNavigationTests(TestCase):
+    password = "testpass123"
+
+    def setUp(self):
+        super().setUp()
+        self.user_model = get_user_model()
+        self.admin_group, _ = Group.objects.get_or_create(name=ADMINS_GROUP_NAME)
+
+    def test_admin_sees_impersonation_link(self):
+        admin = self.user_model.objects.create_user(
+            username="admin-nav",
+            password=self.password,
+            email="admin-nav@example.com",
+        )
+        admin.groups.add(self.admin_group)
+
+        self.client.login(username="admin-nav", password=self.password)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(
+            response,
+            f'href="{reverse("impersonation_dashboard")}"',
+            msg_prefix="Admin users should see the impersonation navigation link.",
+        )
+
+    def test_non_admin_does_not_see_impersonation_link(self):
+        user = self.user_model.objects.create_user(
+            username="regular-nav",
+            password=self.password,
+            email="regular-nav@example.com",
+        )
+
+        self.client.login(username="regular-nav", password=self.password)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertNotContains(
+            response,
+            f'href="{reverse("impersonation_dashboard")}"',
+            msg_prefix="Non-admin users should not see the impersonation navigation link.",
+        )
+
+
+class StaffConsultantDetailViewTests(TestCase):
+    password = "viewpass123"
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_groups")
+        cls.user_model = get_user_model()
+
+        cls.staff_user = cls.user_model.objects.create_user(
+            username="staffviewer",
+            password=cls.password,
+            email="staff@example.com",
+        )
+        staff_group = Group.objects.get(name=BACKOFFICE_GROUP_NAME)
+        cls.staff_user.groups.add(staff_group)
+
+        cls.regular_user = cls.user_model.objects.create_user(
+            username="regularviewer",
+            password=cls.password,
+            email="regular@example.com",
+        )
+        consultant_group = Group.objects.get(name=CONSULTANTS_GROUP_NAME)
+        cls.regular_user.groups.add(consultant_group)
+
+        consultant_account = cls.user_model.objects.create_user(
+            username="applicant1",
+            password=cls.password,
+            email="applicant1@example.com",
+        )
+
+        cls.consultant = Consultant.objects.create(
+            user=consultant_account,
+            full_name="Jane Doe",
+            id_number="123456789",
+            dob=date(1990, 1, 1),
+            gender="F",
+            nationality="Kenyan",
+            email="jane@example.com",
+            phone_number="+254700000000",
+            business_name="Doe Consulting",
+            registration_number="REG-001",
+            status="submitted",
+            staff_comment="Needs review",
+        )
+
+    def test_login_required(self):
+        url = reverse("staff_consultant_detail", args=[self.consultant.pk])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response.url)
+
+    def test_staff_can_view_consultant_detail(self):
+        self.client.force_login(self.staff_user)
+        url = reverse("staff_consultant_detail", args=[self.consultant.pk])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["consultant"], self.consultant)
+        self.assertContains(response, self.consultant.full_name)
+        self.assertContains(response, self.consultant.business_name)
+        self.assertContains(response, f"mailto:{self.consultant.email}")
+        self.assertContains(response, self.consultant.phone_number)
+        self.assertContains(response, self.consultant.id_number)
+        self.assertContains(response, self.consultant.nationality)
+
+    def test_non_staff_user_denied(self):
+        self.client.login(username=self.regular_user.username, password=self.password)
+        url = reverse("staff_consultant_detail", args=[self.consultant.pk])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 403)
 
 class RolePermissionTests(TestCase):
     def setUp(self):
@@ -201,6 +425,96 @@ class RolePermissionTests(TestCase):
 
         with self.assertRaises(PermissionDenied):
             sample_view(request)
+
+
+class StaffDashboardFilterTests(TestCase):
+    password = "staffpass123"
+
+    def setUp(self):
+        super().setUp()
+        self.user_model = get_user_model()
+        self.staff_group, _ = Group.objects.get_or_create(name="Staff")
+        self.staff_user = self.user_model.objects.create_user(
+            username="staff-filter",
+            password=self.password,
+            email="staff-filter@example.com",
+        )
+        self.staff_user.groups.add(self.staff_group)
+        self.client.login(username=self.staff_user.username, password=self.password)
+
+    def create_consultant(self, status: str) -> Consultant:
+        counter = Consultant.objects.count()
+        applicant = self.user_model.objects.create_user(
+            username=f"{status}_applicant_{counter}",
+            password="pass123456",
+            email=f"{status}{counter}@example.com",
+        )
+        return Consultant.objects.create(
+            user=applicant,
+            full_name=f"{status.title()} Applicant",
+            id_number=f"{status[:5]}-{counter}",
+            dob=date(1990, 1, 1),
+            gender="M",
+            nationality="Testland",
+            email=applicant.email,
+            phone_number="1234567890",
+            business_name="Test Business",
+            status=status,
+            submitted_at=timezone.now(),
+        )
+
+    def test_defaults_to_submitted_status(self):
+        submitted = self.create_consultant("submitted")
+        self.create_consultant("approved")
+
+        response = self.client.get(reverse("staff_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["consultants"]), [submitted])
+        self.assertEqual(response.context["active_status"], "submitted")
+        self.assertEqual(response.context["active_status_label"], "Submitted")
+
+    def test_filters_by_requested_status(self):
+        approved = self.create_consultant("approved")
+        self.create_consultant("submitted")
+
+        response = self.client.get(reverse("staff_dashboard"), {"status": "approved"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["consultants"]), [approved])
+        self.assertEqual(response.context["active_status"], "approved")
+
+    def test_invalid_status_falls_back_to_default(self):
+        submitted = self.create_consultant("submitted")
+        self.create_consultant("rejected")
+
+        response = self.client.get(reverse("staff_dashboard"), {"status": "unknown"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["consultants"]), [submitted])
+        self.assertEqual(response.context["active_status"], "submitted")
+
+    def test_post_action_preserves_status_in_redirect(self):
+        consultant = self.create_consultant("approved")
+
+        response = self.client.post(
+            reverse("staff_dashboard"),
+            {
+                "consultant_id": consultant.pk,
+                "action": "rejected",
+                "status": "approved",
+                "comment": "Updated after review",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('staff_dashboard')}?status=approved",
+            fetch_redirect_response=False,
+        )
+
+        consultant.refresh_from_db()
+        self.assertEqual(consultant.status, "rejected")
 
 
 class MonitoringInitTests(SimpleTestCase):

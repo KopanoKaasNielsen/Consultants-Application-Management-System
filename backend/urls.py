@@ -19,11 +19,12 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from .health import health_view
+from .health import database_health_view, health_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', health_view, name='health'),
+    path('health/database/', database_health_view, name='health-database'),
     path('', include('apps.users.urls')),
     path('consultants/', include('apps.consultants.urls')),
     path('certificates/', include(('apps.certificates.urls', 'certificates'), namespace='certificates')),

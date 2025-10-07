@@ -10,4 +10,9 @@ urlpatterns = [
         views.application_detail,
         name="officer_application_detail",
     ),
+    path(
+        "renewals/",
+        views.renewal_requests,
+        name="certificate_renewal_requests",
+    ),
 ]
