@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Board Dashboard{% endblock %}
+
+{% block content %}
+<section class="page-section">
+    <h1>Submitted Consultant Applications</h1>
+    {% if consultants %}
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">Full name</th>
+                    <th scope="col">ID number</th>
+                    <th scope="col">Phone number</th>
+                    <th scope="col">Business name</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for consultant in consultants %}
+                <tr>
+                    <td>{{ consultant.full_name }}</td>
+                    <td>{{ consultant.id_number }}</td>
+                    <td>{{ consultant.phone_number }}</td>
+                    <td>{{ consultant.business_name }}</td>
+                    <td class="status">{{ consultant.get_status_display }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>No submitted applications found.</p>
+    {% endif %}
+</section>
+{% endblock %}

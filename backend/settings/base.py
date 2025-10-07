@@ -119,6 +119,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'apps.users.context_processors.user_is_admin',
+                'apps.users.context_processors.user_is_board_or_staff',
             ],
         },
     },

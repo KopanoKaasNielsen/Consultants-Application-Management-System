@@ -27,6 +27,15 @@ def _user_is_admin(user):
     return user.is_superuser or user.groups.filter(name=ADMINS_GROUP_NAME).exists()
 
 
+def _user_is_board_or_staff(user):
+    if not user.is_authenticated:
+        return False
+
+    return user.is_superuser or user.groups.filter(
+        name__in=['Board', 'Staff']
+    ).exists()
+
+
 def register(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
@@ -131,6 +140,26 @@ def stop_impersonation(request):
         request.session.pop(key, None)
 
     return redirect('impersonation_dashboard')
+
+
+@login_required
+def board_dashboard(request):
+    if not _user_is_board_or_staff(request.user):
+        raise PermissionDenied
+
+    consultants = (
+        Consultant.objects.filter(status='submitted')
+        .select_related('user')
+        .order_by('full_name')
+    )
+
+    return render(
+        request,
+        'board_dashboard.html',
+        {
+            'consultants': consultants,
+        },
+    )
 
 
 @login_required
