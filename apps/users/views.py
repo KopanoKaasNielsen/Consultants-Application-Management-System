@@ -1,3 +1,4 @@
+import csv
 import mimetypes
 from pathlib import Path
 from typing import Optional
@@ -12,11 +13,12 @@ from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.db.models import Count, Q
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from urllib.parse import urlencode
+from django.utils import timezone
 
 from apps.consultants.models import Consultant
 from apps.users.constants import (
@@ -171,6 +173,66 @@ def board_dashboard(request):
     )
 
 
+STAFF_DASHBOARD_STATUS_CHOICES = [
+    ("draft", "Draft"),
+    ("submitted", "Submitted"),
+    ("approved", "Approved"),
+    ("rejected", "Rejected"),
+]
+STAFF_DASHBOARD_STATUS_LABELS = dict(STAFF_DASHBOARD_STATUS_CHOICES)
+STAFF_DASHBOARD_SORT_FIELDS = {"created_at", "status"}
+STAFF_DASHBOARD_SORT_DIRECTIONS = {"asc", "desc"}
+
+
+def _normalise_staff_status(value: Optional[str]) -> str:
+    if value in STAFF_DASHBOARD_STATUS_LABELS:
+        return value
+    return "submitted"
+
+
+def _extract_staff_dashboard_filters(request):
+    params = request.POST if request.method == "POST" else request.GET
+
+    active_status = _normalise_staff_status(params.get("status"))
+    search_query = params.get("q", "").strip()
+    sort_field = params.get("sort", "created_at")
+    if sort_field not in STAFF_DASHBOARD_SORT_FIELDS:
+        sort_field = "created_at"
+
+    sort_direction = params.get("direction", "desc")
+    if sort_direction not in STAFF_DASHBOARD_SORT_DIRECTIONS:
+        sort_direction = "desc"
+
+    current_page = params.get("page")
+
+    return active_status, search_query, sort_field, sort_direction, current_page
+
+
+def _build_staff_dashboard_queryset(active_status, search_query, sort_field, sort_direction):
+    consultant_queryset = Consultant.objects.filter(status=active_status).select_related("user")
+
+    if search_query:
+        consultant_queryset = consultant_queryset.filter(
+            Q(full_name__icontains=search_query)
+            | Q(business_name__icontains=search_query)
+            | Q(id_number__icontains=search_query)
+        )
+
+    consultant_queryset = consultant_queryset.annotate(
+        created_at=Coalesce("submitted_at", "updated_at")
+    )
+
+    order_prefix = "" if sort_direction == "asc" else "-"
+
+    if sort_field == "status":
+        order_by_fields = [f"{order_prefix}status", "-created_at", "-id"]
+    else:
+        secondary_prefix = "" if sort_direction == "asc" else "-"
+        order_by_fields = [f"{order_prefix}created_at", f"{secondary_prefix}id"]
+
+    return consultant_queryset.order_by(*order_by_fields)
+
+
 @role_required(Roles.STAFF)
 def staff_dashboard(request):
     allowed_actions = {
@@ -179,37 +241,13 @@ def staff_dashboard(request):
         "incomplete": "Request Info",
     }
 
-    status_choices = [
-        ("draft", "Draft"),
-        ("submitted", "Submitted"),
-        ("approved", "Approved"),
-        ("rejected", "Rejected"),
-    ]
-    status_labels = dict(status_choices)
-
-    def normalise_status(value: Optional[str]) -> str:
-        if value in status_labels:
-            return value
-        return "submitted"
-
-    if request.method == "POST":
-        active_status = normalise_status(request.POST.get("status"))
-        search_query = request.POST.get("q", "").strip()
-        sort_field = request.POST.get("sort", "created_at")
-        sort_direction = request.POST.get("direction", "desc")
-        current_page = request.POST.get("page")
-    else:
-        active_status = normalise_status(request.GET.get("status"))
-        search_query = request.GET.get("q", "").strip()
-        sort_field = request.GET.get("sort", "created_at")
-        sort_direction = request.GET.get("direction", "desc")
-        current_page = request.GET.get("page")
-
-    if sort_field not in {"created_at", "status"}:
-        sort_field = "created_at"
-
-    if sort_direction not in {"asc", "desc"}:
-        sort_direction = "desc"
+    (
+        active_status,
+        search_query,
+        sort_field,
+        sort_direction,
+        current_page,
+    ) = _extract_staff_dashboard_filters(request)
 
     if request.method == "POST":
         consultant_id = request.POST.get("consultant_id")
@@ -231,28 +269,12 @@ def staff_dashboard(request):
             dashboard_url = f"{reverse('staff_dashboard')}?{query_string}" if query_string else reverse('staff_dashboard')
             return redirect(dashboard_url)
 
-    consultant_queryset = Consultant.objects.filter(status=active_status).select_related("user")
-
-    if search_query:
-        consultant_queryset = consultant_queryset.filter(
-            Q(full_name__icontains=search_query)
-            | Q(business_name__icontains=search_query)
-            | Q(id_number__icontains=search_query)
-        )
-
-    consultant_queryset = consultant_queryset.annotate(
-        created_at=Coalesce("submitted_at", "updated_at")
+    consultant_queryset = _build_staff_dashboard_queryset(
+        active_status,
+        search_query,
+        sort_field,
+        sort_direction,
     )
-
-    if sort_field == "status":
-        order_prefix = "" if sort_direction == "asc" else "-"
-        order_by_fields = [f"{order_prefix}status", "-created_at", "-id"]
-    else:
-        order_prefix = "" if sort_direction == "asc" else "-"
-        secondary_prefix = "" if sort_direction == "asc" else "-"
-        order_by_fields = [f"{order_prefix}created_at", f"{secondary_prefix}id"]
-
-    consultant_queryset = consultant_queryset.order_by(*order_by_fields)
 
     paginator = Paginator(consultant_queryset, 10)
     page_number = current_page if request.method == "GET" else None
@@ -297,7 +319,7 @@ def staff_dashboard(request):
             "status_counts": status_counts,
             "recent_applications": recent_applications,
             "active_status": active_status,
-            "active_status_label": status_labels[active_status],
+            "active_status_label": STAFF_DASHBOARD_STATUS_LABELS[active_status],
             "paginator": paginator,
             "page_obj": page_obj,
             "is_paginated": page_obj.has_other_pages(),
@@ -308,7 +330,7 @@ def staff_dashboard(request):
                     "label": label,
                     "is_active": value == active_status,
                 }
-                for value, label in status_choices
+                for value, label in STAFF_DASHBOARD_STATUS_CHOICES
             ],
             "search_query": search_query,
             "sort_field": sort_field,
@@ -317,6 +339,47 @@ def staff_dashboard(request):
             "base_querystring": base_querystring,
         },
     )
+
+
+@role_required(Roles.STAFF)
+def staff_dashboard_export_csv(request):
+    (
+        active_status,
+        search_query,
+        sort_field,
+        sort_direction,
+        _,
+    ) = _extract_staff_dashboard_filters(request)
+
+    consultant_queryset = _build_staff_dashboard_queryset(
+        active_status,
+        search_query,
+        sort_field,
+        sort_direction,
+    )
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"consultants_{active_status}_{timestamp}.csv"
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(["Consultant Name", "Business", "Status", "Submission Date"])
+
+    for consultant in consultant_queryset:
+        submitted_at = consultant.submitted_at
+        submission_value = submitted_at.isoformat() if submitted_at else ""
+        writer.writerow(
+            [
+                consultant.full_name,
+                consultant.business_name,
+                consultant.get_status_display(),
+                submission_value,
+            ]
+        )
+
+    return response
 
 
 @role_required(Roles.STAFF, Roles.BOARD)

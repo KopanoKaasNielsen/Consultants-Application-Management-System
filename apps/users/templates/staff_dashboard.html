@@ -131,7 +131,15 @@
 
   <section class="card">
     <div class="card-body">
-      <h2 class="h4 mb-3">{{ active_status_label }} Consultant Applications</h2>
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+        <h2 class="h4 mb-0">{{ active_status_label }} Consultant Applications</h2>
+        <a
+          class="btn btn-outline-primary"
+          href="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+        >
+          Export CSV
+        </a>
+      </div>
 
       {% if page_obj.object_list %}
         <p class="text-muted">Select an action for each application and optionally leave an internal comment.</p>

@@ -3,6 +3,7 @@ from . import views
 from .views import (
     RoleBasedLoginView,
     home_view,
+    staff_dashboard_export_csv,
     staff_consultant_detail,
     staff_dashboard,
 )
@@ -13,6 +14,7 @@ urlpatterns = [
     path('register/', views.register, name='register'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('staff-dashboard/', staff_dashboard, name='staff_dashboard'),
+    path('staff-dashboard/export/', staff_dashboard_export_csv, name='staff_dashboard_export'),
     path('staff/consultant/<int:pk>/', staff_consultant_detail, name='staff_consultant_detail'),
     path('board/', views.board_dashboard, name='board_dashboard'),
     path('impersonation/', views.impersonation_dashboard, name='impersonation_dashboard'),
