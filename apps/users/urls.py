@@ -16,6 +16,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register, name='register'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('staff-dashboard/', staff_dashboard, name='staff_dashboard'),
     path('staff-dashboard/export/', staff_dashboard_export_csv, name='staff_dashboard_export'),
     path('staff/consultant/<int:pk>/', staff_consultant_detail, name='staff_consultant_detail'),
