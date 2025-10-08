@@ -1,28 +1,30 @@
 import csv
+import json
 import mimetypes
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict
+from typing import Dict, List, Optional, Tuple
 
 from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import logout, login as auth_login, get_user_model
-from django.contrib.auth import BACKEND_SESSION_KEY
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import Group
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth import BACKEND_SESSION_KEY
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
-from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.db.models import Count, Q
 from django.db.models.functions import Coalesce
-from django.urls import reverse
-from urllib.parse import urlencode
 from django.utils import timezone
 from django.utils.text import slugify
+from django.utils.dateparse import parse_date
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+from urllib.parse import urlencode
 
 from PyPDF2 import PdfReader, PdfWriter
 from weasyprint import HTML
@@ -34,6 +36,8 @@ from apps.users.constants import (
     UserRole as Roles,
 )
 from apps.users.permissions import role_required, user_has_role
+from apps.users.audit import log_audit_event
+from apps.users.models import AuditLog
 
 
 IMPERSONATOR_ID_SESSION_KEY = 'impersonator_id'
@@ -350,9 +354,28 @@ def staff_dashboard(request):
 
         if consultant_id and action in allowed_actions:
             consultant = get_object_or_404(Consultant, id=consultant_id)
+            previous_status = consultant.status
             consultant.status = action
             consultant.staff_comment = request.POST.get("comment", "").strip()
             consultant.save(update_fields=["status", "staff_comment"])
+
+            if action == "approved":
+                action_type = AuditLog.ActionType.APPROVE_APPLICATION
+            elif action == "rejected":
+                action_type = AuditLog.ActionType.REJECT_APPLICATION
+            else:
+                action_type = AuditLog.ActionType.REQUEST_INFO
+
+            log_audit_event(
+                request.user,
+                action_type,
+                target_object=f"Consultant:{consultant.pk}",
+                metadata={
+                    "consultant_id": consultant.pk,
+                    "previous_status": previous_status,
+                    "new_status": consultant.status,
+                },
+            )
 
             redirect_params = {"status": active_status, "sort": sort_field, "direction": sort_direction}
             if search_query:
@@ -474,6 +497,18 @@ def staff_dashboard_export_csv(request):
             ]
         )
 
+    log_audit_event(
+        request.user,
+        AuditLog.ActionType.EXPORT_CSV,
+        target_object=f"Consultants:{active_status}",
+        metadata={
+            "status": active_status,
+            "search_query": search_query,
+            "sort_field": sort_field,
+            "sort_direction": sort_direction,
+        },
+    )
+
     return response
 
 
@@ -482,6 +517,16 @@ def staff_consultant_detail(request, pk: int):
     consultant = get_object_or_404(
         Consultant.objects.select_related("user"),
         pk=pk,
+    )
+
+    log_audit_event(
+        request.user,
+        AuditLog.ActionType.VIEW_CONSULTANT,
+        target_object=f"Consultant:{consultant.pk}",
+        metadata={
+            "consultant_id": consultant.pk,
+            "status": consultant.status,
+        },
     )
 
     document_fields, decision_documents = get_consultant_documents(consultant)
@@ -500,6 +545,12 @@ def staff_consultant_detail(request, pk: int):
 @role_required(Roles.STAFF, Roles.BOARD)
 def staff_consultant_pdf(request, pk: int):
     consultant = get_object_or_404(Consultant, pk=pk)
+    log_audit_event(
+        request.user,
+        AuditLog.ActionType.EXPORT_PDF,
+        target_object=f"Consultant:{consultant.pk}",
+        metadata={"consultant_id": consultant.pk},
+    )
     return _build_pdf_response(request, consultant)
 
 
@@ -552,7 +603,74 @@ def staff_consultant_bulk_pdf(request):
 
     response = HttpResponse(output.read(), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    log_audit_event(
+        request.user,
+        AuditLog.ActionType.EXPORT_BULK_PDF,
+        target_object="ConsultantBulk",
+        metadata={"consultant_ids": consultant_ids, "filename": filename},
+    )
     return response
+
+
+@login_required
+def admin_dashboard(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied
+
+    logs = AuditLog.objects.select_related("user")
+
+    action_type = request.GET.get("action_type", "").strip()
+    user_filter = request.GET.get("user", "").strip()
+    start_date = request.GET.get("start", "").strip()
+    end_date = request.GET.get("end", "").strip()
+    page_number = request.GET.get("page")
+
+    if action_type:
+        logs = logs.filter(action_type=action_type)
+    if user_filter:
+        logs = logs.filter(user_id=user_filter)
+
+    if start_date:
+        parsed_start = parse_date(start_date)
+        if parsed_start:
+            logs = logs.filter(timestamp__date__gte=parsed_start)
+    if end_date:
+        parsed_end = parse_date(end_date)
+        if parsed_end:
+            logs = logs.filter(timestamp__date__lte=parsed_end)
+
+    paginator = Paginator(logs, 25)
+    page_obj = paginator.get_page(page_number)
+
+    for entry in page_obj.object_list:
+        try:
+            entry.metadata_pretty = json.dumps(entry.metadata, indent=2, sort_keys=True)
+        except TypeError:
+            entry.metadata_pretty = str(entry.metadata)
+
+    user_model = get_user_model()
+    active_users = user_model.objects.filter(is_active=True).order_by("username")
+
+    filter_params = {
+        "action_type": action_type,
+        "user": user_filter,
+        "start": start_date,
+        "end": end_date,
+    }
+
+    return render(
+        request,
+        "admin_dashboard.html",
+        {
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "logs": page_obj.object_list,
+            "action_choices": AuditLog.ActionType.choices,
+            "users": active_users,
+            "filters": filter_params,
+        },
+    )
 
 
 @login_required
