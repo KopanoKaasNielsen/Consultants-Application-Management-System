@@ -11,6 +11,7 @@ from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 
 from apps.consultants.models import Consultant
 from apps.decisions.views import is_reviewer
@@ -345,6 +346,73 @@ class StaffConsultantDetailViewTests(TestCase):
         url = reverse("staff_consultant_detail", args=[self.consultant.pk])
 
         response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_download_consultant_pdf(self):
+        self.client.force_login(self.staff_user)
+        url = reverse("staff_consultant_pdf", args=[self.consultant.pk])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+
+        expected_slug = slugify(self.consultant.full_name) or "consultant"
+        disposition = response["Content-Disposition"]
+        self.assertIn(f"{expected_slug}-{self.consultant.pk}.pdf", disposition)
+
+
+class ConsultantApplicationPdfTests(TestCase):
+    password = "strong-password"
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_groups")
+        cls.user_model = get_user_model()
+
+        cls.consultant_user = cls.user_model.objects.create_user(
+            username="consultantpdf",
+            password=cls.password,
+            email="consultantpdf@example.com",
+        )
+
+        consultant_group = Group.objects.get(name=CONSULTANTS_GROUP_NAME)
+        cls.consultant_user.groups.add(consultant_group)
+
+        cls.consultant = Consultant.objects.create(
+            user=cls.consultant_user,
+            full_name="Alex Export",
+            id_number="987654321",
+            dob=date(1985, 6, 15),
+            gender="M",
+            nationality="Kenyan",
+            email="alex@example.com",
+            phone_number="+254711111111",
+            business_name="Export Consulting",
+            status="submitted",
+        )
+
+    def test_consultant_can_download_pdf(self):
+        self.client.login(username=self.consultant_user.username, password=self.password)
+
+        response = self.client.get(reverse("consultant_application_pdf"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+
+        expected_slug = slugify(self.consultant.full_name) or "consultant"
+        self.assertIn(f"{expected_slug}-{self.consultant.pk}.pdf", response["Content-Disposition"])
+
+    def test_requires_consultant_role(self):
+        other_user = self.user_model.objects.create_user(
+            username="nonconsultant",
+            password=self.password,
+            email="other@example.com",
+        )
+
+        self.client.login(username=other_user.username, password=self.password)
+        response = self.client.get(reverse("consultant_application_pdf"))
 
         self.assertEqual(response.status_code, 403)
 

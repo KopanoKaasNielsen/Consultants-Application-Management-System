@@ -1,7 +1,7 @@
 import csv
 import mimetypes
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple, List, Dict
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import logout, login as auth_login, get_user_model
@@ -14,11 +14,15 @@ from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.http import HttpResponse, HttpResponseBadRequest
+from django.template.loader import render_to_string
 from django.db.models import Count, Q
 from django.db.models.functions import Coalesce
 from django.urls import reverse
 from urllib.parse import urlencode
 from django.utils import timezone
+from django.utils.text import slugify
+
+from weasyprint import HTML
 
 from apps.consultants.models import Consultant
 from apps.users.constants import (
@@ -32,6 +36,88 @@ from apps.users.permissions import role_required, user_has_role
 IMPERSONATOR_ID_SESSION_KEY = 'impersonator_id'
 IMPERSONATOR_USERNAME_SESSION_KEY = 'impersonator_username'
 IMPERSONATOR_BACKEND_SESSION_KEY = 'impersonator_backend'
+
+DOCUMENT_FIELD_LABELS = [
+    ("photo", "Profile photo"),
+    ("id_document", "ID document"),
+    ("cv", "Curriculum vitae"),
+    ("police_clearance", "Police clearance"),
+    ("qualifications", "Qualifications"),
+    ("business_certificate", "Business certificate"),
+]
+
+DECISION_DOCUMENT_FIELD_LABELS = [
+    ("certificate_pdf", "Approval certificate"),
+    ("rejection_letter", "Rejection letter"),
+]
+
+
+def _format_file_size(size_bytes: Optional[int]) -> str:
+    if size_bytes is None:
+        return "Unknown size"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+def _build_document_entry(file_field, label: str) -> Dict[str, object]:
+    file_name = file_field.name.rsplit("/", 1)[-1]
+    extension = Path(file_name).suffix.replace(".", "").upper()
+    if not extension:
+        mime_type, _ = mimetypes.guess_type(file_name)
+        if mime_type:
+            extension = mime_type.split("/")[-1].upper()
+
+    try:
+        size_bytes = file_field.size
+    except (OSError, ValueError):
+        size_bytes = None
+
+    return {
+        "label": label,
+        "url": file_field.url,
+        "name": file_name,
+        "type": extension or "UNKNOWN",
+        "size": _format_file_size(size_bytes),
+        "file": file_field,
+    }
+
+
+def get_consultant_documents(consultant) -> Tuple[List[Dict[str, object]], List[Dict[str, object]]]:
+    document_fields: List[Dict[str, object]] = []
+    decision_documents: List[Dict[str, object]] = []
+
+    for field_name, label in DOCUMENT_FIELD_LABELS:
+        file_field = getattr(consultant, field_name, None)
+        if file_field:
+            document_fields.append(_build_document_entry(file_field, label))
+
+    for field_name, label in DECISION_DOCUMENT_FIELD_LABELS:
+        file_field = getattr(consultant, field_name, None)
+        if file_field:
+            decision_documents.append(_build_document_entry(file_field, label))
+
+    return document_fields, decision_documents
+
+
+def _build_pdf_response(request, consultant) -> HttpResponse:
+    document_fields, decision_documents = get_consultant_documents(consultant)
+    context = {
+        "consultant": consultant,
+        "document_fields": document_fields,
+        "decision_documents": decision_documents,
+        "generated_at": timezone.now(),
+    }
+
+    html_string = render_to_string("consultants/application_pdf.html", context)
+    pdf_bytes = HTML(string=html_string, base_url=request.build_absolute_uri("/")).write_pdf()
+
+    slug = slugify(consultant.full_name) or "consultant"
+    filename = f"{slug}-{consultant.pk}.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def _user_is_admin(user):
@@ -389,49 +475,7 @@ def staff_consultant_detail(request, pk: int):
         pk=pk,
     )
 
-    document_field_labels = [
-        ("photo", "Profile photo"),
-        ("id_document", "ID document"),
-        ("cv", "Curriculum vitae"),
-        ("police_clearance", "Police clearance"),
-        ("qualifications", "Qualifications"),
-        ("business_certificate", "Business certificate"),
-        ("certificate_pdf", "Certificate"),
-        ("rejection_letter", "Rejection letter"),
-    ]
-
-    def format_file_size(size_bytes: Optional[int]) -> str:
-        if size_bytes is None:
-            return "Unknown size"
-        if size_bytes < 1024 * 1024:
-            return f"{size_bytes / 1024:.1f} KB"
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-
-    document_fields = []
-    for field_name, label in document_field_labels:
-        file_field = getattr(consultant, field_name)
-        if file_field:
-            file_name = file_field.name.rsplit("/", 1)[-1]
-            extension = Path(file_name).suffix.replace(".", "").upper()
-            if not extension:
-                mime_type, _ = mimetypes.guess_type(file_name)
-                if mime_type:
-                    extension = mime_type.split("/")[-1].upper()
-
-            try:
-                size_bytes = file_field.size
-            except (OSError, ValueError):
-                size_bytes = None
-
-            document_fields.append(
-                {
-                    "label": label,
-                    "url": file_field.url,
-                    "name": file_name,
-                    "type": extension or "UNKNOWN",
-                    "size": format_file_size(size_bytes),
-                }
-            )
+    document_fields, decision_documents = get_consultant_documents(consultant)
 
     return render(
         request,
@@ -439,8 +483,15 @@ def staff_consultant_detail(request, pk: int):
         {
             "consultant": consultant,
             "document_fields": document_fields,
+            "decision_documents": decision_documents,
         },
     )
+
+
+@role_required(Roles.STAFF, Roles.BOARD)
+def staff_consultant_pdf(request, pk: int):
+    consultant = get_object_or_404(Consultant, pk=pk)
+    return _build_pdf_response(request, consultant)
 
 
 @login_required
@@ -467,30 +518,26 @@ def dashboard(request):
     application = Consultant.objects.filter(user=user).first()
 
     document_fields = []
-    document_field_labels = [
-        ('photo', 'Profile photo'),
-        ('id_document', 'ID document'),
-        ('cv', 'Curriculum vitae'),
-        ('police_clearance', 'Police clearance'),
-        ('qualifications', 'Qualifications'),
-        ('business_certificate', 'Business certificate'),
-    ]
+    decision_documents = []
 
     if application:
-        for field_name, label in document_field_labels:
-            file_field = getattr(application, field_name)
-            if file_field:
-                document_fields.append({
-                    'name': field_name,
-                    'label': label,
-                    'file': file_field,
-                })
+        document_fields, decision_documents = get_consultant_documents(application)
 
     return render(request, 'dashboard.html', {
         'application': application,
         'is_reviewer': False,
         'document_fields': document_fields,
+        'decision_documents': decision_documents,
     })
+
+
+@login_required
+def consultant_application_pdf(request):
+    if not user_has_role(request.user, Roles.CONSULTANT):
+        raise PermissionDenied
+
+    consultant = get_object_or_404(Consultant, user=request.user)
+    return _build_pdf_response(request, consultant)
 def home_view(request):
     return render(request, 'home.html')
 
