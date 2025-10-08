@@ -10,14 +10,17 @@
     </ol>
   </nav>
 
-  <header class="mb-4">
-    <h1 class="h3 mb-1">{{ consultant.full_name }}</h1>
-    <p class="mb-0 text-muted">
-      Application #{{ consultant.id }} · Status: {{ consultant.get_status_display }}
-      {% if consultant.submitted_at %}
-        · Submitted {{ consultant.submitted_at|date:"M d, Y" }}
-      {% endif %}
-    </p>
+  <header class="mb-4 d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3">
+    <div>
+      <h1 class="h3 mb-1">{{ consultant.full_name }}</h1>
+      <p class="mb-0 text-muted">
+        Application #{{ consultant.id }} · Status: {{ consultant.get_status_display }}
+        {% if consultant.submitted_at %}
+          · Submitted {{ consultant.submitted_at|date:"M d, Y" }}
+        {% endif %}
+      </p>
+    </div>
+    <a href="{% url 'staff_consultant_pdf' consultant.pk %}" class="btn btn-primary">Download PDF</a>
   </header>
 
   <section class="card mb-4">
@@ -81,6 +84,23 @@
       {% endif %}
     </div>
   </section>
+
+  {% if decision_documents %}
+    <section class="card mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Decision documents</h2>
+        <ul class="list-unstyled mb-0">
+          {% for document in decision_documents %}
+            <li class="mb-2">
+              <span class="fw-semibold d-block">{{ document.label }}</span>
+              <a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.name }}</a>
+              <small class="text-muted d-block">{{ document.type }} · {{ document.size }}</small>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+  {% endif %}
 
   {% if consultant.staff_comment %}
     <section class="card mb-4">
