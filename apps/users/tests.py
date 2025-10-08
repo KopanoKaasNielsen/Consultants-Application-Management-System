@@ -1,10 +1,12 @@
 import os
 from datetime import date
 import csv
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.contrib.messages import get_messages
 from django.core.management import call_command
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
@@ -12,6 +14,8 @@ from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
+
+from PyPDF2 import PdfReader
 
 from apps.consultants.models import Consultant
 from apps.decisions.views import is_reviewer
@@ -361,6 +365,84 @@ class StaffConsultantDetailViewTests(TestCase):
         expected_slug = slugify(self.consultant.full_name) or "consultant"
         disposition = response["Content-Disposition"]
         self.assertIn(f"{expected_slug}-{self.consultant.pk}.pdf", disposition)
+
+    def test_staff_can_download_bulk_pdf(self):
+        self.client.force_login(self.staff_user)
+
+        other_user = self.user_model.objects.create_user(
+            username="applicant2",
+            password=self.password,
+            email="applicant2@example.com",
+        )
+        consultant_group = Group.objects.get(name=CONSULTANTS_GROUP_NAME)
+        other_user.groups.add(consultant_group)
+
+        other_consultant = Consultant.objects.create(
+            user=other_user,
+            full_name="John Export",
+            id_number="234567890",
+            dob=date(1991, 2, 2),
+            gender="M",
+            nationality="Kenyan",
+            email="john@example.com",
+            phone_number="+254700000111",
+            business_name="Export Experts",
+            registration_number="REG-002",
+            status="submitted",
+        )
+
+        url = reverse("staff_consultant_bulk_pdf")
+        response = self.client.post(
+            url,
+            {
+                "selected_applications": [
+                    str(self.consultant.pk),
+                    str(other_consultant.pk),
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("consultant-applications", response["Content-Disposition"])
+
+        reader = PdfReader(BytesIO(response.content))
+        self.assertGreaterEqual(len(reader.pages), 2)
+
+        stored_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                "Successfully prepared a combined PDF" in message.message
+                for message in stored_messages
+            )
+        )
+
+    def test_bulk_pdf_requires_selection(self):
+        self.client.force_login(self.staff_user)
+        response = self.client.post(reverse("staff_consultant_bulk_pdf"), {})
+
+        self.assertRedirects(
+            response,
+            reverse("officer_applications_list"),
+            fetch_redirect_response=False,
+        )
+
+        stored_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                "Select at least one application" in message.message
+                for message in stored_messages
+            )
+        )
+
+    def test_bulk_pdf_denies_non_staff(self):
+        self.client.force_login(self.regular_user)
+        response = self.client.post(
+            reverse("staff_consultant_bulk_pdf"),
+            {"selected_applications": [str(self.consultant.pk)]},
+        )
+
+        self.assertEqual(response.status_code, 403)
 
 
 class ConsultantApplicationPdfTests(TestCase):

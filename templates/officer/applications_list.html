@@ -4,6 +4,16 @@
 
 {% block content %}
 <div class="page-stack">
+  {% if messages %}
+  <section class="data-card" aria-live="polite">
+    <ul class="message-list">
+      {% for message in messages %}
+      <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   <section class="data-card">
     <div class="card-header">
       <h2>Applications (Staff)</h2>
@@ -20,38 +30,180 @@
       </ul>
     </nav>
 
-    <div class="table-wrapper">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th scope="col">Full Name</th>
-            <th scope="col">Business</th>
-            <th scope="col">Status</th>
-            <th scope="col">Submitted</th>
-            <th scope="col">View</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for app in applications %}
-          <tr>
-            <td>{{ app.full_name }}</td>
-            <td>{{ app.business_name }}</td>
-            <td>{{ app.status|title }}</td>
-            <td>{{ app.submitted_at|default:"—" }}</td>
-            <td><a class="btn-link" href="{% url 'officer_application_detail' app.pk %}">Open</a></td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td colspan="5" class="muted">No applications found.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <form id="bulk-pdf-form" method="post" action="{% url 'staff_consultant_bulk_pdf' %}">
+      {% csrf_token %}
+      <div id="bulk-pdf-status" class="form-status" aria-live="polite" role="status"></div>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col" class="select-column">
+                <input type="checkbox" id="select-all" aria-label="Select all applications">
+              </th>
+              <th scope="col">Full Name</th>
+              <th scope="col">Business</th>
+              <th scope="col">Status</th>
+              <th scope="col">Submitted</th>
+              <th scope="col">View</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for app in applications %}
+            <tr>
+              <td data-label="Select">
+                <input type="checkbox" name="selected_applications" value="{{ app.pk }}" class="bulk-select" aria-label="Select {{ app.full_name }}">
+              </td>
+              <td>{{ app.full_name }}</td>
+              <td>{{ app.business_name }}</td>
+              <td>{{ app.status|title }}</td>
+              <td>{{ app.submitted_at|default:"—" }}</td>
+              <td><a class="btn-link" href="{% url 'officer_application_detail' app.pk %}">Open</a></td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="muted">No applications found.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary" id="bulk-pdf-submit">Download Selected as PDF</button>
+      </div>
+    </form>
   </section>
 
   <div class="back-link">
     <a href="{% url 'dashboard' %}">← Back to dashboard</a>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('bulk-pdf-form');
+    if (!form || !window.fetch || !window.URL || !window.URL.createObjectURL) {
+      return;
+    }
+
+    const statusEl = document.getElementById('bulk-pdf-status');
+    const selectAllEl = document.getElementById('select-all');
+    const submitBtn = document.getElementById('bulk-pdf-submit');
+
+    const getCheckboxes = () => Array.from(form.querySelectorAll('.bulk-select'));
+
+    const setStatus = (level, message) => {
+      if (!statusEl) {
+        return;
+      }
+      statusEl.textContent = message;
+      statusEl.dataset.state = level;
+    };
+
+    const updateSubmitState = () => {
+      const hasSelection = getCheckboxes().some((checkbox) => checkbox.checked);
+      submitBtn.disabled = !hasSelection;
+    };
+
+    if (selectAllEl) {
+      selectAllEl.addEventListener('change', () => {
+        const checkboxes = getCheckboxes();
+        checkboxes.forEach((checkbox) => {
+          checkbox.checked = selectAllEl.checked;
+        });
+        updateSubmitState();
+      });
+    }
+
+    getCheckboxes().forEach((checkbox) => {
+      checkbox.addEventListener('change', () => {
+        if (selectAllEl) {
+          const allChecked = getCheckboxes().every((item) => item.checked);
+          selectAllEl.checked = allChecked;
+          selectAllEl.indeterminate = !allChecked && getCheckboxes().some((item) => item.checked);
+        }
+        updateSubmitState();
+      });
+    });
+
+    const parseFilename = (disposition) => {
+      if (!disposition) {
+        return null;
+      }
+      const match = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+      if (match) {
+        return decodeURIComponent(match[1] || match[2]);
+      }
+      return null;
+    };
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const selected = getCheckboxes().filter((checkbox) => checkbox.checked);
+      if (!selected.length) {
+        setStatus('warning', 'Select at least one application to export.');
+        return;
+      }
+
+      const csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+      const csrfToken = csrfInput ? csrfInput.value : '';
+
+      const formData = new FormData();
+      selected.forEach((checkbox) => {
+        formData.append('selected_applications', checkbox.value);
+      });
+
+      const requestInit = {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: formData,
+      };
+
+      submitBtn.disabled = true;
+      setStatus('info', 'Preparing download…');
+
+      try {
+        const response = await fetch(form.action, requestInit);
+        if (!response.ok) {
+          throw new Error('Failed to export PDFs');
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition');
+        const filename = parseFilename(disposition) || 'consultant-applications.pdf';
+
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        const successMessage = selected.length === 1
+          ? 'Downloaded 1 application PDF.'
+          : `Downloaded ${selected.length} application PDFs.`;
+        setStatus('success', successMessage);
+      } catch (error) {
+        console.error(error);
+        setStatus('error', 'Something went wrong while preparing the PDF download.');
+      } finally {
+        submitBtn.disabled = false;
+        updateSubmitState();
+      }
+    });
+
+    updateSubmitState();
+  });
+});
+</script>
 {% endblock %}

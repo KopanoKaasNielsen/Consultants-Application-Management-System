@@ -1,8 +1,10 @@
 import csv
 import mimetypes
+from io import BytesIO
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict
 
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import logout, login as auth_login, get_user_model
 from django.contrib.auth import BACKEND_SESSION_KEY
@@ -22,6 +24,7 @@ from urllib.parse import urlencode
 from django.utils import timezone
 from django.utils.text import slugify
 
+from PyPDF2 import PdfReader, PdfWriter
 from weasyprint import HTML
 
 from apps.consultants.models import Consultant
@@ -100,7 +103,7 @@ def get_consultant_documents(consultant) -> Tuple[List[Dict[str, object]], List[
     return document_fields, decision_documents
 
 
-def _build_pdf_response(request, consultant) -> HttpResponse:
+def _render_consultant_pdf(request, consultant) -> Tuple[bytes, str]:
     document_fields, decision_documents = get_consultant_documents(consultant)
     context = {
         "consultant": consultant,
@@ -114,6 +117,12 @@ def _build_pdf_response(request, consultant) -> HttpResponse:
 
     slug = slugify(consultant.full_name) or "consultant"
     filename = f"{slug}-{consultant.pk}.pdf"
+
+    return pdf_bytes, filename
+
+
+def _build_pdf_response(request, consultant) -> HttpResponse:
+    pdf_bytes, filename = _render_consultant_pdf(request, consultant)
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
@@ -492,6 +501,58 @@ def staff_consultant_detail(request, pk: int):
 def staff_consultant_pdf(request, pk: int):
     consultant = get_object_or_404(Consultant, pk=pk)
     return _build_pdf_response(request, consultant)
+
+
+@role_required(Roles.STAFF)
+@require_POST
+def staff_consultant_bulk_pdf(request):
+    selected_ids = request.POST.getlist("selected_applications")
+
+    if not selected_ids:
+        messages.warning(request, "Select at least one application to export.")
+        return redirect("officer_applications_list")
+
+    try:
+        consultant_ids = sorted({int(value) for value in selected_ids})
+    except ValueError:
+        messages.error(request, "Invalid selection submitted.")
+        return redirect("officer_applications_list")
+
+    consultants = list(
+        Consultant.objects.filter(pk__in=consultant_ids).order_by("full_name", "pk")
+    )
+
+    if not consultants:
+        messages.warning(request, "No matching applications were found for export.")
+        return redirect("officer_applications_list")
+
+    pdf_writer = PdfWriter()
+
+    for consultant in consultants:
+        pdf_bytes, _ = _render_consultant_pdf(request, consultant)
+        reader = PdfReader(BytesIO(pdf_bytes))
+        for page in reader.pages:
+            pdf_writer.add_page(page)
+
+    if not pdf_writer.pages:
+        messages.warning(request, "The selected applications did not produce any pages to export.")
+        return redirect("officer_applications_list")
+
+    output = BytesIO()
+    pdf_writer.write(output)
+    output.seek(0)
+
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"consultant-applications-{timestamp}.pdf"
+
+    messages.success(
+        request,
+        "Successfully prepared a combined PDF for the selected applications.",
+    )
+
+    response = HttpResponse(output.read(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required
