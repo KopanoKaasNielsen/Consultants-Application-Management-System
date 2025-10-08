@@ -8,7 +8,104 @@
   <p class="description">Provide the required details so we can review and progress your consultant profile.</p>
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    {{ form.as_p }}
+    {{ form.non_field_errors }}
+
+    <div class="section">
+      <h3>Personal Details</h3>
+      <div class="form-field">
+        {{ form.full_name.label_tag }}
+        {{ form.full_name }}
+        {{ form.full_name.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.id_number.label_tag }}
+        {{ form.id_number }}
+        {{ form.id_number.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.dob.label_tag }}
+        {{ form.dob }}
+        {{ form.dob.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.gender.label_tag }}
+        {{ form.gender }}
+        {{ form.gender.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.nationality.label_tag }}
+        {{ form.nationality }}
+        {{ form.nationality.errors }}
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="section">
+      <h3>Contact Details</h3>
+      <div class="form-field">
+        {{ form.email.label_tag }}
+        {{ form.email }}
+        {{ form.email.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.phone_number.label_tag }}
+        {{ form.phone_number }}
+        {{ form.phone_number.errors }}
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="section">
+      <h3>Business Details</h3>
+      <div class="form-field">
+        {{ form.business_name.label_tag }}
+        {{ form.business_name }}
+        {{ form.business_name.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.registration_number.label_tag }}
+        {{ form.registration_number }}
+        {{ form.registration_number.errors }}
+      </div>
+    </div>
+
+    <hr>
+
+    <div class="section">
+      <h3>Required Uploads</h3>
+      <div class="form-field">
+        {{ form.photo.label_tag }}
+        {{ form.photo }}
+        {{ form.photo.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.id_document.label_tag }}
+        {{ form.id_document }}
+        {{ form.id_document.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.cv.label_tag }}
+        {{ form.cv }}
+        {{ form.cv.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.police_clearance.label_tag }}
+        {{ form.police_clearance }}
+        {{ form.police_clearance.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.qualifications.label_tag }}
+        {{ form.qualifications }}
+        {{ form.qualifications.errors }}
+      </div>
+      <div class="form-field">
+        {{ form.business_certificate.label_tag }}
+        {{ form.business_certificate }}
+        {{ form.business_certificate.errors }}
+      </div>
+    </div>
 
     <div class="form-actions">
       {% if show_save_draft %}
