@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
+from django.core.paginator import Paginator
 from django.http import HttpResponseBadRequest
 from django.db.models import Count, Q
 from django.urls import reverse
@@ -206,11 +207,15 @@ def staff_dashboard(request):
             dashboard_url = f"{reverse('staff_dashboard')}?status={active_status}"
             return redirect(dashboard_url)
 
-    consultants = (
+    consultant_queryset = (
         Consultant.objects.filter(status=active_status)
         .select_related("user")
-        .order_by("full_name")
+        .order_by("full_name", "id")
     )
+
+    paginator = Paginator(consultant_queryset, 10)
+    page_number = request.GET.get("page") if request.method == "GET" else None
+    page_obj = paginator.get_page(page_number)
 
     recent_applications = (
         Consultant.objects.exclude(submitted_at__isnull=True)
@@ -229,12 +234,16 @@ def staff_dashboard(request):
         request,
         "staff_dashboard.html",
         {
-            "consultants": consultants,
+            "consultants": list(page_obj.object_list),
             "allowed_actions": allowed_actions,
             "status_counts": status_counts,
             "recent_applications": recent_applications,
             "active_status": active_status,
             "active_status_label": status_labels[active_status],
+            "paginator": paginator,
+            "page_obj": page_obj,
+            "is_paginated": page_obj.has_other_pages(),
+            "consultants_page": page_obj,
             "status_filters": [
                 {
                     "value": value,
