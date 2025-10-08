@@ -14,7 +14,9 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.http import HttpResponseBadRequest
 from django.db.models import Count, Q
+from django.db.models.functions import Coalesce
 from django.urls import reverse
+from urllib.parse import urlencode
 
 from apps.consultants.models import Consultant
 from apps.users.constants import (
@@ -192,8 +194,22 @@ def staff_dashboard(request):
 
     if request.method == "POST":
         active_status = normalise_status(request.POST.get("status"))
+        search_query = request.POST.get("q", "").strip()
+        sort_field = request.POST.get("sort", "created_at")
+        sort_direction = request.POST.get("direction", "desc")
+        current_page = request.POST.get("page")
     else:
         active_status = normalise_status(request.GET.get("status"))
+        search_query = request.GET.get("q", "").strip()
+        sort_field = request.GET.get("sort", "created_at")
+        sort_direction = request.GET.get("direction", "desc")
+        current_page = request.GET.get("page")
+
+    if sort_field not in {"created_at", "status"}:
+        sort_field = "created_at"
+
+    if sort_direction not in {"asc", "desc"}:
+        sort_direction = "desc"
 
     if request.method == "POST":
         consultant_id = request.POST.get("consultant_id")
@@ -204,18 +220,60 @@ def staff_dashboard(request):
             consultant.status = action
             consultant.staff_comment = request.POST.get("comment", "").strip()
             consultant.save(update_fields=["status", "staff_comment"])
-            dashboard_url = f"{reverse('staff_dashboard')}?status={active_status}"
+
+            redirect_params = {"status": active_status, "sort": sort_field, "direction": sort_direction}
+            if search_query:
+                redirect_params["q"] = search_query
+            if current_page:
+                redirect_params["page"] = current_page
+
+            query_string = urlencode(redirect_params)
+            dashboard_url = f"{reverse('staff_dashboard')}?{query_string}" if query_string else reverse('staff_dashboard')
             return redirect(dashboard_url)
 
-    consultant_queryset = (
-        Consultant.objects.filter(status=active_status)
-        .select_related("user")
-        .order_by("full_name", "id")
+    consultant_queryset = Consultant.objects.filter(status=active_status).select_related("user")
+
+    if search_query:
+        consultant_queryset = consultant_queryset.filter(
+            Q(full_name__icontains=search_query)
+            | Q(business_name__icontains=search_query)
+            | Q(id_number__icontains=search_query)
+        )
+
+    consultant_queryset = consultant_queryset.annotate(
+        created_at=Coalesce("submitted_at", "updated_at")
     )
 
+    if sort_field == "status":
+        order_prefix = "" if sort_direction == "asc" else "-"
+        order_by_fields = [f"{order_prefix}status", "-created_at", "-id"]
+    else:
+        order_prefix = "" if sort_direction == "asc" else "-"
+        secondary_prefix = "" if sort_direction == "asc" else "-"
+        order_by_fields = [f"{order_prefix}created_at", f"{secondary_prefix}id"]
+
+    consultant_queryset = consultant_queryset.order_by(*order_by_fields)
+
     paginator = Paginator(consultant_queryset, 10)
-    page_number = request.GET.get("page") if request.method == "GET" else None
+    page_number = current_page if request.method == "GET" else None
     page_obj = paginator.get_page(page_number)
+
+    base_query_params = {"status": active_status, "sort": sort_field, "direction": sort_direction}
+    if search_query:
+        base_query_params["q"] = search_query
+    base_querystring = urlencode(base_query_params)
+
+    sort_links = {}
+    for field in ("created_at", "status"):
+        next_direction = "asc" if sort_field == field and sort_direction == "desc" else "desc"
+        params = {"status": active_status, "sort": field, "direction": next_direction}
+        if search_query:
+            params["q"] = search_query
+        sort_links[field] = {
+            "querystring": urlencode(params),
+            "is_active": sort_field == field,
+            "direction": sort_direction if sort_field == field else None,
+        }
 
     recent_applications = (
         Consultant.objects.exclude(submitted_at__isnull=True)
@@ -252,6 +310,11 @@ def staff_dashboard(request):
                 }
                 for value, label in status_choices
             ],
+            "search_query": search_query,
+            "sort_field": sort_field,
+            "sort_direction": sort_direction,
+            "sort_links": sort_links,
+            "base_querystring": base_querystring,
         },
     )
 

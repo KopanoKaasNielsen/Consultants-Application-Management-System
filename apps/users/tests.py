@@ -442,14 +442,14 @@ class StaffDashboardFilterTests(TestCase):
         self.staff_user.groups.add(self.staff_group)
         self.client.login(username=self.staff_user.username, password=self.password)
 
-    def create_consultant(self, status: str) -> Consultant:
+    def create_consultant(self, status: str, **overrides) -> Consultant:
         counter = Consultant.objects.count()
         applicant = self.user_model.objects.create_user(
             username=f"{status}_applicant_{counter}",
             password="pass123456",
             email=f"{status}{counter}@example.com",
         )
-        return Consultant.objects.create(
+        defaults = {
             user=applicant,
             full_name=f"{status.title()} Applicant",
             id_number=f"{status[:5]}-{counter}",
@@ -461,7 +461,9 @@ class StaffDashboardFilterTests(TestCase):
             business_name="Test Business",
             status=status,
             submitted_at=timezone.now(),
-        )
+        }
+        defaults.update(overrides)
+        return Consultant.objects.create(**defaults)
 
     def test_defaults_to_submitted_status(self):
         submitted = self.create_consultant("submitted")
@@ -518,7 +520,7 @@ class StaffDashboardFilterTests(TestCase):
 
         self.assertRedirects(
             response,
-            f"{reverse('staff_dashboard')}?status=approved",
+            f"{reverse('staff_dashboard')}?status=approved&sort=created_at&direction=desc",
             fetch_redirect_response=False,
         )
 
@@ -540,7 +542,7 @@ class StaffDashboardFilterTests(TestCase):
         self.assertEqual(len(page_obj.object_list), 10)
         self.assertListEqual(
             list(page_obj.object_list),
-            submitted_consultants[:10],
+            list(reversed(submitted_consultants))[:10],
         )
 
     def test_can_access_subsequent_pages(self):
@@ -559,8 +561,48 @@ class StaffDashboardFilterTests(TestCase):
         self.assertEqual(len(page_obj.object_list), 2)
         self.assertListEqual(
             list(page_obj.object_list),
-            submitted_consultants[10:],
+            list(reversed(submitted_consultants))[10:],
         )
+
+    def test_search_combined_with_status_filters_by_name(self):
+        matching = self.create_consultant(
+            "submitted",
+            full_name="Alex Search",
+            business_name="Search Labs",
+            id_number="SRCH-100",
+        )
+        self.create_consultant("submitted", full_name="Other Person")
+        self.create_consultant(
+            "approved",
+            full_name="Alex Search",
+            business_name="Search Labs",
+        )
+
+        response = self.client.get(
+            reverse("staff_dashboard"),
+            {"status": "submitted", "q": "alex"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["page_obj"].object_list), [matching])
+
+    def test_search_combined_with_status_filters_by_identifier(self):
+        matching = self.create_consultant(
+            "approved",
+            full_name="Taylor Lookup",
+            business_name="Lookup LLC",
+            id_number="LOOK-9001",
+        )
+        self.create_consultant("approved", id_number="OTHER-1")
+        self.create_consultant("rejected", id_number="LOOK-9001")
+
+        response = self.client.get(
+            reverse("staff_dashboard"),
+            {"status": "approved", "q": "9001"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["page_obj"].object_list), [matching])
 
 
 class MonitoringInitTests(SimpleTestCase):
