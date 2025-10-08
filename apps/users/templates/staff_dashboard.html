@@ -3,27 +3,49 @@
 {% block title %}Staff Dashboard{% endblock %}
 
 {% block content %}
-  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
     <h2 class="mb-0">Staff Dashboard</h2>
 
-    <form method="get" class="d-flex align-items-center gap-2">
-      <label for="status-filter" class="form-label mb-0">Filter by status</label>
-      <select
-        id="status-filter"
-        name="status"
-        class="form-select"
-        onchange="this.form.submit()"
-      >
-        {% for option in status_filters %}
-          <option value="{{ option.value }}"{% if option.is_active %} selected{% endif %}>
-            {{ option.label }}
-          </option>
-        {% endfor %}
-      </select>
-      <noscript>
-        <button type="submit" class="btn btn-primary">Apply</button>
-      </noscript>
-    </form>
+    <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 w-100 w-lg-auto">
+      <form method="get" class="d-flex align-items-center gap-2">
+        <label for="status-filter" class="form-label mb-0">Filter by status</label>
+        <select
+          id="status-filter"
+          name="status"
+          class="form-select"
+          onchange="this.form.submit()"
+        >
+          {% for option in status_filters %}
+            <option value="{{ option.value }}"{% if option.is_active %} selected{% endif %}>
+              {{ option.label }}
+            </option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="q" value="{{ search_query }}">
+        <input type="hidden" name="sort" value="{{ sort_field }}">
+        <input type="hidden" name="direction" value="{{ sort_direction }}">
+        <noscript>
+          <button type="submit" class="btn btn-primary">Apply</button>
+        </noscript>
+      </form>
+
+      <form method="get" class="d-flex align-items-center gap-2 w-100 w-md-auto">
+        <input
+          type="search"
+          name="q"
+          value="{{ search_query }}"
+          class="form-control"
+          placeholder="Search name, business, or ID"
+        >
+        <input type="hidden" name="status" value="{{ active_status }}">
+        <input type="hidden" name="sort" value="{{ sort_field }}">
+        <input type="hidden" name="direction" value="{{ sort_direction }}">
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if search_query %}
+          <a class="btn btn-outline-secondary" href="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}">Clear</a>
+        {% endif %}
+      </form>
+    </div>
   </div>
 
   <section class="row g-3 mb-4">
@@ -107,90 +129,135 @@
     </div>
   </section>
 
-  <h2 class="h4">{{ active_status_label }} Consultant Applications</h2>
+  <section class="card">
+    <div class="card-body">
+      <h2 class="h4 mb-3">{{ active_status_label }} Consultant Applications</h2>
 
-  {% if page_obj.object_list %}
-    <p>Select an action for each application and optionally leave an internal comment.</p>
+      {% if page_obj.object_list %}
+        <p class="text-muted">Select an action for each application and optionally leave an internal comment.</p>
 
-    {% for consultant in page_obj %}
-      <section class="card mb-4 p-3">
-        <form method="post" action="{% url 'staff_dashboard' %}">
-          {% csrf_token %}
-          <input type="hidden" name="consultant_id" value="{{ consultant.id }}">
-          <input type="hidden" name="status" value="{{ active_status }}">
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="{% url 'staff_dashboard' %}?{{ sort_links.created_at.querystring }}">
+                    Date Created
+                    {% if sort_links.created_at.is_active %}
+                      <span aria-hidden="true">{% if sort_links.created_at.direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                    {% else %}
+                      <span class="text-muted" aria-hidden="true">↕</span>
+                    {% endif %}
+                  </a>
+                </th>
+                <th scope="col">Consultant</th>
+                <th scope="col">Business</th>
+                <th scope="col">
+                  <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="{% url 'staff_dashboard' %}?{{ sort_links.status.querystring }}">
+                    Status
+                    {% if sort_links.status.is_active %}
+                      <span aria-hidden="true">{% if sort_links.status.direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                    {% else %}
+                      <span class="text-muted" aria-hidden="true">↕</span>
+                    {% endif %}
+                  </a>
+                </th>
+                <th scope="col">Comment &amp; Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for consultant in page_obj %}
+                <tr>
+                  <td>
+                    {% if consultant.created_at %}
+                      {{ consultant.created_at|date:"M d, Y H:i" }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ consultant.full_name }}</div>
+                    <div class="text-muted small">ID: {{ consultant.id_number }} · {{ consultant.email }}</div>
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ consultant.business_name }}</div>
+                    <div class="text-muted small">{{ consultant.phone_number }}</div>
+                  </td>
+                  <td>{{ consultant.get_status_display }}</td>
+                  <td>
+                    <form method="post" action="{% url 'staff_dashboard' %}" class="d-flex flex-column gap-2">
+                      {% csrf_token %}
+                      <input type="hidden" name="consultant_id" value="{{ consultant.id }}">
+                      <input type="hidden" name="status" value="{{ active_status }}">
+                      <input type="hidden" name="q" value="{{ search_query }}">
+                      <input type="hidden" name="sort" value="{{ sort_field }}">
+                      <input type="hidden" name="direction" value="{{ sort_direction }}">
+                      <input type="hidden" name="page" value="{{ page_obj.number }}">
+                      <label class="visually-hidden" for="comment-{{ consultant.id }}">Internal comment</label>
+                      <textarea id="comment-{{ consultant.id }}" name="comment" class="form-control form-control-sm" rows="2" placeholder="Add a note for other staff members">{{ consultant.staff_comment|default_if_none:"" }}</textarea>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" name="action" value="approved" class="btn btn-success btn-sm">Approve</button>
+                        <button type="submit" name="action" value="rejected" class="btn btn-danger btn-sm">Reject</button>
+                        <button type="submit" name="action" value="incomplete" class="btn btn-warning btn-sm">Mark Incomplete</button>
+                        <a href="{% url 'staff_consultant_detail' consultant.pk %}" class="btn btn-outline-primary btn-sm">View</a>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
 
-          <header class="mb-2">
-            <h3 class="h5 mb-1">{{ consultant.full_name }}</h3>
-            <p class="mb-0 text-muted">ID: {{ consultant.id_number }} · {{ consultant.email }}</p>
-          </header>
+        {% if is_paginated %}
+          <nav aria-label="Consultant pagination">
+            <ul class="pagination">
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}"
+                  >
+                    Previous
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+              {% endif %}
 
-          <div class="mb-3">
-            <label for="comment-{{ consultant.id }}" class="form-label">Internal comment</label>
-            <textarea
-              id="comment-{{ consultant.id }}"
-              name="comment"
-              class="form-control"
-              rows="3"
-              placeholder="Add a note for other staff members"
-            >{{ consultant.staff_comment|default_if_none:"" }}</textarea>
-          </div>
+              {% for page_number in paginator.page_range %}
+                {% if page_number == page_obj.number %}
+                  <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
+                {% else %}
+                  <li class="page-item">
+                    <a
+                      class="page-link"
+                      href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_number }}"
+                    >
+                      {{ page_number }}
+                    </a>
+                  </li>
+                {% endif %}
+              {% endfor %}
 
-          <div class="d-flex gap-2">
-            <button type="submit" name="action" value="approved" class="btn btn-success">Approve</button>
-            <button type="submit" name="action" value="rejected" class="btn btn-danger">Reject</button>
-            <button type="submit" name="action" value="incomplete" class="btn btn-warning">Mark Incomplete</button>
-          </div>
-        </form>
-      </section>
-    {% endfor %}
-
-    {% if is_paginated %}
-      <nav aria-label="Consultant pagination">
-        <ul class="pagination">
-          {% if page_obj.has_previous %}
-            <li class="page-item">
-              <a
-                class="page-link"
-                href="{% url 'staff_dashboard' %}?status={{ active_status }}&page={{ page_obj.previous_page_number }}"
-              >
-                Previous
-              </a>
-            </li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">Previous</span></li>
-          {% endif %}
-
-          {% for page_number in paginator.page_range %}
-            {% if page_number == page_obj.number %}
-              <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
-            {% else %}
-              <li class="page-item">
-                <a
-                  class="page-link"
-                  href="{% url 'staff_dashboard' %}?status={{ active_status }}&page={{ page_number }}"
-                >
-                  {{ page_number }}
-                </a>
-              </li>
-            {% endif %}
-          {% endfor %}
-
-          {% if page_obj.has_next %}
-            <li class="page-item">
-              <a
-                class="page-link"
-                href="{% url 'staff_dashboard' %}?status={{ active_status }}&page={{ page_obj.next_page_number }}"
-              >
-                Next
-              </a>
-            </li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">Next</span></li>
-          {% endif %}
-        </ul>
-      </nav>
-    {% endif %}
-  {% else %}
-    <p>No {{ active_status_label|lower }} applications require review at this time.</p>
-  {% endif %}
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}"
+                  >
+                    Next
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+        {% endif %}
+      {% else %}
+        <p class="mb-0">No {{ active_status_label|lower }} applications match your current filters.</p>
+      {% endif %}
+    </div>
+  </section>
 {% endblock %}
