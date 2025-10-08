@@ -3,7 +3,28 @@
 {% block title %}Staff Dashboard{% endblock %}
 
 {% block content %}
-  <h2>Staff Dashboard</h2>
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+    <h2 class="mb-0">Staff Dashboard</h2>
+
+    <form method="get" class="d-flex align-items-center gap-2">
+      <label for="status-filter" class="form-label mb-0">Filter by status</label>
+      <select
+        id="status-filter"
+        name="status"
+        class="form-select"
+        onchange="this.form.submit()"
+      >
+        {% for option in status_filters %}
+          <option value="{{ option.value }}"{% if option.is_active %} selected{% endif %}>
+            {{ option.label }}
+          </option>
+        {% endfor %}
+      </select>
+      <noscript>
+        <button type="submit" class="btn btn-primary">Apply</button>
+      </noscript>
+    </form>
+  </div>
 
   <section class="row g-3 mb-4">
     <div class="col-12 col-sm-6 col-lg-3">
@@ -31,19 +52,6 @@
       </div>
     </div>
   </section>
-
-  <nav class="mb-4">
-    <div class="nav nav-pills flex-wrap gap-2">
-      {% for option in status_filters %}
-        <a
-          class="nav-link{% if option.is_active %} active{% endif %}"
-          href="{% url 'staff_dashboard' %}?status={{ option.value }}"
-        >
-          {{ option.label }}
-        </a>
-      {% endfor %}
-    </div>
-  </nav>
 
   <section class="card mb-4">
     <div class="card-body">
@@ -101,10 +109,10 @@
 
   <h2 class="h4">{{ active_status_label }} Consultant Applications</h2>
 
-  {% if consultants %}
+  {% if page_obj.object_list %}
     <p>Select an action for each application and optionally leave an internal comment.</p>
 
-    {% for consultant in consultants %}
+    {% for consultant in page_obj %}
       <section class="card mb-4 p-3">
         <form method="post" action="{% url 'staff_dashboard' %}">
           {% csrf_token %}
@@ -135,6 +143,53 @@
         </form>
       </section>
     {% endfor %}
+
+    {% if is_paginated %}
+      <nav aria-label="Consultant pagination">
+        <ul class="pagination">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a
+                class="page-link"
+                href="{% url 'staff_dashboard' %}?status={{ active_status }}&page={{ page_obj.previous_page_number }}"
+              >
+                Previous
+              </a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+
+          {% for page_number in paginator.page_range %}
+            {% if page_number == page_obj.number %}
+              <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
+            {% else %}
+              <li class="page-item">
+                <a
+                  class="page-link"
+                  href="{% url 'staff_dashboard' %}?status={{ active_status }}&page={{ page_number }}"
+                >
+                  {{ page_number }}
+                </a>
+              </li>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a
+                class="page-link"
+                href="{% url 'staff_dashboard' %}?status={{ active_status }}&page={{ page_obj.next_page_number }}"
+              >
+                Next
+              </a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
   {% else %}
     <p>No {{ active_status_label|lower }} applications require review at this time.</p>
   {% endif %}

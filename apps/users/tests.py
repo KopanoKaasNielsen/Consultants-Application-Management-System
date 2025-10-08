@@ -470,7 +470,10 @@ class StaffDashboardFilterTests(TestCase):
         response = self.client.get(reverse("staff_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(response.context["consultants"]), [submitted])
+        self.assertEqual(
+            list(response.context["page_obj"].object_list),
+            [submitted],
+        )
         self.assertEqual(response.context["active_status"], "submitted")
         self.assertEqual(response.context["active_status_label"], "Submitted")
 
@@ -481,7 +484,10 @@ class StaffDashboardFilterTests(TestCase):
         response = self.client.get(reverse("staff_dashboard"), {"status": "approved"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(response.context["consultants"]), [approved])
+        self.assertEqual(
+            list(response.context["page_obj"].object_list),
+            [approved],
+        )
         self.assertEqual(response.context["active_status"], "approved")
 
     def test_invalid_status_falls_back_to_default(self):
@@ -491,7 +497,10 @@ class StaffDashboardFilterTests(TestCase):
         response = self.client.get(reverse("staff_dashboard"), {"status": "unknown"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(response.context["consultants"]), [submitted])
+        self.assertEqual(
+            list(response.context["page_obj"].object_list),
+            [submitted],
+        )
         self.assertEqual(response.context["active_status"], "submitted")
 
     def test_post_action_preserves_status_in_redirect(self):
@@ -515,6 +524,43 @@ class StaffDashboardFilterTests(TestCase):
 
         consultant.refresh_from_db()
         self.assertEqual(consultant.status, "rejected")
+
+    def test_paginates_consultants(self):
+        submitted_consultants = [
+            self.create_consultant("submitted") for _ in range(12)
+        ]
+
+        response = self.client.get(reverse("staff_dashboard"), {"status": "submitted"})
+
+        self.assertEqual(response.status_code, 200)
+        page_obj = response.context["page_obj"]
+        self.assertEqual(page_obj.paginator.count, 12)
+        self.assertEqual(page_obj.paginator.per_page, 10)
+        self.assertTrue(page_obj.has_next())
+        self.assertEqual(len(page_obj.object_list), 10)
+        self.assertListEqual(
+            list(page_obj.object_list),
+            submitted_consultants[:10],
+        )
+
+    def test_can_access_subsequent_pages(self):
+        submitted_consultants = [
+            self.create_consultant("submitted") for _ in range(12)
+        ]
+
+        response = self.client.get(
+            reverse("staff_dashboard"),
+            {"status": "submitted", "page": 2},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        page_obj = response.context["page_obj"]
+        self.assertEqual(page_obj.number, 2)
+        self.assertEqual(len(page_obj.object_list), 2)
+        self.assertListEqual(
+            list(page_obj.object_list),
+            submitted_consultants[10:],
+        )
 
 
 class MonitoringInitTests(SimpleTestCase):
