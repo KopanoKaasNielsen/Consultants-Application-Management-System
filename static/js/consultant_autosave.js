@@ -149,6 +149,10 @@
     }
   };
 
+  form.addEventListener('consultant:auto-save', () => {
+    void autoSave();
+  });
+
   form.addEventListener(
     'blur',
     (event) => {
