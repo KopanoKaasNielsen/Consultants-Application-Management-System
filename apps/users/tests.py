@@ -1,5 +1,6 @@
 import os
 from datetime import date
+import csv
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -450,17 +451,17 @@ class StaffDashboardFilterTests(TestCase):
             email=f"{status}{counter}@example.com",
         )
         defaults = {
-            user=applicant,
-            full_name=f"{status.title()} Applicant",
-            id_number=f"{status[:5]}-{counter}",
-            dob=date(1990, 1, 1),
-            gender="M",
-            nationality="Testland",
-            email=applicant.email,
-            phone_number="1234567890",
-            business_name="Test Business",
-            status=status,
-            submitted_at=timezone.now(),
+            "user": applicant,
+            "full_name": f"{status.title()} Applicant",
+            "id_number": f"{status[:5]}-{counter}",
+            "dob": date(1990, 1, 1),
+            "gender": "M",
+            "nationality": "Testland",
+            "email": applicant.email,
+            "phone_number": "1234567890",
+            "business_name": "Test Business",
+            "status": status,
+            "submitted_at": timezone.now(),
         }
         defaults.update(overrides)
         return Consultant.objects.create(**defaults)
@@ -603,6 +604,106 @@ class StaffDashboardFilterTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["page_obj"].object_list), [matching])
+
+
+class StaffDashboardExportTests(TestCase):
+    password = "exportpass123"
+
+    def setUp(self):
+        super().setUp()
+        self.user_model = get_user_model()
+        self.staff_group, _ = Group.objects.get_or_create(name="Staff")
+        self.staff_user = self.user_model.objects.create_user(
+            username="staff-export",
+            password=self.password,
+            email="staff-export@example.com",
+        )
+        self.staff_user.groups.add(self.staff_group)
+        self.client.login(username=self.staff_user.username, password=self.password)
+
+    def create_consultant(self, status: str, **overrides) -> Consultant:
+        counter = Consultant.objects.count()
+        applicant = self.user_model.objects.create_user(
+            username=f"export_applicant_{status}_{counter}",
+            password="pass123456",
+            email=f"export-{status}-{counter}@example.com",
+        )
+        defaults = {
+            "user": applicant,
+            "full_name": f"{status.title()} Export {counter}",
+            "id_number": f"EXP-{status[:4]}-{counter}",
+            "dob": date(1990, 1, 1),
+            "gender": "M",
+            "nationality": "Testland",
+            "email": applicant.email,
+            "phone_number": "0123456789",
+            "business_name": f"Export Business {counter}",
+            "status": status,
+            "submitted_at": timezone.now(),
+        }
+        defaults.update(overrides)
+        return Consultant.objects.create(**defaults)
+
+    def test_exports_filtered_queryset(self):
+        approved_consultant = self.create_consultant(
+            "approved",
+            full_name="Included Export",
+            business_name="Included Biz",
+        )
+        self.create_consultant("submitted", full_name="Excluded Export")
+
+        response = self.client.get(reverse("staff_dashboard_export"), {"status": "approved"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+
+        rows = list(csv.reader(response.content.decode().splitlines()))
+        self.assertGreaterEqual(len(rows), 2)
+        header = rows[0]
+        self.assertEqual(
+            header,
+            ["Consultant Name", "Business", "Status", "Submission Date"],
+        )
+        self.assertIn(
+            [
+                approved_consultant.full_name,
+                approved_consultant.business_name,
+                "Approved",
+                approved_consultant.submitted_at.isoformat(),
+            ],
+            rows[1:],
+        )
+        self.assertNotIn("Excluded Export", response.content.decode())
+
+    def test_applies_search_terms(self):
+        matching = self.create_consultant(
+            "submitted",
+            full_name="Searchable Export",
+            business_name="Search Labs",
+        )
+        self.create_consultant("submitted", full_name="Other Export")
+
+        response = self.client.get(
+            reverse("staff_dashboard_export"),
+            {"status": "submitted", "q": "searchable"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(csv.reader(response.content.decode().splitlines()))
+        self.assertIn(matching.full_name, response.content.decode())
+        self.assertNotIn("Other Export", response.content.decode())
+        self.assertEqual(rows[1][0], matching.full_name)
+
+    def test_non_staff_user_cannot_export(self):
+        other_user = self.user_model.objects.create_user(
+            username="non-staff", password="pass123456", email="other@example.com"
+        )
+        self.client.logout()
+        self.client.login(username=other_user.username, password="pass123456")
+
+        response = self.client.get(reverse("staff_dashboard_export"))
+
+        self.assertEqual(response.status_code, 403)
 
 
 class MonitoringInitTests(SimpleTestCase):
