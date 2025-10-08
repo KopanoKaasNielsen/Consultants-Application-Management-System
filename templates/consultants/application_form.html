@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ is_editing|yesno:"Edit,Submit" }} Consultant Application{% endblock %}
 
@@ -13,94 +14,127 @@
         {% endif %}>
     {% csrf_token %}
     {{ form.non_field_errors }}
+    <div class="wizard" data-total-steps="4">
+      <header class="wizard-header">
+        <p id="wizard-step-counter" class="wizard-step-counter" aria-live="polite">Step 1 of 4</p>
+        <nav class="wizard-progress" aria-label="Application progress">
+          <ol class="wizard-progress-list">
+            <li class="wizard-progress-item" data-step="1" aria-current="step">
+              <span class="wizard-progress-marker" aria-hidden="true">1</span>
+              <span class="wizard-progress-label">Personal Details</span>
+            </li>
+            <li class="wizard-progress-item" data-step="2">
+              <span class="wizard-progress-marker" aria-hidden="true">2</span>
+              <span class="wizard-progress-label">Contact Information</span>
+            </li>
+            <li class="wizard-progress-item" data-step="3">
+              <span class="wizard-progress-marker" aria-hidden="true">3</span>
+              <span class="wizard-progress-label">Business Information</span>
+            </li>
+            <li class="wizard-progress-item" data-step="4">
+              <span class="wizard-progress-marker" aria-hidden="true">4</span>
+              <span class="wizard-progress-label">Required Documents</span>
+            </li>
+          </ol>
+        </nav>
+      </header>
 
-    <div class="section">
-      <h3>Personal Details</h3>
-      <div class="form-field">
-        {{ form.full_name.label_tag }}
-        {{ form.full_name }}
-        {{ form.full_name.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.id_number.label_tag }}
-        {{ form.id_number }}
-        {{ form.id_number.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.dob.label_tag }}
-        {{ form.dob }}
-        {{ form.dob.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.gender.label_tag }}
-        {{ form.gender }}
-        {{ form.gender.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.nationality.label_tag }}
-        {{ form.nationality }}
-        {{ form.nationality.errors }}
-      </div>
-    </div>
+      <div class="wizard-step-container">
+        <section class="section wizard-step" data-step="1" aria-labelledby="wizard-step-1-title">
+          <h2 id="wizard-step-1-title" class="wizard-step-title" tabindex="-1" data-step-focus>Personal Details</h2>
+          <div class="form-field">
+            {{ form.full_name.label_tag }}
+            {{ form.full_name }}
+            {{ form.full_name.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.id_number.label_tag }}
+            {{ form.id_number }}
+            {{ form.id_number.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.dob.label_tag }}
+            {{ form.dob }}
+            {{ form.dob.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.gender.label_tag }}
+            {{ form.gender }}
+            {{ form.gender.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.nationality.label_tag }}
+            {{ form.nationality }}
+            {{ form.nationality.errors }}
+          </div>
+        </section>
 
-    <div class="section">
-      <h3>Contact Details</h3>
-      <div class="form-field">
-        {{ form.email.label_tag }}
-        {{ form.email }}
-        {{ form.email.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.phone_number.label_tag }}
-        {{ form.phone_number }}
-        {{ form.phone_number.errors }}
-      </div>
-    </div>
-    <div class="section">
-      <h3>Business Details</h3>
-      <div class="form-field">
-        {{ form.business_name.label_tag }}
-        {{ form.business_name }}
-        {{ form.business_name.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.registration_number.label_tag }}
-        {{ form.registration_number }}
-        {{ form.registration_number.errors }}
-      </div>
-    </div>
+        <section class="section wizard-step" data-step="2" aria-labelledby="wizard-step-2-title" hidden>
+          <h2 id="wizard-step-2-title" class="wizard-step-title" tabindex="-1" data-step-focus>Contact Information</h2>
+          <div class="form-field">
+            {{ form.email.label_tag }}
+            {{ form.email }}
+            {{ form.email.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.phone_number.label_tag }}
+            {{ form.phone_number }}
+            {{ form.phone_number.errors }}
+          </div>
+        </section>
 
-    <div class="section">
-      <h3>Required Uploads</h3>
-      <div class="form-field">
-        {{ form.photo.label_tag }}
-        {{ form.photo }}
-        {{ form.photo.errors }}
+        <section class="section wizard-step" data-step="3" aria-labelledby="wizard-step-3-title" hidden>
+          <h2 id="wizard-step-3-title" class="wizard-step-title" tabindex="-1" data-step-focus>Business Information</h2>
+          <div class="form-field">
+            {{ form.business_name.label_tag }}
+            {{ form.business_name }}
+            {{ form.business_name.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.registration_number.label_tag }}
+            {{ form.registration_number }}
+            {{ form.registration_number.errors }}
+          </div>
+        </section>
+
+        <section class="section wizard-step" data-step="4" aria-labelledby="wizard-step-4-title" hidden>
+          <h2 id="wizard-step-4-title" class="wizard-step-title" tabindex="-1" data-step-focus>Required Documents</h2>
+          <div class="form-field">
+            {{ form.photo.label_tag }}
+            {{ form.photo }}
+            {{ form.photo.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.id_document.label_tag }}
+            {{ form.id_document }}
+            {{ form.id_document.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.cv.label_tag }}
+            {{ form.cv }}
+            {{ form.cv.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.police_clearance.label_tag }}
+            {{ form.police_clearance }}
+            {{ form.police_clearance.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.qualifications.label_tag }}
+            {{ form.qualifications }}
+            {{ form.qualifications.errors }}
+          </div>
+          <div class="form-field">
+            {{ form.business_certificate.label_tag }}
+            {{ form.business_certificate }}
+            {{ form.business_certificate.errors }}
+          </div>
+        </section>
       </div>
-      <div class="form-field">
-        {{ form.id_document.label_tag }}
-        {{ form.id_document }}
-        {{ form.id_document.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.cv.label_tag }}
-        {{ form.cv }}
-        {{ form.cv.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.police_clearance.label_tag }}
-        {{ form.police_clearance }}
-        {{ form.police_clearance.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.qualifications.label_tag }}
-        {{ form.qualifications }}
-        {{ form.qualifications.errors }}
-      </div>
-      <div class="form-field">
-        {{ form.business_certificate.label_tag }}
-        {{ form.business_certificate }}
-        {{ form.business_certificate.errors }}
+
+      <div class="wizard-navigation">
+        <button type="button" class="btn-secondary wizard-prev" data-direction="prev" disabled>Previous</button>
+        <button type="button" class="btn-primary wizard-next" data-direction="next">Next step</button>
       </div>
     </div>
 
@@ -108,7 +142,7 @@
     <div id="draft-status" class="draft-status" aria-live="polite"></div>
     {% endif %}
 
-    <div class="form-actions">
+    <div class="form-actions" data-final-actions hidden>
       {% if show_save_draft %}
         <button type="submit" name="action" value="draft" class="btn-secondary">Save draft</button>
       {% endif %}
@@ -123,6 +157,7 @@
 
 {% block extra_scripts %}
   {{ block.super }}
+  <script src="{% static 'js/consultant_wizard.js' %}"></script>
   {% if autosave_enabled %}
     <script src="{% static 'js/consultant_autosave.js' %}"></script>
   {% endif %}
