@@ -6,7 +6,11 @@
 <section class="form-card wide">
   <h1>{{ is_editing|yesno:"Update,Submit" }} consultant application</h1>
   <p class="description">Provide the required details so we can review and progress your consultant profile.</p>
-  <form method="post" enctype="multipart/form-data">
+  <form method="post" enctype="multipart/form-data" id="consultant-form"
+        {% if autosave_enabled %}
+        data-autosave-url="{% url 'autosave_consultant_draft' %}"
+        data-last-saved="{% if last_saved_at %}{{ last_saved_at|date:'c' }}{% endif %}"
+        {% endif %}>
     {% csrf_token %}
     {{ form.non_field_errors }}
 
@@ -39,8 +43,6 @@
       </div>
     </div>
 
-    <hr>
-
     <div class="section">
       <h3>Contact Details</h3>
       <div class="form-field">
@@ -54,9 +56,6 @@
         {{ form.phone_number.errors }}
       </div>
     </div>
-
-    <hr>
-
     <div class="section">
       <h3>Business Details</h3>
       <div class="form-field">
@@ -70,8 +69,6 @@
         {{ form.registration_number.errors }}
       </div>
     </div>
-
-    <hr>
 
     <div class="section">
       <h3>Required Uploads</h3>
@@ -107,6 +104,10 @@
       </div>
     </div>
 
+    {% if autosave_enabled %}
+    <div id="draft-status" class="draft-status" aria-live="polite"></div>
+    {% endif %}
+
     <div class="form-actions">
       {% if show_save_draft %}
         <button type="submit" name="action" value="draft" class="btn-secondary">Save draft</button>
@@ -118,4 +119,11 @@
     <a href="{% url 'dashboard' %}">Back to dashboard</a>
   </div>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ block.super }}
+  {% if autosave_enabled %}
+    <script src="{% static 'js/consultant_autosave.js' %}"></script>
+  {% endif %}
 {% endblock %}

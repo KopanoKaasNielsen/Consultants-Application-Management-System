@@ -102,7 +102,29 @@
 .form-card form {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.25rem;
+}
+
+.form-card .section {
+    margin-bottom: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: #fdfefe;
+}
+
+.form-card .section h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    color: #333;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.form-card .section .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
 }
 
 .form-card form p {
@@ -116,6 +138,15 @@
 .form-card label {
     color: #334155;
     font-weight: 500;
+}
+
+.draft-status {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #1f2937;
+    background-color: rgba(37, 99, 235, 0.08);
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
 }
 
 .form-card input,
@@ -284,6 +315,21 @@
 .document-list a:hover,
 .document-list a:focus-visible {
     text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+    .form-card {
+        border-radius: 12px;
+        padding: clamp(1.25rem, 5vw, 1.75rem);
+    }
+
+    .form-card .section {
+        padding: 0.85rem;
+    }
+
+    .form-card .section h3 {
+        font-size: 1rem;
+    }
 }
 
 .message-list {
