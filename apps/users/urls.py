@@ -9,6 +9,8 @@ from .views import (
     staff_dashboard_export_csv,
     staff_consultant_detail,
     staff_dashboard,
+    staff_analytics,
+    staff_analytics_data,
 )
 
 urlpatterns = [
@@ -19,6 +21,8 @@ urlpatterns = [
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('staff-dashboard/', staff_dashboard, name='staff_dashboard'),
     path('staff-dashboard/export/', staff_dashboard_export_csv, name='staff_dashboard_export'),
+    path('staff/analytics/', staff_analytics, name='staff_analytics'),
+    path('staff/analytics/data/', staff_analytics_data, name='staff_analytics_data'),
     path('staff/consultant/<int:pk>/', staff_consultant_detail, name='staff_consultant_detail'),
     path('staff/consultant/<int:pk>/pdf/', staff_consultant_pdf, name='staff_consultant_pdf'),
     path('staff/consultant/bulk-pdf/', staff_consultant_bulk_pdf, name='staff_consultant_bulk_pdf'),

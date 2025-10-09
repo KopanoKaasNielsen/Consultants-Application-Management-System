@@ -33,6 +33,13 @@ class Consultant(models.Model):
 
     # Business Info
     business_name = models.CharField(max_length=255)
+    consultant_type = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Optional classification used for analytics reporting.",
+    )
     registration_number = models.CharField(max_length=100, blank=True, null=True)
 
     # Documents
