@@ -78,6 +78,33 @@ def _build_analytics_queryset(
     return queryset
 
 
+def _resolve_analytics_filters(request) -> Dict[str, Optional[object]]:
+    """Extract and normalise analytics filter parameters from the request."""
+
+    start_param = request.GET.get("start", "").strip()
+    end_param = request.GET.get("end", "").strip()
+    consultant_type_param = request.GET.get("consultant_type", "").strip()
+
+    start_date = parse_date(start_param) if start_param else None
+    end_date = parse_date(end_param) if end_param else None
+
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    normalised_type = consultant_type_param or None
+    if normalised_type in {"__all__", "all"}:
+        normalised_type = None
+
+    return {
+        "start_param": start_param or None,
+        "end_param": end_param or None,
+        "consultant_type_param": consultant_type_param or None,
+        "start_date": start_date,
+        "end_date": end_date,
+        "consultant_type": normalised_type,
+    }
+
+
 def _serialise_monthly_trends(queryset) -> List[Dict[str, object]]:
     monthly_queryset = (
         queryset.annotate(month=TruncMonth("activity_date"))
@@ -377,21 +404,11 @@ def staff_analytics(request):
 def staff_analytics_data(request):
     """Return aggregated consultant analytics for dashboard visualisations."""
 
-    start_param = request.GET.get("start", "").strip()
-    end_param = request.GET.get("end", "").strip()
-    consultant_type = request.GET.get("consultant_type", "").strip()
+    filters = _resolve_analytics_filters(request)
 
-    start_date = parse_date(start_param) if start_param else None
-    end_date = parse_date(end_param) if end_param else None
-
-    if start_date and end_date and start_date > end_date:
-        start_date, end_date = end_date, start_date
-
-    normalised_type = consultant_type or None
-    if normalised_type in {"__all__", "all"}:
-        normalised_type = None
-
-    queryset = _build_analytics_queryset(start_date, end_date, normalised_type)
+    queryset = _build_analytics_queryset(
+        filters["start_date"], filters["end_date"], filters["consultant_type"]
+    )
 
     metrics = queryset.aggregate(
         total_applications=Count("id"),
@@ -410,13 +427,133 @@ def staff_analytics_data(request):
         "monthly_trends": _serialise_monthly_trends(queryset),
         "type_breakdown": _serialise_type_breakdown(queryset),
         "filters": {
-            "start": start_date.isoformat() if start_date else None,
-            "end": end_date.isoformat() if end_date else None,
-            "consultant_type": normalised_type,
+            "start": filters["start_date"].isoformat() if filters["start_date"] else None,
+            "end": filters["end_date"].isoformat() if filters["end_date"] else None,
+            "consultant_type": filters["consultant_type"],
         },
     }
 
     return JsonResponse(response_payload)
+
+
+@role_required(Roles.STAFF, Roles.BOARD)
+def staff_analytics_export_csv(request):
+    """Export consultant analytics data to CSV."""
+
+    filters = _resolve_analytics_filters(request)
+    queryset = _build_analytics_queryset(
+        filters["start_date"], filters["end_date"], filters["consultant_type"]
+    )
+
+    metrics = queryset.aggregate(
+        total_applications=Count("id"),
+        approved=Count("id", filter=Q(status="approved")),
+        rejected=Count("id", filter=Q(status="rejected")),
+        pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
+    )
+
+    monthly_trends = _serialise_monthly_trends(queryset)
+    type_breakdown = _serialise_type_breakdown(queryset)
+
+    generated_at = timezone.localtime()
+    filename = f"consultant-analytics-{generated_at.strftime('%Y%m%d%H%M%S')}.csv"
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(["Consultant analytics export"])
+    writer.writerow(["Generated at", generated_at.strftime("%Y-%m-%d %H:%M")])
+    writer.writerow(
+        [
+            "Start date",
+            filters["start_date"].isoformat() if filters["start_date"] else "All dates",
+        ]
+    )
+    writer.writerow(
+        [
+            "End date",
+            filters["end_date"].isoformat() if filters["end_date"] else "All dates",
+        ]
+    )
+    writer.writerow(
+        [
+            "Consultant type",
+            filters["consultant_type"] or "All consultants",
+        ]
+    )
+
+    writer.writerow([])
+    writer.writerow(["Metric", "Value"])
+    writer.writerow(["Total applications", metrics.get("total_applications", 0)])
+    writer.writerow(["Approved", metrics.get("approved", 0)])
+    writer.writerow(["Rejected", metrics.get("rejected", 0)])
+    writer.writerow(["Pending", metrics.get("pending", 0)])
+
+    writer.writerow([])
+    writer.writerow(["Monthly trends"])
+    writer.writerow(["Month", "Total", "Approved", "Rejected", "Pending"])
+    for entry in monthly_trends:
+        writer.writerow(
+            [
+                entry.get("month"),
+                entry.get("total", 0),
+                entry.get("approved", 0),
+                entry.get("rejected", 0),
+                entry.get("pending", 0),
+            ]
+        )
+
+    writer.writerow([])
+    writer.writerow(["Type breakdown"])
+    writer.writerow(["Consultant type", "Total applications"])
+    for entry in type_breakdown:
+        writer.writerow([entry.get("label"), entry.get("total", 0)])
+
+    return response
+
+
+@role_required(Roles.STAFF, Roles.BOARD)
+def staff_analytics_export_pdf(request):
+    """Export consultant analytics data to a styled PDF report."""
+
+    filters = _resolve_analytics_filters(request)
+    queryset = _build_analytics_queryset(
+        filters["start_date"], filters["end_date"], filters["consultant_type"]
+    )
+
+    metrics = queryset.aggregate(
+        total_applications=Count("id"),
+        approved=Count("id", filter=Q(status="approved")),
+        rejected=Count("id", filter=Q(status="rejected")),
+        pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
+    )
+
+    context = {
+        "generated_at": timezone.localtime(),
+        "metrics": {
+            "total_applications": metrics.get("total_applications", 0),
+            "approved": metrics.get("approved", 0),
+            "rejected": metrics.get("rejected", 0),
+            "pending": metrics.get("pending", 0),
+        },
+        "monthly_trends": _serialise_monthly_trends(queryset),
+        "type_breakdown": _serialise_type_breakdown(queryset),
+        "filters": {
+            "start": filters["start_date"],
+            "end": filters["end_date"],
+            "consultant_type": filters["consultant_type"],
+        },
+    }
+
+    html_string = render_to_string("staff_analytics_export_pdf.html", context)
+    pdf_bytes = HTML(string=html_string, base_url=request.build_absolute_uri("/")).write_pdf()
+
+    filename = f"consultant-analytics-{context['generated_at'].strftime('%Y%m%d%H%M%S')}.pdf"
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    return response
 
 
 STAFF_DASHBOARD_STATUS_CHOICES = [
