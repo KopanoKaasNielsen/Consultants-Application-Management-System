@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 import csv
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -33,6 +33,7 @@ from apps.users.constants import (
 from apps.users.permissions import role_required, user_has_role
 from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
+from tests.utils import create_consultant_instance
 from apps.users.views import (
     IMPERSONATOR_BACKEND_SESSION_KEY,
     IMPERSONATOR_ID_SESSION_KEY,
@@ -972,6 +973,112 @@ class StaffDashboardExportTests(TestCase):
         response = self.client.get(reverse("staff_dashboard_export"))
 
         self.assertEqual(response.status_code, 403)
+
+
+class StaffAnalyticsTests(TestCase):
+    password = "strongpass123"
+
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.staff_group, _ = Group.objects.get_or_create(name=BACKOFFICE_GROUP_NAME)
+        self.staff_user = self.user_model.objects.create_user(
+            username="analytics-staff",
+            password=self.password,
+            email="analytics-staff@example.com",
+        )
+        self.staff_user.groups.add(self.staff_group)
+        self.client.force_login(self.staff_user)
+        self.consultant_index = 0
+
+    def _create_consultant(self, **overrides):
+        username = f"analytics-consultant-{self.consultant_index}"
+        self.consultant_index += 1
+        consultant_user = self.user_model.objects.create_user(
+            username=username,
+            password=self.password,
+            email=f"{username}@example.com",
+        )
+
+        defaults = {
+            "status": "submitted",
+            "submitted_at": timezone.now(),
+            "consultant_type": "General",
+        }
+        defaults.update(overrides)
+
+        return create_consultant_instance(consultant_user, **defaults)
+
+    def test_staff_analytics_page_renders(self):
+        response = self.client.get(reverse("staff_analytics"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "staff_analytics.html")
+        self.assertIn("consultant_types", response.context)
+
+    def test_analytics_endpoint_returns_metrics_and_supports_filters(self):
+        now = timezone.now()
+        self._create_consultant(
+            status="approved",
+            submitted_at=now - timedelta(days=60),
+            consultant_type="Financial",
+        )
+        self._create_consultant(
+            status="rejected",
+            submitted_at=now - timedelta(days=20),
+            consultant_type="Legal",
+        )
+        self._create_consultant(
+            status="submitted",
+            submitted_at=now - timedelta(days=5),
+            consultant_type="Financial",
+        )
+
+        response = self.client.get(reverse("staff_analytics_data"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload["metrics"]["total_applications"], 3)
+        self.assertEqual(payload["metrics"]["approved"], 1)
+        self.assertEqual(payload["metrics"]["rejected"], 1)
+        self.assertEqual(payload["metrics"]["pending"], 1)
+
+        self.assertGreaterEqual(len(payload["monthly_trends"]), 2)
+        type_totals = {entry["label"]: entry["total"] for entry in payload["type_breakdown"]}
+        self.assertEqual(type_totals.get("Financial"), 2)
+        self.assertEqual(type_totals.get("Legal"), 1)
+
+        start_param = (now - timedelta(days=30)).date().isoformat()
+        filtered_response = self.client.get(
+            reverse("staff_analytics_data"),
+            {"start": start_param},
+        )
+        self.assertEqual(filtered_response.status_code, 200)
+        filtered_payload = filtered_response.json()
+        self.assertEqual(filtered_payload["metrics"]["total_applications"], 2)
+
+        type_filtered_response = self.client.get(
+            reverse("staff_analytics_data"),
+            {"consultant_type": "Financial"},
+        )
+        self.assertEqual(type_filtered_response.status_code, 200)
+        type_filtered_payload = type_filtered_response.json()
+        self.assertEqual(type_filtered_payload["metrics"]["total_applications"], 2)
+        self.assertTrue(
+            all(entry["label"] == "Financial" for entry in type_filtered_payload["type_breakdown"])
+        )
+
+    def test_non_staff_cannot_access_analytics(self):
+        self.client.logout()
+        other_user = self.user_model.objects.create_user(
+            username="analytics-outsider", password=self.password
+        )
+        self.client.force_login(other_user)
+
+        response = self.client.get(reverse("staff_analytics"))
+        self.assertEqual(response.status_code, 403)
+
+        api_response = self.client.get(reverse("staff_analytics_data"))
+        self.assertEqual(api_response.status_code, 403)
 
 
 class MonitoringInitTests(SimpleTestCase):

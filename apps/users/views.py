@@ -1,6 +1,7 @@
 import csv
 import json
 import mimetypes
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -14,11 +15,11 @@ from django.contrib.auth import BACKEND_SESSION_KEY
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.db.models import Count, Q
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, TruncMonth
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.dateparse import parse_date
@@ -39,6 +40,90 @@ from apps.users.constants import (
 from apps.users.permissions import role_required, user_has_role
 from apps.users.audit import log_audit_event
 from apps.users.models import AuditLog
+
+
+ANALYTICS_PENDING_STATUSES = {"submitted", "incomplete", "vetted"}
+
+
+def _get_distinct_consultant_types() -> List[str]:
+    """Return a sorted list of consultant types recorded in the system."""
+
+    return list(
+        Consultant.objects.exclude(consultant_type__isnull=True)
+        .exclude(consultant_type__exact="")
+        .order_by("consultant_type")
+        .values_list("consultant_type", flat=True)
+        .distinct()
+    )
+
+
+def _build_analytics_queryset(
+    start_date: Optional[date],
+    end_date: Optional[date],
+    consultant_type: Optional[str],
+):
+    queryset = Consultant.objects.annotate(
+        activity_date=Coalesce("submitted_at", "updated_at")
+    )
+
+    if start_date:
+        queryset = queryset.filter(activity_date__date__gte=start_date)
+
+    if end_date:
+        queryset = queryset.filter(activity_date__date__lte=end_date)
+
+    if consultant_type:
+        queryset = queryset.filter(consultant_type=consultant_type)
+
+    return queryset
+
+
+def _serialise_monthly_trends(queryset) -> List[Dict[str, object]]:
+    monthly_queryset = (
+        queryset.annotate(month=TruncMonth("activity_date"))
+        .values("month")
+        .annotate(
+            total=Count("id"),
+            approved=Count("id", filter=Q(status="approved")),
+            rejected=Count("id", filter=Q(status="rejected")),
+            pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
+        )
+        .order_by("month")
+    )
+
+    trends: List[Dict[str, object]] = []
+    for entry in monthly_queryset:
+        month = entry.get("month")
+        if month is None:
+            continue
+
+        trends.append(
+            {
+                "month": month.date().isoformat(),
+                "label": month.strftime("%b %Y"),
+                "total": entry.get("total", 0),
+                "approved": entry.get("approved", 0),
+                "rejected": entry.get("rejected", 0),
+                "pending": entry.get("pending", 0),
+            }
+        )
+
+    return trends
+
+
+def _serialise_type_breakdown(queryset) -> List[Dict[str, object]]:
+    breakdown_queryset = (
+        queryset.values("consultant_type")
+        .annotate(total=Count("id"))
+        .order_by("consultant_type")
+    )
+
+    breakdown: List[Dict[str, object]] = []
+    for entry in breakdown_queryset:
+        label = entry.get("consultant_type") or "Unspecified"
+        breakdown.append({"label": label, "total": entry.get("total", 0)})
+
+    return breakdown
 
 
 IMPERSONATOR_ID_SESSION_KEY = 'impersonator_id'
@@ -271,6 +356,67 @@ def board_dashboard(request):
             'consultants': consultants,
         },
     )
+
+
+@role_required(Roles.STAFF, Roles.BOARD)
+def staff_analytics(request):
+    """Render the staff analytics dashboard."""
+
+    consultant_types = _get_distinct_consultant_types()
+
+    return render(
+        request,
+        "staff_analytics.html",
+        {
+            "consultant_types": consultant_types,
+        },
+    )
+
+
+@role_required(Roles.STAFF, Roles.BOARD)
+def staff_analytics_data(request):
+    """Return aggregated consultant analytics for dashboard visualisations."""
+
+    start_param = request.GET.get("start", "").strip()
+    end_param = request.GET.get("end", "").strip()
+    consultant_type = request.GET.get("consultant_type", "").strip()
+
+    start_date = parse_date(start_param) if start_param else None
+    end_date = parse_date(end_param) if end_param else None
+
+    if start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    normalised_type = consultant_type or None
+    if normalised_type in {"__all__", "all"}:
+        normalised_type = None
+
+    queryset = _build_analytics_queryset(start_date, end_date, normalised_type)
+
+    metrics = queryset.aggregate(
+        total_applications=Count("id"),
+        approved=Count("id", filter=Q(status="approved")),
+        rejected=Count("id", filter=Q(status="rejected")),
+        pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
+    )
+
+    response_payload = {
+        "metrics": {
+            "total_applications": metrics.get("total_applications", 0),
+            "approved": metrics.get("approved", 0),
+            "rejected": metrics.get("rejected", 0),
+            "pending": metrics.get("pending", 0),
+        },
+        "monthly_trends": _serialise_monthly_trends(queryset),
+        "type_breakdown": _serialise_type_breakdown(queryset),
+        "filters": {
+            "start": start_date.isoformat() if start_date else None,
+            "end": end_date.isoformat() if end_date else None,
+            "consultant_type": normalised_type,
+        },
+    }
+
+    return JsonResponse(response_payload)
 
 
 STAFF_DASHBOARD_STATUS_CHOICES = [

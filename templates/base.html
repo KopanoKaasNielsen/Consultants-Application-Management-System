@@ -23,6 +23,7 @@
             {% endif %}
             {% if user_is_board_or_staff %}
                 <a class="nav-link" href="{% url 'board_dashboard' %}">Board dashboard</a>
+                <a class="nav-link" href="{% url 'staff_analytics' %}">Analytics</a>
             {% endif %}
             {% if show_consultant_notifications %}
             <details class="notification-menu">
