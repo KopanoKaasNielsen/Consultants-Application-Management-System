@@ -333,6 +333,41 @@ def _build_staff_dashboard_queryset(active_status, search_query, sort_field, sor
     return consultant_queryset.order_by(*order_by_fields)
 
 
+def _build_staff_dashboard_results_context(
+    *,
+    active_status: str,
+    search_query: str,
+    sort_field: str,
+    sort_direction: str,
+    paginator,
+    page_obj,
+    sort_links,
+    base_querystring: str,
+):
+    return {
+        "consultants": list(page_obj.object_list),
+        "active_status": active_status,
+        "active_status_label": STAFF_DASHBOARD_STATUS_LABELS[active_status],
+        "paginator": paginator,
+        "page_obj": page_obj,
+        "consultants_page": page_obj,
+        "is_paginated": page_obj.has_other_pages(),
+        "status_filters": [
+            {
+                "value": value,
+                "label": label,
+                "is_active": value == active_status,
+            }
+            for value, label in STAFF_DASHBOARD_STATUS_CHOICES
+        ],
+        "search_query": search_query,
+        "sort_field": sort_field,
+        "sort_direction": sort_direction,
+        "sort_links": sort_links,
+        "base_querystring": base_querystring,
+    }
+
+
 @role_required(Roles.STAFF)
 def staff_dashboard(request):
     allowed_actions = {
@@ -471,35 +506,28 @@ def staff_dashboard(request):
         approved=Count("id", filter=Q(status="approved")),
     )
 
-    return render(
-        request,
-        "staff_dashboard.html",
-        {
-            "consultants": list(page_obj.object_list),
-            "allowed_actions": allowed_actions,
-            "status_counts": status_counts,
-            "recent_applications": recent_applications,
-            "active_status": active_status,
-            "active_status_label": STAFF_DASHBOARD_STATUS_LABELS[active_status],
-            "paginator": paginator,
-            "page_obj": page_obj,
-            "is_paginated": page_obj.has_other_pages(),
-            "consultants_page": page_obj,
-            "status_filters": [
-                {
-                    "value": value,
-                    "label": label,
-                    "is_active": value == active_status,
-                }
-                for value, label in STAFF_DASHBOARD_STATUS_CHOICES
-            ],
-            "search_query": search_query,
-            "sort_field": sort_field,
-            "sort_direction": sort_direction,
-            "sort_links": sort_links,
-            "base_querystring": base_querystring,
-        },
+    consultant_results_context = _build_staff_dashboard_results_context(
+        active_status=active_status,
+        search_query=search_query,
+        sort_field=sort_field,
+        sort_direction=sort_direction,
+        paginator=paginator,
+        page_obj=page_obj,
+        sort_links=sort_links,
+        base_querystring=base_querystring,
     )
+
+    context = {
+        "allowed_actions": allowed_actions,
+        "status_counts": status_counts,
+        "recent_applications": recent_applications,
+        **consultant_results_context,
+    }
+
+    if request.headers.get("HX-Request") or request.headers.get("X-Requested-With"):
+        return render(request, "staff_dashboard/_consultant_results.html", context)
+
+    return render(request, "staff_dashboard.html", context)
 
 
 @role_required(Roles.STAFF)
