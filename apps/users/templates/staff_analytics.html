@@ -10,7 +10,13 @@
     <p class="analytics-subtitle">Track application throughput, status outcomes, and consultant mix across time.</p>
   </div>
 
-  <form id="analytics-filters" class="analytics-filters" data-endpoint="{% url 'staff_analytics_data' %}">
+  <form
+    id="analytics-filters"
+    class="analytics-filters"
+    data-endpoint="{% url 'staff_analytics_data' %}"
+    data-export-csv="{% url 'staff_analytics_export_csv' %}"
+    data-export-pdf="{% url 'staff_analytics_export_pdf' %}"
+  >
     <div class="analytics-filter">
       <label for="id_start" class="analytics-filter__label">Start date</label>
       <input type="date" id="id_start" name="start" class="analytics-filter__input">
@@ -32,6 +38,11 @@
       <button type="submit" class="btn-primary analytics-filter__submit">Apply filters</button>
     </div>
   </form>
+
+  <div class="analytics-export" aria-label="Analytics export actions">
+    <a id="analytics-export-csv" class="btn-secondary analytics-export__button" href="{% url 'staff_analytics_export_csv' %}">Export CSV</a>
+    <a id="analytics-export-pdf" class="btn-secondary analytics-export__button" href="{% url 'staff_analytics_export_pdf' %}">Export PDF</a>
+  </div>
 
   <section class="analytics-metrics" aria-label="Key application metrics">
     <article class="metric-card">
@@ -88,6 +99,8 @@
   }
 
   const endpoint = form.dataset.endpoint;
+  const csvEndpoint = form.dataset.exportCsv;
+  const pdfEndpoint = form.dataset.exportPdf;
   const metrics = {
     total: document.getElementById("metric-total"),
     approved: document.getElementById("metric-approved"),
@@ -97,6 +110,8 @@
   const errorBanner = document.getElementById("analytics-error");
   const monthlyCtx = document.getElementById("monthlyTrendChart");
   const typeCtx = document.getElementById("typeBreakdownChart");
+  const csvButton = document.getElementById("analytics-export-csv");
+  const pdfButton = document.getElementById("analytics-export-pdf");
   let monthlyChart;
   let typeChart;
 
@@ -117,6 +132,16 @@
   function setMetric(key, value) {
     if (metrics[key]) {
       metrics[key].textContent = formatNumber(value);
+    }
+  }
+
+  function updateExportLinks(queryString) {
+    if (csvButton && csvEndpoint) {
+      csvButton.href = queryString ? `${csvEndpoint}?${queryString}` : csvEndpoint;
+    }
+
+    if (pdfButton && pdfEndpoint) {
+      pdfButton.href = queryString ? `${pdfEndpoint}?${queryString}` : pdfEndpoint;
     }
   }
 
@@ -266,7 +291,10 @@
       }
     }
 
-    const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
+    const queryString = params.toString();
+    updateExportLinks(queryString);
+
+    const url = queryString ? `${endpoint}?${queryString}` : endpoint;
 
     try {
       const response = await fetch(url, {

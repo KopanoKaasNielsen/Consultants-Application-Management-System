@@ -11,6 +11,8 @@ from .views import (
     staff_dashboard,
     staff_analytics,
     staff_analytics_data,
+    staff_analytics_export_csv,
+    staff_analytics_export_pdf,
 )
 
 urlpatterns = [
@@ -23,6 +25,8 @@ urlpatterns = [
     path('staff-dashboard/export/', staff_dashboard_export_csv, name='staff_dashboard_export'),
     path('staff/analytics/', staff_analytics, name='staff_analytics'),
     path('staff/analytics/data/', staff_analytics_data, name='staff_analytics_data'),
+    path('staff/analytics/export/csv/', staff_analytics_export_csv, name='staff_analytics_export_csv'),
+    path('staff/analytics/export/pdf/', staff_analytics_export_pdf, name='staff_analytics_export_pdf'),
     path('staff/consultant/<int:pk>/', staff_consultant_detail, name='staff_consultant_detail'),
     path('staff/consultant/<int:pk>/pdf/', staff_consultant_pdf, name='staff_consultant_pdf'),
     path('staff/consultant/bulk-pdf/', staff_consultant_bulk_pdf, name='staff_consultant_bulk_pdf'),

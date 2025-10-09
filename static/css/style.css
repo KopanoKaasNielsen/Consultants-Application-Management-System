@@ -873,6 +873,18 @@
     width: 100%;
 }
 
+.analytics-export {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0.5rem 0 1.5rem;
+}
+
+.analytics-export__button {
+    flex: 1 1 200px;
+    text-align: center;
+}
+
 .analytics-metrics {
     display: grid;
     gap: 1.25rem;

@@ -1067,6 +1067,50 @@ class StaffAnalyticsTests(TestCase):
             all(entry["label"] == "Financial" for entry in type_filtered_payload["type_breakdown"])
         )
 
+    def test_staff_can_export_analytics_csv_with_filters(self):
+        now = timezone.now()
+        self._create_consultant(
+            status="approved",
+            submitted_at=now - timedelta(days=3),
+            consultant_type="Financial",
+        )
+        self._create_consultant(
+            status="rejected",
+            submitted_at=now - timedelta(days=10),
+            consultant_type="Legal",
+        )
+
+        start_param = (now - timedelta(days=7)).date().isoformat()
+        response = self.client.get(
+            reverse("staff_analytics_export_csv"),
+            {"start": start_param, "consultant_type": "Financial"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("attachment; filename=\"consultant-analytics-", response["Content-Disposition"])
+
+        content = response.content.decode()
+        rows = list(csv.reader(content.splitlines()))
+        self.assertGreater(len(rows), 5)
+        self.assertEqual(rows[0], ["Consultant analytics export"])
+        self.assertIn(start_param, content)
+        self.assertIn("Financial", content)
+        self.assertNotIn("Legal", content)
+        self.assertIsNotNone(
+            next((row for row in rows if row[:2] == ["Metric", "Value"]), None)
+        )
+
+    def test_staff_can_export_analytics_pdf(self):
+        self._create_consultant(status="submitted", consultant_type="General")
+
+        response = self.client.get(reverse("staff_analytics_export_pdf"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment; filename=\"consultant-analytics-", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
     def test_non_staff_cannot_access_analytics(self):
         self.client.logout()
         other_user = self.user_model.objects.create_user(
@@ -1079,6 +1123,12 @@ class StaffAnalyticsTests(TestCase):
 
         api_response = self.client.get(reverse("staff_analytics_data"))
         self.assertEqual(api_response.status_code, 403)
+
+        csv_export = self.client.get(reverse("staff_analytics_export_csv"))
+        self.assertEqual(csv_export.status_code, 403)
+
+        pdf_export = self.client.get(reverse("staff_analytics_export_pdf"))
+        self.assertEqual(pdf_export.status_code, 403)
 
 
 class MonitoringInitTests(SimpleTestCase):

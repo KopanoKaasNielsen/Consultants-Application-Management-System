@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Consultant analytics export</title>
+  <style>
+    body {
+      font-family: "Helvetica", "Arial", sans-serif;
+      font-size: 12px;
+      color: #212529;
+      margin: 2rem;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      margin-bottom: 1.5rem;
+      color: #495057;
+    }
+    .meta, .metrics, .section {
+      margin-bottom: 1.5rem;
+    }
+    .meta dt {
+      font-weight: 600;
+    }
+    .meta dd {
+      margin: 0 0 0.5rem 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+      font-size: 11px;
+    }
+    th, td {
+      border: 1px solid #dee2e6;
+      padding: 0.5rem;
+      text-align: left;
+    }
+    th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <h1>Consultant analytics export</h1>
+  <p class="subtitle">Generated on {{ generated_at|date:"j M Y H:i" }}.</p>
+
+  <section class="meta">
+    <h2>Filters</h2>
+    <dl>
+      <dt>Start date</dt>
+      <dd>
+        {% if filters.start %}
+          {{ filters.start|date:"j M Y" }}
+        {% else %}
+          All dates
+        {% endif %}
+      </dd>
+      <dt>End date</dt>
+      <dd>
+        {% if filters.end %}
+          {{ filters.end|date:"j M Y" }}
+        {% else %}
+          All dates
+        {% endif %}
+      </dd>
+      <dt>Consultant type</dt>
+      <dd>
+        {% if filters.consultant_type %}
+          {{ filters.consultant_type }}
+        {% else %}
+          All consultants
+        {% endif %}
+      </dd>
+    </dl>
+  </section>
+
+  <section class="metrics">
+    <h2>Summary metrics</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Total applications</td>
+          <td>{{ metrics.total_applications }}</td>
+        </tr>
+        <tr>
+          <td>Approved</td>
+          <td>{{ metrics.approved }}</td>
+        </tr>
+        <tr>
+          <td>Rejected</td>
+          <td>{{ metrics.rejected }}</td>
+        </tr>
+        <tr>
+          <td>Pending</td>
+          <td>{{ metrics.pending }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>Monthly trends</h2>
+    {% if monthly_trends %}
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Total</th>
+            <th>Approved</th>
+            <th>Rejected</th>
+            <th>Pending</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in monthly_trends %}
+            <tr>
+              <td>{{ entry.label }}</td>
+              <td>{{ entry.total }}</td>
+              <td>{{ entry.approved }}</td>
+              <td>{{ entry.rejected }}</td>
+              <td>{{ entry.pending }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No activity recorded for the selected period.</p>
+    {% endif %}
+  </section>
+
+  <section class="section">
+    <h2>Consultant type breakdown</h2>
+    {% if type_breakdown %}
+      <table>
+        <thead>
+          <tr>
+            <th>Consultant type</th>
+            <th>Total applications</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in type_breakdown %}
+            <tr>
+              <td>{{ entry.label }}</td>
+              <td>{{ entry.total }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No consultant submissions captured.</p>
+    {% endif %}
+  </section>
+</body>
+</html>
