@@ -1,24 +1,44 @@
-<section class="card">
-  <div class="card-body">
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
-      <h2 class="h4 mb-0">{{ active_status_label }} Consultant Applications</h2>
-      <a
-        class="btn btn-outline-primary"
-        href="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
-      >
-        Export CSV
-      </a>
-    </div>
+<div
+  id="consultant-results"
+  class="consultant-results"
+  hx-indicator="#results-loading"
+>
+  <section class="card">
+    <div class="card-body">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+        <h2 class="h4 mb-0">{{ active_status_label }} Consultant Applications</h2>
+        <a
+          class="btn btn-outline-primary"
+          href="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+          data-download-url="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+          hx-get="{% url 'staff_dashboard' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+          hx-target="#consultant-results"
+          hx-swap="outerHTML"
+          hx-push-url="true"
+          hx-indicator="#results-loading"
+          hx-on::after-request="window.location.href = this.dataset.downloadUrl"
+        >
+          Export CSV
+        </a>
+      </div>
 
-    {% if page_obj.object_list %}
-      <p class="text-muted">Select an action for each application and optionally leave an internal comment.</p>
+      {% if page_obj.object_list %}
+        <p class="text-muted">Select an action for each application and optionally leave an internal comment.</p>
 
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th scope="col">
-                <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="{% url 'staff_dashboard' %}?{{ sort_links.created_at.querystring }}">
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th scope="col">
+                <a
+                  class="d-inline-flex align-items-center gap-1 text-decoration-none"
+                  href="{% url 'staff_dashboard' %}?{{ sort_links.created_at.querystring }}"
+                  hx-get="{% url 'staff_dashboard' %}?{{ sort_links.created_at.querystring }}"
+                  hx-target="#consultant-results"
+                  hx-swap="outerHTML"
+                  hx-push-url="true"
+                  hx-indicator="#results-loading"
+                >
                   Date Created
                   {% if sort_links.created_at.is_active %}
                     <span aria-hidden="true">{% if sort_links.created_at.direction == 'asc' %}▲{% else %}▼{% endif %}</span>
@@ -26,11 +46,19 @@
                     <span class="text-muted" aria-hidden="true">↕</span>
                   {% endif %}
                 </a>
-              </th>
+                </th>
               <th scope="col">Consultant</th>
               <th scope="col">Business</th>
               <th scope="col">
-                <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="{% url 'staff_dashboard' %}?{{ sort_links.status.querystring }}">
+                <a
+                  class="d-inline-flex align-items-center gap-1 text-decoration-none"
+                  href="{% url 'staff_dashboard' %}?{{ sort_links.status.querystring }}"
+                  hx-get="{% url 'staff_dashboard' %}?{{ sort_links.status.querystring }}"
+                  hx-target="#consultant-results"
+                  hx-swap="outerHTML"
+                  hx-push-url="true"
+                  hx-indicator="#results-loading"
+                >
                   Status
                   {% if sort_links.status.is_active %}
                     <span aria-hidden="true">{% if sort_links.status.direction == 'asc' %}▲{% else %}▼{% endif %}</span>
@@ -94,6 +122,11 @@
                 <a
                   class="page-link"
                   href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}"
+                  hx-get="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}"
+                  hx-target="#consultant-results"
+                  hx-swap="outerHTML"
+                  hx-push-url="true"
+                  hx-indicator="#results-loading"
                 >
                   Previous
                 </a>
@@ -110,6 +143,11 @@
                   <a
                     class="page-link"
                     href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_number }}"
+                    hx-get="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_number }}"
+                    hx-target="#consultant-results"
+                    hx-swap="outerHTML"
+                    hx-push-url="true"
+                    hx-indicator="#results-loading"
                   >
                     {{ page_number }}
                   </a>
@@ -122,6 +160,11 @@
                 <a
                   class="page-link"
                   href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}"
+                  hx-get="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}"
+                  hx-target="#consultant-results"
+                  hx-swap="outerHTML"
+                  hx-push-url="true"
+                  hx-indicator="#results-loading"
                 >
                   Next
                 </a>
@@ -135,5 +178,6 @@
     {% else %}
       <p class="mb-0">No {{ active_status_label|lower }} applications match your current filters.</p>
     {% endif %}
-  </div>
-</section>
+    </div>
+  </section>
+</div>
