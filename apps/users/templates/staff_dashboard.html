@@ -7,13 +7,22 @@
     <h2 class="mb-0">Staff Dashboard</h2>
 
     <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 w-100 w-lg-auto">
-      <form method="get" class="d-flex align-items-center gap-2">
+      <form
+        id="status-filter-form"
+        method="get"
+        class="d-flex align-items-center gap-2"
+        hx-get="{% url 'staff_dashboard' %}"
+        hx-target="#consultant-results"
+        hx-swap="outerHTML"
+        hx-push-url="true"
+        hx-indicator="#results-loading"
+        hx-trigger="change from:#status-filter, submit"
+      >
         <label for="status-filter" class="form-label mb-0">Filter by status</label>
         <select
           id="status-filter"
           name="status"
           class="form-select"
-          onchange="this.form.submit()"
         >
           {% for option in status_filters %}
             <option value="{{ option.value }}"{% if option.is_active %} selected{% endif %}>
@@ -29,7 +38,15 @@
         </noscript>
       </form>
 
-      <form method="get" class="d-flex align-items-center gap-2 w-100 w-md-auto">
+      <form
+        method="get"
+        class="d-flex align-items-center gap-2 w-100 w-md-auto"
+        hx-get="{% url 'staff_dashboard' %}"
+        hx-target="#consultant-results"
+        hx-swap="outerHTML"
+        hx-push-url="true"
+        hx-indicator="#results-loading"
+      >
         <input
           type="search"
           name="q"
@@ -42,10 +59,32 @@
         <input type="hidden" name="direction" value="{{ sort_direction }}">
         <button type="submit" class="btn btn-primary">Search</button>
         {% if search_query %}
-          <a class="btn btn-outline-secondary" href="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}">Clear</a>
+          <a
+            class="btn btn-outline-secondary"
+            href="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
+            hx-get="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
+            hx-target="#consultant-results"
+            hx-swap="outerHTML"
+            hx-push-url="true"
+            hx-indicator="#results-loading"
+          >
+            Clear
+          </a>
         {% endif %}
       </form>
     </div>
+  </div>
+
+  <div
+    id="results-loading"
+    class="results-loading-indicator htmx-indicator"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    <span class="results-loading-indicator__spinner" aria-hidden="true"></span>
+    <span class="visually-hidden">Loading results…</span>
+    <span class="results-loading-indicator__text">Loading results…</span>
   </div>
 
   <section class="row g-3 mb-4">
@@ -128,6 +167,36 @@
       {% endif %}
     </div>
   </section>
-
   {% include "staff_dashboard/_consultant_results.html" %}
+{% endblock %}
+
+{% block extra_scripts %}
+  <script
+    src="https://unpkg.com/htmx.org@1.9.12"
+    integrity="sha384-FhT1xAi8uKXuX4nHCqB6f+GO6zkRgZNpmjDoE7YQDdyCjTiMQuuLHfoalGo6D8aB"
+    crossorigin="anonymous"
+  ></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.htmx) {
+        return;
+      }
+
+      var statusFilter = document.getElementById("status-filter");
+      if (!statusFilter) {
+        return;
+      }
+
+      statusFilter.addEventListener("change", function () {
+        var form = statusFilter.form;
+        if (form) {
+          if (typeof form.requestSubmit === "function") {
+            form.requestSubmit();
+          } else {
+            form.submit();
+          }
+        }
+      });
+    });
+  </script>
 {% endblock %}
