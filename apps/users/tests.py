@@ -828,6 +828,27 @@ class StaffDashboardFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["page_obj"].object_list), [matching])
 
+    def test_hx_request_returns_fragment_with_consultants(self):
+        consultants = [
+            self.create_consultant("submitted", full_name=f"Submitted {idx}")
+            for idx in range(12)
+        ]
+
+        response = self.client.get(
+            reverse("staff_dashboard"),
+            HTTP_HX_REQUEST="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "staff_dashboard/_consultant_results.html")
+        content = response.content.decode()
+        self.assertIn("Submitted Consultant Applications", content)
+        self.assertIn(consultants[-1].full_name, content)
+        self.assertIn("aria-label=\"Consultant pagination\"", content)
+        self.assertNotIn("<html", content.lower())
+        self.assertEqual(response.context["paginator"].num_pages, 2)
+        self.assertEqual(response.context["active_status_label"], "Submitted")
+
 
 class StaffDashboardExportTests(TestCase):
     password = "exportpass123"

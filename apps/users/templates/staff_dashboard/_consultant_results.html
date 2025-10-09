@@ -1,0 +1,139 @@
+<section class="card">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+      <h2 class="h4 mb-0">{{ active_status_label }} Consultant Applications</h2>
+      <a
+        class="btn btn-outline-primary"
+        href="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+      >
+        Export CSV
+      </a>
+    </div>
+
+    {% if page_obj.object_list %}
+      <p class="text-muted">Select an action for each application and optionally leave an internal comment.</p>
+
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th scope="col">
+                <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="{% url 'staff_dashboard' %}?{{ sort_links.created_at.querystring }}">
+                  Date Created
+                  {% if sort_links.created_at.is_active %}
+                    <span aria-hidden="true">{% if sort_links.created_at.direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                  {% else %}
+                    <span class="text-muted" aria-hidden="true">↕</span>
+                  {% endif %}
+                </a>
+              </th>
+              <th scope="col">Consultant</th>
+              <th scope="col">Business</th>
+              <th scope="col">
+                <a class="d-inline-flex align-items-center gap-1 text-decoration-none" href="{% url 'staff_dashboard' %}?{{ sort_links.status.querystring }}">
+                  Status
+                  {% if sort_links.status.is_active %}
+                    <span aria-hidden="true">{% if sort_links.status.direction == 'asc' %}▲{% else %}▼{% endif %}</span>
+                  {% else %}
+                    <span class="text-muted" aria-hidden="true">↕</span>
+                  {% endif %}
+                </a>
+              </th>
+              <th scope="col">Comment &amp; Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for consultant in page_obj %}
+              <tr>
+                <td>
+                  {% if consultant.created_at %}
+                    {{ consultant.created_at|date:"M d, Y H:i" }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="fw-semibold">{{ consultant.full_name }}</div>
+                  <div class="text-muted small">ID: {{ consultant.id_number }} · {{ consultant.email }}</div>
+                </td>
+                <td>
+                  <div class="fw-semibold">{{ consultant.business_name }}</div>
+                  <div class="text-muted small">{{ consultant.phone_number }}</div>
+                </td>
+                <td>{{ consultant.get_status_display }}</td>
+                <td>
+                  <form method="post" action="{% url 'staff_dashboard' %}" class="d-flex flex-column gap-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="consultant_id" value="{{ consultant.id }}">
+                    <input type="hidden" name="status" value="{{ active_status }}">
+                    <input type="hidden" name="q" value="{{ search_query }}">
+                    <input type="hidden" name="sort" value="{{ sort_field }}">
+                    <input type="hidden" name="direction" value="{{ sort_direction }}">
+                    <input type="hidden" name="page" value="{{ page_obj.number }}">
+                    <label class="visually-hidden" for="comment-{{ consultant.id }}">Internal comment</label>
+                    <textarea id="comment-{{ consultant.id }}" name="comment" class="form-control form-control-sm" rows="2" placeholder="Add a note for other staff members">{{ consultant.staff_comment|default_if_none:"" }}</textarea>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button type="submit" name="action" value="approved" class="btn btn-success btn-sm">Approve</button>
+                      <button type="submit" name="action" value="rejected" class="btn btn-danger btn-sm">Reject</button>
+                      <button type="submit" name="action" value="incomplete" class="btn btn-warning btn-sm">Mark Incomplete</button>
+                      <a href="{% url 'staff_consultant_detail' consultant.pk %}" class="btn btn-outline-primary btn-sm">View</a>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if is_paginated %}
+        <nav aria-label="Consultant pagination">
+          <ul class="pagination">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a
+                  class="page-link"
+                  href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}"
+                >
+                  Previous
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">Previous</span></li>
+            {% endif %}
+
+            {% for page_number in paginator.page_range %}
+              {% if page_number == page_obj.number %}
+                <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
+              {% else %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_number }}"
+                  >
+                    {{ page_number }}
+                  </a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a
+                  class="page-link"
+                  href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}"
+                >
+                  Next
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">Next</span></li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
+    {% else %}
+      <p class="mb-0">No {{ active_status_label|lower }} applications match your current filters.</p>
+    {% endif %}
+  </div>
+</section>
