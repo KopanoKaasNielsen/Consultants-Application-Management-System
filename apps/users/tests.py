@@ -841,6 +841,7 @@ class StaffDashboardFilterTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "staff_dashboard/_consultant_results.html")
+        self.assertTemplateUsed(response, "staff_dashboard/_consultant_list.html")
         content = response.content.decode()
         self.assertIn("Submitted Consultant Applications", content)
         self.assertIn(consultants[-1].full_name, content)
@@ -848,6 +849,29 @@ class StaffDashboardFilterTests(TestCase):
         self.assertNotIn("<html", content.lower())
         self.assertEqual(response.context["paginator"].num_pages, 2)
         self.assertEqual(response.context["active_status_label"], "Submitted")
+
+    def test_ajax_header_returns_fragment_with_consultants(self):
+        consultant = self.create_consultant("submitted", full_name="Ajax Header")
+
+        response = self.client.get(
+            reverse("staff_dashboard"),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "staff_dashboard/_consultant_results.html")
+        self.assertIn("Ajax Header", response.content.decode())
+        self.assertNotIn("<html", response.content.decode().lower())
+
+    def test_standard_request_renders_full_page(self):
+        consultant = self.create_consultant("submitted", full_name="Full Page")
+
+        response = self.client.get(reverse("staff_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "staff_dashboard.html")
+        self.assertIn("Staff Dashboard", response.content.decode())
+        self.assertIn("<html", response.content.decode().lower())
 
 
 class StaffDashboardExportTests(TestCase):
