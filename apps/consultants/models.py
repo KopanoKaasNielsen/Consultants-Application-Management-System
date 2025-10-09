@@ -52,6 +52,7 @@ class Consultant(models.Model):
 
     # Status and metadata
     submitted_at = models.DateTimeField(blank=True, null=True)
+    is_seen_by_staff = models.BooleanField(default=False, db_index=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
     staff_comment = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)

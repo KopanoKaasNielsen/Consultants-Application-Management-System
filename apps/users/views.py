@@ -465,6 +465,15 @@ def staff_dashboard(request):
             dashboard_url = f"{reverse('staff_dashboard')}?{query_string}" if query_string else reverse('staff_dashboard')
             return redirect(dashboard_url)
 
+    should_mark_seen = False
+    if request.GET.get("mark_seen") == "1":
+        should_mark_seen = True
+    elif request.method == "GET" and not request.headers.get("HX-Request"):
+        should_mark_seen = True
+
+    if should_mark_seen:
+        Consultant.objects.filter(is_seen_by_staff=False).update(is_seen_by_staff=True)
+
     consultant_queryset = _build_staff_dashboard_queryset(
         active_status,
         search_query,
@@ -506,6 +515,8 @@ def staff_dashboard(request):
         approved=Count("id", filter=Q(status="approved")),
     )
 
+    unseen_submission_count = Consultant.objects.filter(is_seen_by_staff=False).count()
+
     consultant_results_context = _build_staff_dashboard_results_context(
         active_status=active_status,
         search_query=search_query,
@@ -521,6 +532,7 @@ def staff_dashboard(request):
         "allowed_actions": allowed_actions,
         "status_counts": status_counts,
         "recent_applications": recent_applications,
+        "unseen_submission_count": unseen_submission_count,
         **consultant_results_context,
     }
 
