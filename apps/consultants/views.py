@@ -1,15 +1,17 @@
 import json
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
+from django.urls import reverse
 
 from .emails import send_submission_confirmation_email
 from .forms import ConsultantForm
-from .models import Consultant
+from .models import Consultant, Notification
 from apps.users.constants import UserRole as Roles
 from apps.users.permissions import role_required
 
@@ -196,3 +198,20 @@ def autosave_consultant_draft(request):
     consultant.save(update_fields=list(update_fields))
 
     return JsonResponse({'status': 'saved', 'timestamp': now.isoformat()})
+
+
+@login_required
+@require_POST
+def mark_notification_read(request, notification_id: int):
+    notification = get_object_or_404(
+        Notification,
+        pk=notification_id,
+        recipient=request.user,
+    )
+
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=["is_read"])
+
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or reverse("dashboard")
+    return redirect(next_url)

@@ -14,7 +14,7 @@ from django.utils import timezone
 from PIL import Image
 
 from .forms import ConsultantForm
-from .models import Consultant
+from .models import Consultant, Notification
 from apps.users.constants import (
     BACKOFFICE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
@@ -339,3 +339,43 @@ class AutoSaveDraftViewTests(TestCase):
         self.assertEqual(self.consultant.business_name, 'Initial Biz')
         self.assertEqual(self.consultant.registration_number, 'REG-001')
         self.assertEqual(self.consultant.status, 'draft')
+
+
+class NotificationViewsTests(TestCase):
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.user = self.user_model.objects.create_user('notify-user', password='pass123456')
+        consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        self.user.groups.add(consultant_group)
+        self.client.force_login(self.user)
+
+        self.notification = Notification.objects.create(
+            recipient=self.user,
+            message='Test notification',
+            notification_type=Notification.NotificationType.APPROVED,
+        )
+
+    def test_mark_notification_read_marks_as_read(self):
+        response = self.client.post(
+            reverse('consultant_notification_mark_read', args=[self.notification.pk]),
+            {'next': reverse('dashboard')},
+        )
+
+        self.assertRedirects(response, reverse('dashboard'))
+        self.notification.refresh_from_db()
+        self.assertTrue(self.notification.is_read)
+
+    def test_mark_notification_read_is_scoped_to_owner(self):
+        other_user = self.user_model.objects.create_user('other', password='pass123456')
+        other_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        other_user.groups.add(other_group)
+
+        self.client.force_login(other_user)
+        response = self.client.post(
+            reverse('consultant_notification_mark_read', args=[self.notification.pk]),
+            {'next': reverse('dashboard')},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.notification.refresh_from_db()
+        self.assertFalse(self.notification.is_read)

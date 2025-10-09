@@ -120,6 +120,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'apps.users.context_processors.user_is_admin',
                 'apps.users.context_processors.user_is_board_or_staff',
+                'apps.consultants.context_processors.consultant_notifications',
             ],
         },
     },
