@@ -24,6 +24,39 @@
             {% if user_is_board_or_staff %}
                 <a class="nav-link" href="{% url 'board_dashboard' %}">Board dashboard</a>
             {% endif %}
+            {% if show_consultant_notifications %}
+            <details class="notification-menu">
+                <summary class="notification-trigger" aria-label="Notifications">
+                    <span class="notification-icon" aria-hidden="true">🔔</span>
+                    {% if unread_notification_count %}
+                    <span class="notification-badge">{{ unread_notification_count }}</span>
+                    {% endif %}
+                </summary>
+                <div class="notification-dropdown" role="menu" aria-label="Consultant notifications">
+                    {% if consultant_notifications %}
+                    <ul class="notification-list">
+                        {% for notification in consultant_notifications %}
+                        <li class="notification-item{% if not notification.is_read %} is-unread{% endif %}">
+                            <div class="notification-message">{{ notification.message }}</div>
+                            <div class="notification-meta">
+                                <time datetime="{{ notification.created_at|date:'c' }}">{{ notification.created_at|date:"M j, Y g:i a" }}</time>
+                                {% if not notification.is_read %}
+                                <form method="post" action="{% url 'consultant_notification_mark_read' notification.pk %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit" class="notification-read-btn">Mark as read</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="notification-empty">You're all caught up!</p>
+                    {% endif %}
+                </div>
+            </details>
+            {% endif %}
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button type="submit" class="btn-link">Logout</button>

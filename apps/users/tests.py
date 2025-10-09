@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.messages import get_messages
+from django.core import mail
 from django.core.management import call_command
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
@@ -17,7 +18,7 @@ from django.utils.text import slugify
 
 from PyPDF2 import PdfReader
 
-from apps.consultants.models import Consultant
+from apps.consultants.models import Consultant, Notification
 from apps.decisions.views import is_reviewer
 from apps.users.constants import (
     ADMINS_GROUP_NAME,
@@ -677,6 +678,78 @@ class StaffDashboardFilterTests(TestCase):
 
         consultant.refresh_from_db()
         self.assertEqual(consultant.status, "rejected")
+
+    def test_post_action_creates_notification_and_email(self):
+        consultant = self.create_consultant("submitted")
+        mail.outbox.clear()
+
+        response = self.client.post(
+            reverse("staff_dashboard"),
+            {
+                "consultant_id": consultant.pk,
+                "action": "approved",
+                "status": "submitted",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('staff_dashboard')}?status=submitted&sort=created_at&direction=desc",
+            fetch_redirect_response=False,
+        )
+
+        notification = Notification.objects.get(recipient=consultant.user)
+        self.assertEqual(notification.notification_type, Notification.NotificationType.APPROVED)
+        self.assertFalse(notification.is_read)
+        self.assertIsNotNone(notification.audit_log)
+        self.assertIn("approved", notification.message.lower())
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("approved", mail.outbox[0].subject.lower())
+        self.assertIn(consultant.email, mail.outbox[0].to)
+
+    def test_post_comment_creates_comment_notification_without_email(self):
+        consultant = self.create_consultant("submitted")
+        mail.outbox.clear()
+
+        response = self.client.post(
+            reverse("staff_dashboard"),
+            {
+                "consultant_id": consultant.pk,
+                "action": "incomplete",
+                "status": "submitted",
+                "comment": "Please update your CV",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('staff_dashboard')}?status=submitted&sort=created_at&direction=desc",
+            fetch_redirect_response=False,
+        )
+
+        notification = Notification.objects.get(recipient=consultant.user)
+        self.assertEqual(notification.notification_type, Notification.NotificationType.COMMENT)
+        self.assertIn("please update your cv", notification.message.lower())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_rejection_action_sends_email_with_comment(self):
+        consultant = self.create_consultant("submitted")
+        mail.outbox.clear()
+
+        self.client.post(
+            reverse("staff_dashboard"),
+            {
+                "consultant_id": consultant.pk,
+                "action": "rejected",
+                "status": "submitted",
+                "comment": "Missing documentation",
+            },
+        )
+
+        notification = Notification.objects.get(recipient=consultant.user)
+        self.assertEqual(notification.notification_type, Notification.NotificationType.REJECTED)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("missing documentation", mail.outbox[0].body.lower())
 
     def test_paginates_consultants(self):
         submitted_consultants = [

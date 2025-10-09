@@ -30,6 +30,128 @@
     align-items: center;
 }
 
+.notification-menu {
+    position: relative;
+}
+
+.notification-trigger {
+    list-style: none;
+    border: none;
+    background: none;
+    padding: 0.35rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.notification-trigger:focus-visible,
+.notification-menu[open] .notification-trigger {
+    outline: 2px solid #1a56db;
+    outline-offset: 2px;
+}
+
+.notification-menu[open] .notification-trigger,
+.notification-trigger:hover {
+    background-color: rgba(37, 99, 235, 0.1);
+}
+
+.notification-icon {
+    font-size: 1.2rem;
+}
+
+.notification-badge {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.1rem;
+    background-color: #dc2626;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    border-radius: 999px;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    width: min(320px, 80vw);
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 45px -25px rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 0.75rem;
+    z-index: 15;
+}
+
+.notification-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.notification-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.notification-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.notification-item.is-unread .notification-message {
+    font-weight: 600;
+}
+
+.notification-message {
+    font-size: 0.9rem;
+    color: #1f2937;
+}
+
+.notification-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.notification-meta form {
+    margin: 0;
+}
+
+.notification-read-btn {
+    border: none;
+    background: none;
+    color: #1a56db;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.notification-read-btn:hover,
+.notification-read-btn:focus-visible {
+    text-decoration: underline;
+}
+
+.notification-empty {
+    margin: 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
 .nav-link,
 .btn-link {
     border: none;

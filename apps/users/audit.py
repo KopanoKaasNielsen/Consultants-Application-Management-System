@@ -33,7 +33,7 @@ def log_audit_event(
     *,
     target_object: str = "",
     metadata: Optional[Mapping[str, Any]] = None,
-) -> None:
+) -> Optional[AuditLog]:
     """Persist an audit log entry for the supplied user.
 
     Anonymous or unauthenticated users are ignored so that the helper can be
@@ -41,9 +41,9 @@ def log_audit_event(
     """
 
     if user is None or not getattr(user, "is_authenticated", False):
-        return
+        return None
 
-    AuditLog.objects.create(
+    return AuditLog.objects.create(
         user=user,
         action_type=action_type,
         target_object=target_object,

@@ -29,7 +29,8 @@ from urllib.parse import urlencode
 from PyPDF2 import PdfReader, PdfWriter
 from weasyprint import HTML
 
-from apps.consultants.models import Consultant
+from apps.consultants.emails import send_status_update_email
+from apps.consultants.models import Consultant, Notification
 from apps.users.constants import (
     CONSULTANTS_GROUP_NAME,
     ADMINS_GROUP_NAME,
@@ -366,7 +367,7 @@ def staff_dashboard(request):
             else:
                 action_type = AuditLog.ActionType.REQUEST_INFO
 
-            log_audit_event(
+            audit_log = log_audit_event(
                 request.user,
                 action_type,
                 target_object=f"Consultant:{consultant.pk}",
@@ -376,6 +377,48 @@ def staff_dashboard(request):
                     "new_status": consultant.status,
                 },
             )
+
+            notification_type = None
+            notification_message = ""
+
+            if action == "approved":
+                notification_type = Notification.NotificationType.APPROVED
+                notification_message = "Your consultant application has been approved."
+            elif action == "rejected":
+                notification_type = Notification.NotificationType.REJECTED
+                notification_message = "Your consultant application has been rejected."
+            elif action == "incomplete":
+                notification_type = Notification.NotificationType.COMMENT
+                if consultant.staff_comment:
+                    notification_message = (
+                        "A staff member left a comment on your application: "
+                        f"{consultant.staff_comment}"
+                    )
+                else:
+                    notification_message = "A staff member left a comment on your application."
+
+            if notification_type:
+                notification_kwargs = {
+                    "recipient": consultant.user,
+                    "notification_type": notification_type,
+                    "message": notification_message,
+                }
+                if audit_log is not None:
+                    notification_kwargs["audit_log"] = audit_log
+                Notification.objects.create(**notification_kwargs)
+
+            if action in {"approved", "rejected"}:
+                try:
+                    send_status_update_email(
+                        consultant,
+                        action,
+                        consultant.staff_comment or "",
+                    )
+                except Exception:
+                    messages.warning(
+                        request,
+                        "Status updated, but the notification email failed to send.",
+                    )
 
             redirect_params = {"status": active_status, "sort": sort_field, "direction": sort_direction}
             if search_query:

@@ -3,6 +3,10 @@ from django.core.mail import send_mail
 from django.utils.translation import gettext_lazy as _
 
 
+def _default_from_email() -> str:
+    return getattr(settings, "DEFAULT_FROM_EMAIL", None) or "no-reply@example.com"
+
+
 def send_submission_confirmation_email(consultant):
     """Send a confirmation email to the consultant after submission."""
     subject = _("Consultant Application Submitted")
@@ -24,12 +28,51 @@ def send_submission_confirmation_email(consultant):
     ]
     message = "\n".join(str(line) for line in message_lines if line)
 
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or "no-reply@example.com"
-
     send_mail(
         subject,
         message,
-        from_email,
+        _default_from_email(),
+        [consultant.email],
+        fail_silently=False,
+    )
+
+
+def send_status_update_email(consultant, action: str, comment: str = "") -> None:
+    """Send a status update email when staff take a decision."""
+
+    action = (action or "").lower()
+    if action not in {"approved", "rejected"}:
+        return
+
+    if action == "approved":
+        subject = _("Your consultant application has been approved")
+        message_lines = [
+            _("Hello {name},").format(name=consultant.full_name),
+            "",
+            _("Great news! Your consultant application has been approved."),
+        ]
+    else:
+        subject = _("Update on your consultant application")
+        message_lines = [
+            _("Hello {name},").format(name=consultant.full_name),
+            "",
+            _("Thank you for your application. After review, we are unable to approve it at this time."),
+        ]
+        if comment:
+            message_lines.extend(["", _("Notes from our team:"), comment])
+
+    message_lines.extend([
+        "",
+        _("You can view the latest details from your consultant dashboard."),
+        "",
+        _("Regards,"),
+        _("Consultant Applications Team"),
+    ])
+
+    send_mail(
+        subject,
+        "\n".join(str(line) for line in message_lines if line is not None),
+        _default_from_email(),
         [consultant.email],
         fail_silently=False,
     )
