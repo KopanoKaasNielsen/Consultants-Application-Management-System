@@ -1,9 +1,10 @@
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import csv
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.messages import get_messages
@@ -11,7 +12,7 @@ from django.core import mail
 from django.core.management import call_command
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
-from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
@@ -34,6 +35,7 @@ from apps.users.permissions import role_required, user_has_role
 from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
 from tests.utils import create_consultant_instance
+from apps.users.reports import send_weekly_analytics_report
 from apps.users.views import (
     IMPERSONATOR_BACKEND_SESSION_KEY,
     IMPERSONATOR_ID_SESSION_KEY,
@@ -1129,6 +1131,122 @@ class StaffAnalyticsTests(TestCase):
 
         pdf_export = self.client.get(reverse("staff_analytics_export_pdf"))
         self.assertEqual(pdf_export.status_code, 403)
+
+
+class WeeklyAnalyticsReportTests(TestCase):
+    password = "weeklypass123"
+
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.staff_group, _ = Group.objects.get_or_create(name=BACKOFFICE_GROUP_NAME)
+        self.admin_group, _ = Group.objects.get_or_create(name=ADMINS_GROUP_NAME)
+
+        self.staff_user = self.user_model.objects.create_user(
+            username="weekly-staff",
+            password=self.password,
+            email="weekly-staff@example.com",
+        )
+        self.staff_user.groups.add(self.staff_group)
+
+        self.admin_user = self.user_model.objects.create_user(
+            username="weekly-admin",
+            password=self.password,
+            email="weekly-admin@example.com",
+        )
+        self.admin_user.groups.add(self.admin_group)
+
+        self.consultant_index = 0
+
+    def _create_consultant(self, **overrides):
+        username = f"weekly-consultant-{self.consultant_index}"
+        self.consultant_index += 1
+        consultant_user = self.user_model.objects.create_user(
+            username=username,
+            password=self.password,
+            email=f"{username}@example.com",
+        )
+
+        defaults = {
+            "status": "submitted",
+            "submitted_at": timezone.now(),
+            "consultant_type": "General",
+        }
+        defaults.update(overrides)
+
+        return create_consultant_instance(consultant_user, **defaults)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="reports@example.com",
+    )
+    def test_weekly_report_email_contains_pdf_attachment(self):
+        current_time = timezone.make_aware(datetime(2024, 1, 8, 9, 0))
+        self._create_consultant(
+            status="approved",
+            submitted_at=current_time - timedelta(days=2),
+            consultant_type="Legal",
+        )
+
+        with self.assertLogs("apps.users.reports", level="INFO") as logs:
+            sent = send_weekly_analytics_report(current_time=current_time)
+
+        self.assertTrue(sent)
+        self.assertTrue(
+            any("Weekly consultant analytics report sent" in entry for entry in logs.output)
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.subject, "Weekly Consultant Analytics Report")
+        self.assertSetEqual(
+            set(message.to),
+            {self.staff_user.email, self.admin_user.email},
+        )
+        self.assertIn("01 Jan 2024", message.body)
+        self.assertIn("07 Jan 2024", message.body)
+        self.assertEqual(len(message.attachments), 1)
+        filename, content, mimetype = message.attachments[0]
+        self.assertTrue(filename.startswith("consultant-analytics-"))
+        self.assertEqual(mimetype, "application/pdf")
+        self.assertTrue(content.startswith(b"%PDF"))
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="reports@example.com",
+    )
+    def test_weekly_report_skips_when_no_recipients(self):
+        current_time = timezone.make_aware(datetime(2024, 1, 8, 9, 0))
+        self._create_consultant(
+            status="submitted",
+            submitted_at=current_time - timedelta(days=3),
+        )
+
+        self.staff_user.email = ""
+        self.staff_user.save(update_fields=["email"])
+        self.admin_user.email = ""
+        self.admin_user.save(update_fields=["email"])
+
+        with self.assertLogs("apps.users.reports", level="WARNING") as logs:
+            sent = send_weekly_analytics_report(current_time=current_time)
+
+        self.assertFalse(sent)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(
+            any("No recipients found for weekly analytics report" in entry for entry in logs.output)
+        )
+
+
+class WeeklyAnalyticsSchedulingTests(SimpleTestCase):
+    def test_weekly_cronjob_is_configured(self):
+        cronjobs = getattr(settings, "CRONJOBS", [])
+        expected_job = (
+            "0 8 * * 1",
+            "django.core.management.call_command",
+            ["send_weekly_analytics_report"],
+        )
+
+        self.assertIn("django_crontab", settings.INSTALLED_APPS)
+        self.assertIn(expected_job, cronjobs)
 
 
 class MonitoringInitTests(SimpleTestCase):

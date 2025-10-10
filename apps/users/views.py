@@ -19,7 +19,7 @@ from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.db.models import Count, Q
-from django.db.models.functions import Coalesce, TruncMonth
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.dateparse import parse_date
@@ -40,9 +40,7 @@ from apps.users.constants import (
 from apps.users.permissions import role_required, user_has_role
 from apps.users.audit import log_audit_event
 from apps.users.models import AuditLog
-
-
-ANALYTICS_PENDING_STATUSES = {"submitted", "incomplete", "vetted"}
+from apps.users.reports import build_report_context, generate_analytics_report
 
 
 def _get_distinct_consultant_types() -> List[str]:
@@ -55,27 +53,6 @@ def _get_distinct_consultant_types() -> List[str]:
         .values_list("consultant_type", flat=True)
         .distinct()
     )
-
-
-def _build_analytics_queryset(
-    start_date: Optional[date],
-    end_date: Optional[date],
-    consultant_type: Optional[str],
-):
-    queryset = Consultant.objects.annotate(
-        activity_date=Coalesce("submitted_at", "updated_at")
-    )
-
-    if start_date:
-        queryset = queryset.filter(activity_date__date__gte=start_date)
-
-    if end_date:
-        queryset = queryset.filter(activity_date__date__lte=end_date)
-
-    if consultant_type:
-        queryset = queryset.filter(consultant_type=consultant_type)
-
-    return queryset
 
 
 def _resolve_analytics_filters(request) -> Dict[str, Optional[object]]:
@@ -103,56 +80,6 @@ def _resolve_analytics_filters(request) -> Dict[str, Optional[object]]:
         "end_date": end_date,
         "consultant_type": normalised_type,
     }
-
-
-def _serialise_monthly_trends(queryset) -> List[Dict[str, object]]:
-    monthly_queryset = (
-        queryset.annotate(month=TruncMonth("activity_date"))
-        .values("month")
-        .annotate(
-            total=Count("id"),
-            approved=Count("id", filter=Q(status="approved")),
-            rejected=Count("id", filter=Q(status="rejected")),
-            pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
-        )
-        .order_by("month")
-    )
-
-    trends: List[Dict[str, object]] = []
-    for entry in monthly_queryset:
-        month = entry.get("month")
-        if month is None:
-            continue
-
-        trends.append(
-            {
-                "month": month.date().isoformat(),
-                "label": month.strftime("%b %Y"),
-                "total": entry.get("total", 0),
-                "approved": entry.get("approved", 0),
-                "rejected": entry.get("rejected", 0),
-                "pending": entry.get("pending", 0),
-            }
-        )
-
-    return trends
-
-
-def _serialise_type_breakdown(queryset) -> List[Dict[str, object]]:
-    breakdown_queryset = (
-        queryset.values("consultant_type")
-        .annotate(total=Count("id"))
-        .order_by("consultant_type")
-    )
-
-    breakdown: List[Dict[str, object]] = []
-    for entry in breakdown_queryset:
-        label = entry.get("consultant_type") or "Unspecified"
-        breakdown.append({"label": label, "total": entry.get("total", 0)})
-
-    return breakdown
-
-
 IMPERSONATOR_ID_SESSION_KEY = 'impersonator_id'
 IMPERSONATOR_USERNAME_SESSION_KEY = 'impersonator_username'
 IMPERSONATOR_BACKEND_SESSION_KEY = 'impersonator_backend'
@@ -406,30 +333,26 @@ def staff_analytics_data(request):
 
     filters = _resolve_analytics_filters(request)
 
-    queryset = _build_analytics_queryset(
-        filters["start_date"], filters["end_date"], filters["consultant_type"]
+    context = build_report_context(
+        start_date=filters["start_date"],
+        end_date=filters["end_date"],
+        consultant_type=filters["consultant_type"],
     )
 
-    metrics = queryset.aggregate(
-        total_applications=Count("id"),
-        approved=Count("id", filter=Q(status="approved")),
-        rejected=Count("id", filter=Q(status="rejected")),
-        pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
-    )
+    context_filters = context["filters"]
 
     response_payload = {
-        "metrics": {
-            "total_applications": metrics.get("total_applications", 0),
-            "approved": metrics.get("approved", 0),
-            "rejected": metrics.get("rejected", 0),
-            "pending": metrics.get("pending", 0),
-        },
-        "monthly_trends": _serialise_monthly_trends(queryset),
-        "type_breakdown": _serialise_type_breakdown(queryset),
+        "metrics": context["metrics"],
+        "monthly_trends": context["monthly_trends"],
+        "type_breakdown": context["type_breakdown"],
         "filters": {
-            "start": filters["start_date"].isoformat() if filters["start_date"] else None,
-            "end": filters["end_date"].isoformat() if filters["end_date"] else None,
-            "consultant_type": filters["consultant_type"],
+            "start": context_filters["start"].isoformat()
+            if context_filters["start"]
+            else None,
+            "end": context_filters["end"].isoformat()
+            if context_filters["end"]
+            else None,
+            "consultant_type": context_filters["consultant_type"],
         },
     }
 
@@ -441,21 +364,13 @@ def staff_analytics_export_csv(request):
     """Export consultant analytics data to CSV."""
 
     filters = _resolve_analytics_filters(request)
-    queryset = _build_analytics_queryset(
-        filters["start_date"], filters["end_date"], filters["consultant_type"]
+    context = build_report_context(
+        start_date=filters["start_date"],
+        end_date=filters["end_date"],
+        consultant_type=filters["consultant_type"],
     )
 
-    metrics = queryset.aggregate(
-        total_applications=Count("id"),
-        approved=Count("id", filter=Q(status="approved")),
-        rejected=Count("id", filter=Q(status="rejected")),
-        pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
-    )
-
-    monthly_trends = _serialise_monthly_trends(queryset)
-    type_breakdown = _serialise_type_breakdown(queryset)
-
-    generated_at = timezone.localtime()
+    generated_at = context["generated_at"]
     filename = f"consultant-analytics-{generated_at.strftime('%Y%m%d%H%M%S')}.csv"
 
     response = HttpResponse(content_type="text/csv")
@@ -467,33 +382,37 @@ def staff_analytics_export_csv(request):
     writer.writerow(
         [
             "Start date",
-            filters["start_date"].isoformat() if filters["start_date"] else "All dates",
+            context["filters"]["start"].isoformat()
+            if context["filters"]["start"]
+            else "All dates",
         ]
     )
     writer.writerow(
         [
             "End date",
-            filters["end_date"].isoformat() if filters["end_date"] else "All dates",
+            context["filters"]["end"].isoformat()
+            if context["filters"]["end"]
+            else "All dates",
         ]
     )
     writer.writerow(
         [
             "Consultant type",
-            filters["consultant_type"] or "All consultants",
+            context["filters"]["consultant_type"] or "All consultants",
         ]
     )
 
     writer.writerow([])
     writer.writerow(["Metric", "Value"])
-    writer.writerow(["Total applications", metrics.get("total_applications", 0)])
-    writer.writerow(["Approved", metrics.get("approved", 0)])
-    writer.writerow(["Rejected", metrics.get("rejected", 0)])
-    writer.writerow(["Pending", metrics.get("pending", 0)])
+    writer.writerow(["Total applications", context["metrics"].get("total_applications", 0)])
+    writer.writerow(["Approved", context["metrics"].get("approved", 0)])
+    writer.writerow(["Rejected", context["metrics"].get("rejected", 0)])
+    writer.writerow(["Pending", context["metrics"].get("pending", 0)])
 
     writer.writerow([])
     writer.writerow(["Monthly trends"])
     writer.writerow(["Month", "Total", "Approved", "Rejected", "Pending"])
-    for entry in monthly_trends:
+    for entry in context["monthly_trends"]:
         writer.writerow(
             [
                 entry.get("month"),
@@ -507,7 +426,7 @@ def staff_analytics_export_csv(request):
     writer.writerow([])
     writer.writerow(["Type breakdown"])
     writer.writerow(["Consultant type", "Total applications"])
-    for entry in type_breakdown:
+    for entry in context["type_breakdown"]:
         writer.writerow([entry.get("label"), entry.get("total", 0)])
 
     return response
@@ -518,39 +437,15 @@ def staff_analytics_export_pdf(request):
     """Export consultant analytics data to a styled PDF report."""
 
     filters = _resolve_analytics_filters(request)
-    queryset = _build_analytics_queryset(
-        filters["start_date"], filters["end_date"], filters["consultant_type"]
+    report = generate_analytics_report(
+        start_date=filters["start_date"],
+        end_date=filters["end_date"],
+        consultant_type=filters["consultant_type"],
+        base_url=request.build_absolute_uri("/"),
     )
 
-    metrics = queryset.aggregate(
-        total_applications=Count("id"),
-        approved=Count("id", filter=Q(status="approved")),
-        rejected=Count("id", filter=Q(status="rejected")),
-        pending=Count("id", filter=Q(status__in=ANALYTICS_PENDING_STATUSES)),
-    )
-
-    context = {
-        "generated_at": timezone.localtime(),
-        "metrics": {
-            "total_applications": metrics.get("total_applications", 0),
-            "approved": metrics.get("approved", 0),
-            "rejected": metrics.get("rejected", 0),
-            "pending": metrics.get("pending", 0),
-        },
-        "monthly_trends": _serialise_monthly_trends(queryset),
-        "type_breakdown": _serialise_type_breakdown(queryset),
-        "filters": {
-            "start": filters["start_date"],
-            "end": filters["end_date"],
-            "consultant_type": filters["consultant_type"],
-        },
-    }
-
-    html_string = render_to_string("staff_analytics_export_pdf.html", context)
-    pdf_bytes = HTML(string=html_string, base_url=request.build_absolute_uri("/")).write_pdf()
-
-    filename = f"consultant-analytics-{context['generated_at'].strftime('%Y%m%d%H%M%S')}.pdf"
-    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response = HttpResponse(report.pdf_bytes, content_type="application/pdf")
+    filename = report.filename
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
     return response

@@ -5,6 +5,7 @@ daphne==4.1.2
 certifi==2025.10.5
 dj-database-url==3.0.1
 Django==5.2.6
+django-crontab==0.7.1
 gunicorn==23.0.0
 iniconfig==2.1.0
 packaging==25.0
