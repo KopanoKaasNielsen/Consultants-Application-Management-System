@@ -86,6 +86,7 @@ INSTALLED_APPS = [
     'apps.decisions',
     'apps.certificates',
     'apps.users',
+    'django_crontab',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -187,6 +188,31 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Email configuration sourced from environment variables for secure delivery.
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = get_env_bool("EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = get_env_bool("EMAIL_USE_SSL", False)
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL", "no-reply@consultant-management.local"
+)
+
+
+# Weekly analytics email scheduling (every Monday at 08:00 UTC).
+CRONJOBS = [
+    (
+        '0 8 * * 1',
+        'django.core.management.call_command',
+        ['send_weekly_analytics_report'],
+    )
+]
 
 
 # Configure monitoring once settings are imported.
