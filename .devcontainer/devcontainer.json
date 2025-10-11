@@ -4,7 +4,7 @@
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "20" }
   },
-  "workspaceFolder": "/workspace",
+  
   "postCreateCommand": "python3 check_dependencies.py",
     "forwardPorts": [8000],
   "portsAttributes": {
