@@ -18,3 +18,4 @@ sentry-sdk[django]==1.45.0
 pytest==8.4.1
 pytest-django==4.9.0
 pytest-mock==3.14.0
+PyJWT
