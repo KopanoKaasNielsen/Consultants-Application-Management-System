@@ -3,55 +3,140 @@
 {% block title %}Staff Dashboard{% endblock %}
 
 {% block content %}
-  <h2>Staff Dashboard</h2>
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+    <h2 class="mb-0">Staff Dashboard</h2>
+
+    <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 w-100 w-lg-auto">
+      <form
+        id="status-filter-form"
+        method="get"
+        class="d-flex align-items-center gap-2"
+        hx-get="{% url 'staff_dashboard' %}"
+        hx-target="#consultant-results"
+        hx-swap="outerHTML"
+        hx-push-url="true"
+        hx-indicator="#results-loading"
+        hx-trigger="change from:#status-filter, submit"
+      >
+        <label for="status-filter" class="form-label mb-0">Filter by status</label>
+        <select
+          id="status-filter"
+          name="status"
+          class="form-select"
+        >
+          {% for option in status_filters %}
+            <option value="{{ option.value }}"{% if option.is_active %} selected{% endif %}>
+              {{ option.label }}
+            </option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="q" value="{{ search_query }}">
+        <input type="hidden" name="sort" value="{{ sort_field }}">
+        <input type="hidden" name="direction" value="{{ sort_direction }}">
+        <noscript>
+          <button type="submit" class="btn btn-primary">Apply</button>
+        </noscript>
+      </form>
+
+      <form
+        method="get"
+        class="d-flex align-items-center gap-2 w-100 w-md-auto"
+        hx-get="{% url 'staff_dashboard' %}"
+        hx-target="#consultant-results"
+        hx-swap="outerHTML"
+        hx-push-url="true"
+        hx-indicator="#results-loading"
+      >
+        <input
+          type="search"
+          name="q"
+          value="{{ search_query }}"
+          class="form-control"
+          placeholder="Search name, business, or ID"
+        >
+        <input type="hidden" name="status" value="{{ active_status }}">
+        <input type="hidden" name="sort" value="{{ sort_field }}">
+        <input type="hidden" name="direction" value="{{ sort_direction }}">
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if search_query %}
+          <a
+            class="btn btn-outline-secondary"
+            href="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
+            hx-get="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
+            hx-target="#consultant-results"
+            hx-swap="outerHTML"
+            hx-push-url="true"
+            hx-indicator="#results-loading"
+          >
+            Clear
+          </a>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <div
+    id="results-loading"
+    class="results-loading-indicator htmx-indicator"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    <span class="results-loading-indicator__spinner" aria-hidden="true"></span>
+    <span class="visually-hidden">Loading results…</span>
+    <span class="results-loading-indicator__text">Loading results…</span>
+  </div>
+
+  <div
+    id="staff-dashboard-alert"
+    class="staff-dashboard-alert"
+    aria-live="polite"
+    aria-atomic="true"
+    {% if not unseen_submission_count %}hidden{% endif %}
+  >
+    <span class="staff-dashboard-alert__badge" id="staff-dashboard-unseen-count">{{ unseen_submission_count }}</span>
+    <span class="staff-dashboard-alert__text">
+      New consultant submission{% if unseen_submission_count|pluralize %}s{% endif %} awaiting review.
+    </span>
+  </div>
 
   <section class="row g-3 mb-4">
     <div class="col-12 col-sm-6 col-lg-3">
       <div class="border rounded p-3 bg-light h-100">
         <p class="text-muted text-uppercase small mb-1">Draft</p>
-        <p class="h4 mb-0">{{ status_counts.draft|default:0 }}</p>
+        <p class="h4 mb-0" id="status-count-draft">{{ status_counts.draft|default:0 }}</p>
       </div>
     </div>
     <div class="col-12 col-sm-6 col-lg-3">
       <div class="border rounded p-3 bg-light h-100">
         <p class="text-muted text-uppercase small mb-1">Submitted</p>
-        <p class="h4 mb-0">{{ status_counts.submitted|default:0 }}</p>
+        <p class="h4 mb-0" id="status-count-submitted">{{ status_counts.submitted|default:0 }}</p>
       </div>
     </div>
     <div class="col-12 col-sm-6 col-lg-3">
       <div class="border rounded p-3 bg-light h-100">
         <p class="text-muted text-uppercase small mb-1">Approved</p>
-        <p class="h4 mb-0">{{ status_counts.approved|default:0 }}</p>
+        <p class="h4 mb-0" id="status-count-approved">{{ status_counts.approved|default:0 }}</p>
       </div>
     </div>
     <div class="col-12 col-sm-6 col-lg-3">
       <div class="border rounded p-3 bg-light h-100">
         <p class="text-muted text-uppercase small mb-1">Rejected</p>
-        <p class="h4 mb-0">{{ status_counts.rejected|default:0 }}</p>
+        <p class="h4 mb-0" id="status-count-rejected">{{ status_counts.rejected|default:0 }}</p>
       </div>
     </div>
   </section>
-
-  <nav class="mb-4">
-    <div class="nav nav-pills flex-wrap gap-2">
-      {% for option in status_filters %}
-        <a
-          class="nav-link{% if option.is_active %} active{% endif %}"
-          href="{% url 'staff_dashboard' %}?status={{ option.value }}"
-        >
-          {{ option.label }}
-        </a>
-      {% endfor %}
-    </div>
-  </nav>
 
   <section class="card mb-4">
     <div class="card-body">
       <h3 class="h5 mb-3">Recent Applications</h3>
 
-      {% if recent_applications %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
+      <div id="recent-applications-wrapper">
+        <div
+          id="recent-applications-table-wrapper"
+          class="table-responsive{% if not recent_applications %} d-none{% endif %}"
+        >
+          <table class="table table-sm align-middle mb-0" aria-live="polite" aria-atomic="true">
             <thead>
               <tr>
                 <th scope="col">Full Name</th>
@@ -61,19 +146,19 @@
                 <th scope="col" class="text-end">Action</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="recent-applications-body">
               {% for application in recent_applications %}
-                <tr>
-                  <td>{{ application.full_name }}</td>
-                  <td>{{ application.get_status_display }}</td>
-                  <td>
+                <tr data-consultant-id="{{ application.pk }}">
+                  <td class="recent-applications__name">{{ application.full_name }}</td>
+                  <td class="recent-applications__status">{{ application.get_status_display }}</td>
+                  <td class="recent-applications__submitted">
                     {% if application.submitted_at %}
                       {{ application.submitted_at|date:"M d, Y" }}
                     {% else %}
                       —
                     {% endif %}
                   </td>
-                  <td>
+                  <td class="recent-applications__updated">
                     {% if application.updated_at %}
                       {{ application.updated_at|date:"M d, Y H:i" }}
                     {% else %}
@@ -83,7 +168,7 @@
                   <td class="text-end">
                     <a
                       href="{% url 'staff_consultant_detail' application.pk %}"
-                      class="btn btn-outline-primary btn-sm"
+                      class="btn btn-outline-primary btn-sm recent-applications__action"
                     >
                       View
                     </a>
@@ -93,49 +178,267 @@
             </tbody>
           </table>
         </div>
-      {% else %}
-        <p class="mb-0 text-muted">No recent applications available.</p>
-      {% endif %}
+        <p
+          id="recent-applications-empty"
+          class="mb-0 text-muted{% if recent_applications %} d-none{% endif %}"
+        >
+          No recent applications available.
+        </p>
+      </div>
     </div>
   </section>
+  {% include "staff_dashboard/_consultant_results.html" %}
+  <div id="staff-toast-container" class="staff-toast-container" aria-live="polite" aria-atomic="true"></div>
+{% endblock %}
 
-  <h2 class="h4">{{ active_status_label }} Consultant Applications</h2>
+{% block extra_scripts %}
+  <script
+    src="https://unpkg.com/htmx.org@1.9.12"
+    integrity="sha384-FhT1xAi8uKXuX4nHCqB6f+GO6zkRgZNpmjDoE7YQDdyCjTiMQuuLHfoalGo6D8aB"
+    crossorigin="anonymous"
+  ></script>
+  <script>
+    (function () {
+      function fallbackSubmit() {
+        if (window.htmx) {
+          return;
+        }
 
-  {% if consultants %}
-    <p>Select an action for each application and optionally leave an internal comment.</p>
+        var statusFilter = document.getElementById("status-filter");
+        if (!statusFilter) {
+          return;
+        }
 
-    {% for consultant in consultants %}
-      <section class="card mb-4 p-3">
-        <form method="post" action="{% url 'staff_dashboard' %}">
-          {% csrf_token %}
-          <input type="hidden" name="consultant_id" value="{{ consultant.id }}">
-          <input type="hidden" name="status" value="{{ active_status }}">
+        statusFilter.addEventListener("change", function () {
+          var form = statusFilter.form;
+          if (form) {
+            if (typeof form.requestSubmit === "function") {
+              form.requestSubmit();
+            } else {
+              form.submit();
+            }
+          }
+        });
+      }
 
-          <header class="mb-2">
-            <h3 class="h5 mb-1">{{ consultant.full_name }}</h3>
-            <p class="mb-0 text-muted">ID: {{ consultant.id_number }} · {{ consultant.email }}</p>
-          </header>
+      function formatDate(value, options) {
+        if (!value) {
+          return "—";
+        }
 
-          <div class="mb-3">
-            <label for="comment-{{ consultant.id }}" class="form-label">Internal comment</label>
-            <textarea
-              id="comment-{{ consultant.id }}"
-              name="comment"
-              class="form-control"
-              rows="3"
-              placeholder="Add a note for other staff members"
-            >{{ consultant.staff_comment|default_if_none:"" }}</textarea>
-          </div>
+        try {
+          var date = new Date(value);
+          if (Number.isNaN(date.getTime())) {
+            return "—";
+          }
+          return new Intl.DateTimeFormat(undefined, options).format(date);
+        } catch (error) {
+          return "—";
+        }
+      }
 
-          <div class="d-flex gap-2">
-            <button type="submit" name="action" value="approved" class="btn btn-success">Approve</button>
-            <button type="submit" name="action" value="rejected" class="btn btn-danger">Reject</button>
-            <button type="submit" name="action" value="incomplete" class="btn btn-warning">Mark Incomplete</button>
-          </div>
-        </form>
-      </section>
-    {% endfor %}
-  {% else %}
-    <p>No {{ active_status_label|lower }} applications require review at this time.</p>
-  {% endif %}
+      function updateStatusCounts(counts) {
+        if (!counts) {
+          return;
+        }
+
+        var draft = document.getElementById("status-count-draft");
+        var submitted = document.getElementById("status-count-submitted");
+        var approved = document.getElementById("status-count-approved");
+        var rejected = document.getElementById("status-count-rejected");
+
+        if (draft) draft.textContent = counts.draft ?? draft.textContent;
+        if (submitted) submitted.textContent = counts.submitted ?? submitted.textContent;
+        if (approved) approved.textContent = counts.approved ?? approved.textContent;
+        if (rejected) rejected.textContent = counts.rejected ?? rejected.textContent;
+      }
+
+      function updateRecentApplications(applications) {
+        var wrapper = document.getElementById("recent-applications-table-wrapper");
+        var emptyState = document.getElementById("recent-applications-empty");
+        var tbody = document.getElementById("recent-applications-body");
+
+        if (!wrapper || !emptyState || !tbody) {
+          return;
+        }
+
+        if (!applications || !applications.length) {
+          wrapper.classList.add("d-none");
+          emptyState.classList.remove("d-none");
+          tbody.innerHTML = "";
+          return;
+        }
+
+        wrapper.classList.remove("d-none");
+        emptyState.classList.add("d-none");
+
+        tbody.innerHTML = "";
+        applications.forEach(function (application) {
+          var row = document.createElement("tr");
+          row.setAttribute("data-consultant-id", application.id);
+
+          row.innerHTML = [
+            '<td class="recent-applications__name">' + (application.full_name || "") + "</td>",
+            '<td class="recent-applications__status">' + (application.status || "") + "</td>",
+            '<td class="recent-applications__submitted">' +
+              formatDate(application.submitted_at, { month: "short", day: "numeric", year: "numeric" }) +
+              "</td>",
+            '<td class="recent-applications__updated">' +
+              formatDate(application.updated_at, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              }) +
+              "</td>",
+            '<td class="text-end">' +
+              '<a href="' + (application.detail_url || "#") + '" class="btn btn-outline-primary btn-sm recent-applications__action">View</a>' +
+              "</td>",
+          ].join("");
+
+          tbody.appendChild(row);
+        });
+      }
+
+      function updateUnseenIndicator(count) {
+        var alert = document.getElementById("staff-dashboard-alert");
+        var badge = document.getElementById("staff-dashboard-unseen-count");
+
+        if (!alert || !badge) {
+          return;
+        }
+
+        if (typeof count !== "number") {
+          return;
+        }
+
+        badge.textContent = count;
+        if (count > 0) {
+          alert.removeAttribute("hidden");
+        } else {
+          alert.setAttribute("hidden", "hidden");
+        }
+      }
+
+      function showToast(message, detailUrl) {
+        var container = document.getElementById("staff-toast-container");
+        if (!container) {
+          return;
+        }
+
+        var toast = document.createElement("div");
+        toast.className = "staff-toast";
+        toast.innerHTML =
+          '<div class="staff-toast__content">' +
+          '<div class="staff-toast__title">New consultant application</div>' +
+          '<div class="staff-toast__message">' + (message || "A new application was submitted.") + "</div>" +
+          (detailUrl
+            ? '<a class="staff-toast__link" href="' + detailUrl + '">Review application</a>'
+            : "") +
+          "</div>";
+
+        container.appendChild(toast);
+
+        requestAnimationFrame(function () {
+          toast.classList.add("is-visible");
+        });
+
+        window.setTimeout(function () {
+          toast.classList.remove("is-visible");
+          window.setTimeout(function () {
+            toast.remove();
+          }, 300);
+        }, 6000);
+      }
+
+      function refreshResults() {
+        if (!window.htmx) {
+          window.location.reload();
+          return;
+        }
+
+        var target = document.getElementById("consultant-results");
+        if (!target) {
+          window.location.reload();
+          return;
+        }
+
+        var url = new URL(window.location.href);
+        url.searchParams.set("mark_seen", "1");
+
+        window.htmx.ajax("GET", url.toString(), {
+          target: "#consultant-results",
+          swap: "outerHTML",
+        });
+      }
+
+      function handleMessage(data) {
+        if (!data || !data.type) {
+          return;
+        }
+
+        if (data.type === "staff.init") {
+          if (data.payload && typeof data.payload.unseen_count === "number") {
+            updateUnseenIndicator(data.payload.unseen_count);
+          }
+          return;
+        }
+
+        if (data.type === "staff.new_consultant") {
+          var payload = data.payload || {};
+          if (typeof payload.unseen_count === "number") {
+            updateUnseenIndicator(payload.unseen_count);
+          }
+          updateStatusCounts(payload.status_counts);
+          updateRecentApplications(payload.recent_applications);
+
+          if (payload.consultant && payload.consultant.full_name) {
+            showToast(
+              "Application submitted by " + payload.consultant.full_name,
+              payload.consultant.detail_url
+            );
+          } else {
+            showToast();
+          }
+
+          refreshResults();
+        }
+      }
+
+      function connectWebSocket() {
+        if (!("WebSocket" in window)) {
+          return;
+        }
+
+        var protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        var endpoint = protocol + "://" + window.location.host + "/ws/staff/notifications/";
+        var socket;
+
+        function establish() {
+          socket = new WebSocket(endpoint);
+
+          socket.addEventListener("message", function (event) {
+            try {
+              var data = JSON.parse(event.data);
+              handleMessage(data);
+            } catch (error) {
+              console.error("Failed to parse websocket payload", error);
+            }
+          });
+
+          socket.addEventListener("close", function () {
+            window.setTimeout(establish, 5000);
+          });
+        }
+
+        establish();
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        fallbackSubmit();
+        connectWebSocket();
+      });
+    })();
+  </script>
 {% endblock %}

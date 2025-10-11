@@ -1,0 +1,98 @@
+<div
+  id="consultant-results"
+  class="consultant-results"
+  hx-indicator="#results-loading"
+>
+  <section class="card">
+    <div class="card-body">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+        <h2 class="h4 mb-0">{{ active_status_label }} Consultant Applications</h2>
+        <a
+          class="btn btn-outline-primary"
+          href="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+          data-download-url="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+          hx-get="{% url 'staff_dashboard' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
+          hx-target="#consultant-results"
+          hx-swap="outerHTML"
+          hx-push-url="true"
+          hx-indicator="#results-loading"
+          hx-on::after-request="window.location.href = this.dataset.downloadUrl"
+        >
+          Export CSV
+        </a>
+      </div>
+
+      {% if page_obj.object_list %}
+        <p class="text-muted">Select an action for each application and optionally leave an internal comment.</p>
+
+        <div class="table-responsive">
+          {% include "staff_dashboard/_consultant_list.html" %}
+        </div>
+
+      {% if is_paginated %}
+        <nav aria-label="Consultant pagination">
+          <ul class="pagination">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a
+                  class="page-link"
+                  href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}"
+                  hx-get="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}"
+                  hx-target="#consultant-results"
+                  hx-swap="outerHTML"
+                  hx-push-url="true"
+                  hx-indicator="#results-loading"
+                >
+                  Previous
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">Previous</span></li>
+            {% endif %}
+
+            {% for page_number in paginator.page_range %}
+              {% if page_number == page_obj.number %}
+                <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
+              {% else %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_number }}"
+                    hx-get="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_number }}"
+                    hx-target="#consultant-results"
+                    hx-swap="outerHTML"
+                    hx-push-url="true"
+                    hx-indicator="#results-loading"
+                  >
+                    {{ page_number }}
+                  </a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a
+                  class="page-link"
+                  href="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}"
+                  hx-get="{% url 'staff_dashboard' %}?{% if base_querystring %}{{ base_querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}"
+                  hx-target="#consultant-results"
+                  hx-swap="outerHTML"
+                  hx-push-url="true"
+                  hx-indicator="#results-loading"
+                >
+                  Next
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">Next</span></li>
+            {% endif %}
+          </ul>
+        </nav>
+      {% endif %}
+    {% else %}
+      <p class="mb-0">No {{ active_status_label|lower }} applications match your current filters.</p>
+    {% endif %}
+    </div>
+  </section>
+</div>

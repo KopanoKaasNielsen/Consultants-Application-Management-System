@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Consultant Application - {{ consultant.full_name }}</title>
+  <style>
+    body {
+      font-family: "Helvetica", "Arial", sans-serif;
+      font-size: 12pt;
+      color: #1a1a1a;
+      margin: 1.5cm;
+    }
+
+    header {
+      border-bottom: 2px solid #0b5394;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 20pt;
+      margin: 0 0 4px 0;
+      color: #0b5394;
+    }
+
+    h2 {
+      font-size: 14pt;
+      margin: 24px 0 8px 0;
+      color: #0b5394;
+    }
+
+    dl {
+      display: grid;
+      grid-template-columns: 30% 70%;
+      column-gap: 12px;
+      row-gap: 8px;
+    }
+
+    dt {
+      font-weight: bold;
+    }
+
+    ul {
+      padding-left: 18px;
+      margin: 8px 0;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .meta {
+      font-size: 10pt;
+      color: #555;
+    }
+
+    .section {
+      page-break-inside: avoid;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Consultant Application</h1>
+    <p class="meta">
+      Applicant: {{ consultant.full_name }} &bull;
+      Application ID: {{ consultant.id }} &bull;
+      Status: {{ consultant.get_status_display }}
+      {% if consultant.submitted_at %}&bull; Submitted {{ consultant.submitted_at|date:"F j, Y" }}{% endif %}
+    </p>
+    <p class="meta">Generated on {{ generated_at|date:"F j, Y, g:i a" }}</p>
+  </header>
+
+  <section class="section">
+    <h2>Personal information</h2>
+    <dl>
+      <dt>Full name</dt>
+      <dd>{{ consultant.full_name }}</dd>
+
+      <dt>ID number</dt>
+      <dd>{{ consultant.id_number }}</dd>
+
+      <dt>Date of birth</dt>
+      <dd>{{ consultant.dob|date:"F j, Y" }}</dd>
+
+      <dt>Gender</dt>
+      <dd>{{ consultant.get_gender_display }}</dd>
+
+      <dt>Nationality</dt>
+      <dd>{{ consultant.nationality }}</dd>
+
+      <dt>Email</dt>
+      <dd>{{ consultant.email }}</dd>
+
+      <dt>Phone number</dt>
+      <dd>{{ consultant.phone_number }}</dd>
+    </dl>
+  </section>
+
+  <section class="section">
+    <h2>Business information</h2>
+    <dl>
+      <dt>Business name</dt>
+      <dd>{{ consultant.business_name }}</dd>
+
+      <dt>Registration number</dt>
+      <dd>{% if consultant.registration_number %}{{ consultant.registration_number }}{% else %}Not provided{% endif %}</dd>
+    </dl>
+  </section>
+
+  <section class="section">
+    <h2>Submitted documents</h2>
+    {% if document_fields %}
+      <ul>
+        {% for document in document_fields %}
+          <li>
+            <strong>{{ document.label }}</strong><br />
+            {{ document.name }} ({{ document.type }}, {{ document.size }})
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No supporting documents submitted.</p>
+    {% endif %}
+  </section>
+
+  <section class="section">
+    <h2>Decision documents</h2>
+    {% if decision_documents %}
+      <ul>
+        {% for document in decision_documents %}
+          <li>
+            <strong>{{ document.label }}</strong><br />
+            {{ document.name }} ({{ document.type }}, {{ document.size }})
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>No decision documents available.</p>
+    {% endif %}
+  </section>
+
+  {% if consultant.staff_comment %}
+  <section class="section">
+    <h2>Staff comment</h2>
+    <p>{{ consultant.staff_comment }}</p>
+  </section>
+  {% endif %}
+</body>
+</html>

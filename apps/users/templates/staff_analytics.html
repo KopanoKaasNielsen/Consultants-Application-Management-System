@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Staff analytics{% endblock %}
+
+{% block content %}
+<div class="analytics-container">
+  <div class="analytics-header">
+    <h1 class="analytics-title">Consultant analytics dashboard</h1>
+    <p class="analytics-subtitle">Track application throughput, status outcomes, and consultant mix across time.</p>
+  </div>
+
+  <form
+    id="analytics-filters"
+    class="analytics-filters"
+    data-endpoint="{% url 'staff_analytics_data' %}"
+    data-export-csv="{% url 'staff_analytics_export_csv' %}"
+    data-export-pdf="{% url 'staff_analytics_export_pdf' %}"
+  >
+    <div class="analytics-filter">
+      <label for="id_start" class="analytics-filter__label">Start date</label>
+      <input type="date" id="id_start" name="start" class="analytics-filter__input">
+    </div>
+    <div class="analytics-filter">
+      <label for="id_end" class="analytics-filter__label">End date</label>
+      <input type="date" id="id_end" name="end" class="analytics-filter__input">
+    </div>
+    <div class="analytics-filter">
+      <label for="id_consultant_type" class="analytics-filter__label">Consultant type</label>
+      <select id="id_consultant_type" name="consultant_type" class="analytics-filter__input">
+        <option value="">All consultant types</option>
+        {% for consultant_type in consultant_types %}
+        <option value="{{ consultant_type }}">{{ consultant_type }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="analytics-filter analytics-filter--actions">
+      <button type="submit" class="btn-primary analytics-filter__submit">Apply filters</button>
+    </div>
+  </form>
+
+  <div class="analytics-export" aria-label="Analytics export actions">
+    <a id="analytics-export-csv" class="btn-secondary analytics-export__button" href="{% url 'staff_analytics_export_csv' %}">Export CSV</a>
+    <a id="analytics-export-pdf" class="btn-secondary analytics-export__button" href="{% url 'staff_analytics_export_pdf' %}">Export PDF</a>
+  </div>
+
+  <section class="analytics-metrics" aria-label="Key application metrics">
+    <article class="metric-card">
+      <h2 class="metric-card__title">Total applications</h2>
+      <p id="metric-total" class="metric-card__value">0</p>
+    </article>
+    <article class="metric-card">
+      <h2 class="metric-card__title">Approved</h2>
+      <p id="metric-approved" class="metric-card__value metric-card__value--approved">0</p>
+    </article>
+    <article class="metric-card">
+      <h2 class="metric-card__title">Rejected</h2>
+      <p id="metric-rejected" class="metric-card__value metric-card__value--rejected">0</p>
+    </article>
+    <article class="metric-card">
+      <h2 class="metric-card__title">Pending</h2>
+      <p id="metric-pending" class="metric-card__value metric-card__value--pending">0</p>
+    </article>
+  </section>
+
+  <section class="analytics-visualisation" aria-labelledby="monthly-trend-heading">
+    <div class="analytics-visualisation__header">
+      <h2 id="monthly-trend-heading" class="analytics-section-title">Monthly application trend</h2>
+      <p class="analytics-section-subtitle">Monitor how submissions and decisions evolve month over month.</p>
+    </div>
+    <div class="analytics-chart">
+      <canvas id="monthlyTrendChart" role="img" aria-label="Monthly application trend chart"></canvas>
+    </div>
+  </section>
+
+  <section class="analytics-visualisation" aria-labelledby="type-breakdown-heading">
+    <div class="analytics-visualisation__header">
+      <h2 id="type-breakdown-heading" class="analytics-section-title">Consultant type distribution</h2>
+      <p class="analytics-section-subtitle">Understand the proportion of applications submitted by each consultant type.</p>
+    </div>
+    <div class="analytics-chart">
+      <canvas id="typeBreakdownChart" role="img" aria-label="Consultant type distribution chart"></canvas>
+    </div>
+  </section>
+
+  <div id="analytics-error" class="analytics-error" role="alert" hidden>
+    We couldn't load analytics data right now. Please refresh the page or adjust your filters.
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-qG0h5sLKBoCxViqm18otap1a6Rs3XDJcJqMtmb0vlLHr6awAj3PZo3tZHW8sGc5u" crossorigin="anonymous"></script>
+<script>
+(function () {
+  const form = document.getElementById("analytics-filters");
+  if (!form) {
+    return;
+  }
+
+  const endpoint = form.dataset.endpoint;
+  const csvEndpoint = form.dataset.exportCsv;
+  const pdfEndpoint = form.dataset.exportPdf;
+  const metrics = {
+    total: document.getElementById("metric-total"),
+    approved: document.getElementById("metric-approved"),
+    rejected: document.getElementById("metric-rejected"),
+    pending: document.getElementById("metric-pending"),
+  };
+  const errorBanner = document.getElementById("analytics-error");
+  const monthlyCtx = document.getElementById("monthlyTrendChart");
+  const typeCtx = document.getElementById("typeBreakdownChart");
+  const csvButton = document.getElementById("analytics-export-csv");
+  const pdfButton = document.getElementById("analytics-export-pdf");
+  let monthlyChart;
+  let typeChart;
+
+  const palette = [
+    "#0d6efd",
+    "#198754",
+    "#dc3545",
+    "#6c757d",
+    "#fd7e14",
+    "#20c997",
+    "#6610f2",
+  ];
+
+  function formatNumber(value) {
+    return new Intl.NumberFormat().format(value || 0);
+  }
+
+  function setMetric(key, value) {
+    if (metrics[key]) {
+      metrics[key].textContent = formatNumber(value);
+    }
+  }
+
+  function updateExportLinks(queryString) {
+    if (csvButton && csvEndpoint) {
+      csvButton.href = queryString ? `${csvEndpoint}?${queryString}` : csvEndpoint;
+    }
+
+    if (pdfButton && pdfEndpoint) {
+      pdfButton.href = queryString ? `${pdfEndpoint}?${queryString}` : pdfEndpoint;
+    }
+  }
+
+  function updateMetrics(payload) {
+    setMetric("total", payload.total_applications || 0);
+    setMetric("approved", payload.approved || 0);
+    setMetric("rejected", payload.rejected || 0);
+    setMetric("pending", payload.pending || 0);
+  }
+
+  function buildMonthlyDatasets(trends) {
+    const labels = trends.map((entry) => entry.label);
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Total applications",
+          data: trends.map((entry) => entry.total),
+          borderColor: palette[0],
+          backgroundColor: "rgba(13, 110, 253, 0.1)",
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: "Approved",
+          data: trends.map((entry) => entry.approved),
+          borderColor: palette[1],
+          backgroundColor: "rgba(25, 135, 84, 0.1)",
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: "Rejected",
+          data: trends.map((entry) => entry.rejected),
+          borderColor: palette[2],
+          backgroundColor: "rgba(220, 53, 69, 0.1)",
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: "Pending",
+          data: trends.map((entry) => entry.pending),
+          borderColor: palette[3],
+          backgroundColor: "rgba(108, 117, 125, 0.1)",
+          tension: 0.3,
+          fill: true,
+        },
+      ],
+    };
+  }
+
+  function renderMonthlyChart(trends) {
+    if (!monthlyCtx) {
+      return;
+    }
+
+    const context = monthlyCtx.getContext ? monthlyCtx.getContext("2d") : null;
+    if (!context) {
+      return;
+    }
+
+    const chartData = buildMonthlyDatasets(trends);
+
+    if (monthlyChart) {
+      monthlyChart.data = chartData;
+      monthlyChart.update();
+      return;
+    }
+
+    monthlyChart = new Chart(context, {
+      type: "line",
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { position: "bottom" },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              precision: 0,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function renderTypeChart(breakdown) {
+    if (!typeCtx) {
+      return;
+    }
+
+    const context = typeCtx.getContext ? typeCtx.getContext("2d") : null;
+    if (!context) {
+      return;
+    }
+
+    const labels = breakdown.map((entry) => entry.label);
+    const values = breakdown.map((entry) => entry.total);
+    const colors = labels.map((_, index) => palette[index % palette.length]);
+
+    const chartData = {
+      labels,
+      datasets: [
+        {
+          label: "Applications",
+          data: values,
+          backgroundColor: colors,
+          borderWidth: 1,
+        },
+      ],
+    };
+
+    if (typeChart) {
+      typeChart.data = chartData;
+      typeChart.update();
+      return;
+    }
+
+    typeChart = new Chart(context, {
+      type: "doughnut",
+      data: chartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom" },
+        },
+      },
+    });
+  }
+
+  async function fetchAnalytics() {
+    if (errorBanner) {
+      errorBanner.hidden = true;
+    }
+
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    for (const [key, value] of formData.entries()) {
+      if (value) {
+        params.append(key, value);
+      }
+    }
+
+    const queryString = params.toString();
+    updateExportLinks(queryString);
+
+    const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+
+    try {
+      const response = await fetch(url, {
+        headers: { "Accept": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unexpected status: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      updateMetrics(payload.metrics || {});
+      renderMonthlyChart(payload.monthly_trends || []);
+      renderTypeChart(payload.type_breakdown || []);
+    } catch (error) {
+      console.error("Failed to load analytics data", error);
+      if (errorBanner) {
+        errorBanner.hidden = false;
+      }
+    }
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    fetchAnalytics();
+  });
+
+  form.addEventListener("change", function (event) {
+    if (event.target && event.target.name) {
+      fetchAnalytics();
+    }
+  });
+
+  fetchAnalytics();
+})();
+</script>
+{% endblock %}

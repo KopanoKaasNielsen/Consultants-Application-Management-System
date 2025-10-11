@@ -2,9 +2,17 @@ from django.urls import path
 from . import views
 from .views import (
     RoleBasedLoginView,
+    consultant_application_pdf,
     home_view,
+    staff_consultant_pdf,
+    staff_consultant_bulk_pdf,
+    staff_dashboard_export_csv,
     staff_consultant_detail,
     staff_dashboard,
+    staff_analytics,
+    staff_analytics_data,
+    staff_analytics_export_csv,
+    staff_analytics_export_pdf,
 )
 
 urlpatterns = [
@@ -12,8 +20,17 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register, name='register'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('staff-dashboard/', staff_dashboard, name='staff_dashboard'),
+    path('staff-dashboard/export/', staff_dashboard_export_csv, name='staff_dashboard_export'),
+    path('staff/analytics/', staff_analytics, name='staff_analytics'),
+    path('staff/analytics/data/', staff_analytics_data, name='staff_analytics_data'),
+    path('staff/analytics/export/csv/', staff_analytics_export_csv, name='staff_analytics_export_csv'),
+    path('staff/analytics/export/pdf/', staff_analytics_export_pdf, name='staff_analytics_export_pdf'),
     path('staff/consultant/<int:pk>/', staff_consultant_detail, name='staff_consultant_detail'),
+    path('staff/consultant/<int:pk>/pdf/', staff_consultant_pdf, name='staff_consultant_pdf'),
+    path('staff/consultant/bulk-pdf/', staff_consultant_bulk_pdf, name='staff_consultant_bulk_pdf'),
+    path('consultant/application/pdf/', consultant_application_pdf, name='consultant_application_pdf'),
     path('board/', views.board_dashboard, name='board_dashboard'),
     path('impersonation/', views.impersonation_dashboard, name='impersonation_dashboard'),
     path('impersonation/start/', views.start_impersonation, name='start_impersonation'),
