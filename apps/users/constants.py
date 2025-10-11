@@ -22,7 +22,7 @@ class UserRole(str, Enum):
 
 
 ROLE_GROUP_MAP: Dict[UserRole, Set[str]] = {
-    UserRole.CONSULTANT: {CONSULTANTS_GROUP_NAME},
+    UserRole.CONSULTANT: {CONSULTANTS_GROUP_NAME, "Applicant"},
     UserRole.STAFF: {
         COUNTERSTAFF_GROUP_NAME,
         BACKOFFICE_GROUP_NAME,
