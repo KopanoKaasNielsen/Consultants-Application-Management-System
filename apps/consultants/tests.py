@@ -1,4 +1,5 @@
 import io
+import json
 import shutil
 import tempfile
 from datetime import date, timedelta
@@ -13,7 +14,7 @@ from django.utils import timezone
 from PIL import Image
 
 from .forms import ConsultantForm
-from .models import Consultant
+from .models import Consultant, Notification
 from apps.users.constants import (
     BACKOFFICE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
@@ -290,3 +291,91 @@ class SubmitApplicationViewTests(TestCase):
 
         response = self.client.get(reverse('submit_application'))
         self.assertEqual(response.status_code, 403)
+
+
+class AutoSaveDraftViewTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user('autosaver', password='password123')
+        consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        self.user.groups.add(consultant_group)
+        self.client.force_login(self.user)
+
+        self.consultant = Consultant.objects.create(
+            user=self.user,
+            full_name='Initial User',
+            id_number='ID123456',
+            dob=date(1985, 7, 1),
+            gender='M',
+            nationality='Originland',
+            email='initial@example.com',
+            phone_number='0700000000',
+            business_name='Initial Biz',
+            registration_number='REG-001',
+        )
+
+    def test_autosave_updates_only_changed_fields(self):
+        url = reverse('autosave_consultant_draft')
+        payload = {
+            'phone_number': '0712345678',
+            'business_name': 'Initial Biz',
+        }
+
+        response = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['status'], 'saved')
+        self.assertIn('timestamp', body)
+
+        self.consultant.refresh_from_db()
+        self.assertEqual(self.consultant.phone_number, '0712345678')
+        self.assertEqual(self.consultant.full_name, 'Initial User')
+        self.assertEqual(self.consultant.id_number, 'ID123456')
+        self.assertEqual(self.consultant.business_name, 'Initial Biz')
+        self.assertEqual(self.consultant.registration_number, 'REG-001')
+        self.assertEqual(self.consultant.status, 'draft')
+
+
+class NotificationViewsTests(TestCase):
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.user = self.user_model.objects.create_user('notify-user', password='pass123456')
+        consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        self.user.groups.add(consultant_group)
+        self.client.force_login(self.user)
+
+        self.notification = Notification.objects.create(
+            recipient=self.user,
+            message='Test notification',
+            notification_type=Notification.NotificationType.APPROVED,
+        )
+
+    def test_mark_notification_read_marks_as_read(self):
+        response = self.client.post(
+            reverse('consultant_notification_mark_read', args=[self.notification.pk]),
+            {'next': reverse('dashboard')},
+        )
+
+        self.assertRedirects(response, reverse('dashboard'))
+        self.notification.refresh_from_db()
+        self.assertTrue(self.notification.is_read)
+
+    def test_mark_notification_read_is_scoped_to_owner(self):
+        other_user = self.user_model.objects.create_user('other', password='pass123456')
+        other_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        other_user.groups.add(other_group)
+
+        self.client.force_login(other_user)
+        response = self.client.post(
+            reverse('consultant_notification_mark_read', args=[self.notification.pk]),
+            {'next': reverse('dashboard')},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.notification.refresh_from_db()
+        self.assertFalse(self.notification.is_read)
