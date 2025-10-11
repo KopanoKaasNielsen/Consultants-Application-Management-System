@@ -23,7 +23,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.dateparse import parse_date
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 
@@ -985,9 +985,10 @@ def home_view(request):
 class RoleBasedLoginView(LoginView):
     """Login view that redirects users to dashboards based on their role."""
 
-    admin_dashboard_url = '/admin-dashboard/'
-    staff_dashboard_url = '/staff-dashboard/'
-    applicant_dashboard_url = '/applicant-dashboard/'
+    admin_dashboard_url = reverse_lazy("admin_dashboard")
+    staff_dashboard_url = reverse_lazy("staff_dashboard")
+    applicant_dashboard_url = reverse_lazy("dashboard")
+    board_dashboard_url = reverse_lazy("decisions_dashboard")
 
     def get_success_url(self):
         redirect_url = self.get_redirect_url()
@@ -997,12 +998,15 @@ class RoleBasedLoginView(LoginView):
         user = self.request.user
 
         if user.is_superuser:
-            return self.admin_dashboard_url
+            return str(self.admin_dashboard_url)
 
-        if user.groups.filter(name='Staff').exists():
-            return self.staff_dashboard_url
+        if user_has_role(user, Roles.BOARD):
+            return str(self.board_dashboard_url)
 
-        if user.groups.filter(name='Applicant').exists():
-            return self.applicant_dashboard_url
+        if user_has_role(user, Roles.STAFF):
+            return str(self.staff_dashboard_url)
+
+        if user_has_role(user, Roles.CONSULTANT):
+            return str(self.applicant_dashboard_url)
 
         return super().get_success_url()

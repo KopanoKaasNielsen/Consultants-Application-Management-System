@@ -27,7 +27,11 @@ class RoleBasedLoginViewTests(TestCase):
             {'username': user.username, 'password': self.password},
         )
 
-        self.assertRedirects(response, '/admin-dashboard/', fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse('admin_dashboard'),
+            fetch_redirect_response=False,
+        )
 
     def test_staff_group_redirects_to_staff_dashboard(self):
         staff_group, _ = Group.objects.get_or_create(name='Staff')
@@ -39,7 +43,11 @@ class RoleBasedLoginViewTests(TestCase):
             {'username': user.username, 'password': self.password},
         )
 
-        self.assertRedirects(response, '/staff-dashboard/', fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse('staff_dashboard'),
+            fetch_redirect_response=False,
+        )
 
     def test_applicant_group_redirects_to_applicant_dashboard(self):
         applicant_group, _ = Group.objects.get_or_create(name='Applicant')
@@ -51,7 +59,11 @@ class RoleBasedLoginViewTests(TestCase):
             {'username': user.username, 'password': self.password},
         )
 
-        self.assertRedirects(response, '/applicant-dashboard/', fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse('dashboard'),
+            fetch_redirect_response=False,
+        )
 
     def test_next_parameter_takes_priority(self):
         applicant_group, _ = Group.objects.get_or_create(name='Applicant')
@@ -81,7 +93,11 @@ class RoleBasedLoginViewTests(TestCase):
             {'username': user.username, 'password': self.password},
         )
 
-        self.assertRedirects(response, '/staff-dashboard/', fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse('staff_dashboard'),
+            fetch_redirect_response=False,
+        )
 
     def test_superuser_redirect_has_priority_over_group_memberships(self):
         staff_group, _ = Group.objects.get_or_create(name='Staff')
@@ -93,7 +109,11 @@ class RoleBasedLoginViewTests(TestCase):
             {'username': user.username, 'password': self.password},
         )
 
-        self.assertRedirects(response, '/admin-dashboard/', fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse('admin_dashboard'),
+            fetch_redirect_response=False,
+        )
 
     def test_default_redirect_remains_dashboard(self):
         user = self._create_user('defaultuser')
@@ -103,4 +123,8 @@ class RoleBasedLoginViewTests(TestCase):
             {'username': user.username, 'password': self.password},
         )
 
-        self.assertRedirects(response, '/dashboard/', fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse('dashboard'),
+            fetch_redirect_response=False,
+        )
