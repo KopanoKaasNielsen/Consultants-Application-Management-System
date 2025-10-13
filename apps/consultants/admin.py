@@ -1,15 +1,18 @@
 """Admin configuration for consultant workflows and certificate records."""
 from __future__ import annotations
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.helpers import ActionForm
 from django.db.models import OuterRef, Subquery
-from django.utils import timezone
 from django.utils.text import Truncator
 from django.utils.translation import ngettext
 
-from consultant_app.certificates import update_certificate_status
 from consultant_app.models import Certificate
+from consultant_app.tasks import (
+    reissue_certificate_task,
+    revoke_certificate_task,
+)
 
 from .models import Consultant, LogEntry, Notification
 
@@ -143,21 +146,44 @@ class ConsultantAdmin(admin.ModelAdmin):
         applied = 0
         missing = 0
         for consultant in queryset:
-            result = update_certificate_status(
-                consultant,
-                status=status,
-                user=request.user,
-                reason=reason,
-                timestamp=timezone.now(),
-                context={
-                    "source": "admin",
-                    "admin_action": f"{self.__class__.__name__}.{status.value}",
-                },
-            )
-            if result is None:
+            latest_certificate = Certificate.objects.latest_for_consultant(consultant)
+            if not latest_certificate:
                 missing += 1
-            else:
-                applied += 1
+                continue
+
+            metadata = {
+                "source": "admin",
+                "admin_action": f"{self.__class__.__name__}.{status.value}",
+            }
+
+            try:
+                if status == Certificate.Status.REVOKED:
+                    revoke_certificate_task.delay(
+                        consultant.pk,
+                        reason=reason,
+                        actor_id=request.user.pk,
+                        notify_consultant=True,
+                        metadata=metadata,
+                    )
+                elif status == Certificate.Status.REISSUED:
+                    reissue_certificate_task.delay(
+                        consultant.pk,
+                        reason=reason,
+                        actor_id=request.user.pk,
+                        notify_consultant=True,
+                        metadata=metadata,
+                    )
+                else:  # pragma: no cover - safeguard against unsupported status values
+                    missing += 1
+                    continue
+            except Exception:
+                messages.error(
+                    request,
+                    "Failed to queue the certificate update task. Please try again.",
+                )
+                continue
+
+            applied += 1
 
         if applied:
             message = ngettext(
