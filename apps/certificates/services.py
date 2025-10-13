@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from apps.consultants.models import Consultant
 from apps.certificates.models import CertificateRenewal
+from consultant_app.certificates import build_verification_url, render_certificate_pdf
 
 
 PAGE_WIDTH = 1654  # approx A4 @ 150dpi
@@ -66,22 +67,23 @@ def generate_approval_certificate(
     consultant.rejection_letter = None
     consultant.rejection_letter_generated_at = None
 
-    issued_date = timezone.localdate().strftime("%d %B %Y")
-    title = "Consultant Approval Certificate"
-    paragraphs = [
-        f"This certificate confirms that {consultant.full_name} has been approved as a registered consultant.",
-        f"Registration Number: {consultant.registration_number or 'N/A'}",
-        f"Issued on {issued_date}.",
-    ]
-    if generated_by:
-        paragraphs.append(f"Processed by {generated_by}.")
-
-    pdf_content = _render_pdf(title, paragraphs)
-    filename = f"approval-certificate-{consultant.pk}.pdf"
-    consultant.certificate_pdf.save(filename, pdf_content, save=False)
-    consultant.certificate_generated_at = timezone.now()
+    issued_at = timezone.now()
+    consultant.certificate_generated_at = issued_at
     consultant.certificate_expires_at = timezone.localdate() + timedelta(
         days=CERTIFICATE_VALIDITY_DAYS
+    )
+
+    verification_url = build_verification_url(consultant)
+    pdf_stream = render_certificate_pdf(
+        consultant,
+        issued_at=timezone.localdate(),
+        verification_url=verification_url,
+        generated_by=generated_by,
+    )
+
+    filename = f"approval-certificate-{consultant.pk}.pdf"
+    consultant.certificate_pdf.save(
+        filename, ContentFile(pdf_stream.getvalue()), save=False
     )
     consultant.save(
         update_fields=[

@@ -19,7 +19,12 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from consultant_app.views import consultant_dashboard, log_entries, validate_consultant
+from consultant_app.views import (
+    consultant_dashboard,
+    log_entries,
+    validate_consultant,
+    verify_certificate,
+)
 
 from .health import database_health_view, health_view
 
@@ -32,6 +37,7 @@ urlpatterns = [
     path('certificates/', include(('apps.certificates.urls', 'certificates'), namespace='certificates')),
     path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
     path('vetting/', include('apps.vetting.urls')),
+    path('verify/<int:certificate_id>/', verify_certificate, name='consultant-certificate-verify'),
     path('api/consultants/validate/', validate_consultant, name='consultant-validate'),
     path(
         'api/staff/consultants/',

@@ -11,6 +11,7 @@ gunicorn==23.0.0
 iniconfig==2.1.0
 packaging==25.0
 pillow==11.3.0
+qrcode==7.4.2
 python-magic==0.4.27
 psycopg2-binary==2.9.10
 Pygments==2.19.2
