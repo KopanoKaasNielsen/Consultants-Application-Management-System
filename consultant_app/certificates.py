@@ -5,12 +5,13 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO
-from typing import Final, Optional
+from typing import Any, Final, Optional
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core import signing
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image, ImageDraw, ImageFont
 
 from apps.consultants.models import Consultant
@@ -218,6 +219,81 @@ def render_certificate_pdf(
     return buffer
 
 
+def update_certificate_status(
+    consultant: Consultant,
+    *,
+    status: Certificate.Status | str,
+    user: Any | None = None,
+    reason: str | None = None,
+    timestamp: datetime | None = None,
+    context: dict[str, Any] | None = None,
+) -> Certificate | None:
+    """Apply a certificate status transition with logging and bookkeeping."""
+
+    try:
+        status_choice = Certificate.Status(status)
+    except ValueError as exc:  # pragma: no cover - guarded by callers/tests
+        raise ValueError(f"Unsupported certificate status: {status}") from exc
+
+    reason_text = (reason or "").strip()
+    applied_at = timestamp or timezone.now()
+    actor_id = getattr(user, "pk", None)
+
+    certificate = Certificate.objects.latest_for_consultant(consultant)
+    if not certificate:
+        log_context: dict[str, Any] = {
+            "action": "certificate.status.missing",
+            "consultant_id": consultant.pk,
+            "requested_status": status_choice.value,
+            "reason": reason_text,
+            "applied_at": applied_at,
+        }
+        if context:
+            log_context.update(context)
+        logger.warning(
+            "No certificate record available for consultant %s", consultant.pk,
+            extra={
+                "user_id": actor_id,
+                "consultant_id": consultant.pk,
+                "context": log_context,
+            },
+        )
+        return None
+
+    previous_status = certificate.status
+    certificate.mark_status(
+        status_choice.value,
+        reason=reason_text,
+        timestamp=applied_at,
+    )
+
+    log_context = {
+        "action": f"certificate.status.{status_choice.value}",
+        "consultant_id": consultant.pk,
+        "certificate_id": certificate.pk,
+        "previous_status": previous_status,
+        "new_status": certificate.status,
+        "reason": reason_text,
+        "applied_at": applied_at,
+    }
+    if context:
+        log_context.update(context)
+
+    logger.info(
+        "Set consultant %s certificate %s to %s",
+        consultant.pk,
+        certificate.pk,
+        status_choice.label,
+        extra={
+            "user_id": actor_id,
+            "consultant_id": consultant.pk,
+            "context": log_context,
+        },
+    )
+
+    return certificate
+
+
 def decode_certificate_metadata(token: str, consultant: Consultant) -> dict[str, object]:
     """Return structured details for verified certificates."""
 
@@ -237,5 +313,6 @@ __all__ = [
     "build_verification_url",
     "decode_certificate_metadata",
     "render_certificate_pdf",
+    "update_certificate_status",
     "verify_certificate_token",
 ]
