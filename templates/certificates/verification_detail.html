@@ -9,6 +9,14 @@
     </div>
     <dl class="certificate-verification__details">
         <div class="certificate-verification__row">
+            <dt>Certificate ID</dt>
+            <dd>{{ certificate_id }}</dd>
+        </div>
+        <div class="certificate-verification__row">
+            <dt>Certificate status</dt>
+            <dd>{{ certificate_status }}</dd>
+        </div>
+        <div class="certificate-verification__row">
             <dt>Consultant</dt>
             <dd>{{ consultant.full_name }}</dd>
         </div>
@@ -20,12 +28,10 @@
             <dt>Issued on</dt>
             <dd>{% if issued_on %}{{ issued_on|date:"j F Y" }}{% else %}Not available{% endif %}</dd>
         </div>
-        {% if expires_on %}
         <div class="certificate-verification__row">
             <dt>Valid until</dt>
-            <dd>{{ expires_on|date:"j F Y" }}</dd>
+            <dd>{% if expires_on %}{{ expires_on|date:"j F Y" }}{% else %}Not available{% endif %}</dd>
         </div>
-        {% endif %}
         {% if consultant.registration_number %}
         <div class="certificate-verification__row">
             <dt>Registration number</dt>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from io import BytesIO
 
 import pytest
@@ -126,6 +127,48 @@ def test_verify_certificate_view_success(client, consultant_with_certificate):
     assert response.status_code == 200
     assert response.context["verified"] is True
     assert response.context["consultant"] == consultant
+    assert response.context["certificate_id"] == str(consultant.certificate_uuid)
+    assert response.context["certificate_status"] == "VALID"
+    assert response.context["issued_on"] == consultant.certificate_generated_at.date()
+    assert response.context["expires_on"] == consultant.certificate_expires_at
+
+
+@pytest.mark.django_db
+def test_verify_certificate_view_marks_expired_certificate(client, consultant_with_certificate):
+    consultant = consultant_with_certificate
+    consultant.certificate_expires_at = timezone.localdate() - timedelta(days=1)
+    consultant.save(update_fields=["certificate_expires_at"])
+
+    token = build_certificate_token(consultant)
+    url = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": consultant.certificate_uuid},
+    )
+    response = client.get(url, {"token": token})
+
+    assert response.status_code == 200
+    assert response.context["verified"] is True
+    assert response.context["certificate_status"] == "EXPIRED"
+    assert response.context["expires_on"] == consultant.certificate_expires_at
+
+
+@pytest.mark.django_db
+def test_verify_certificate_view_marks_revoked_certificate(client, consultant_with_certificate):
+    consultant = consultant_with_certificate
+    consultant.status = "rejected"
+    consultant.certificate_expires_at = timezone.localdate() + timedelta(days=10)
+    consultant.save(update_fields=["status", "certificate_expires_at"])
+
+    token = build_certificate_token(consultant)
+    url = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": consultant.certificate_uuid},
+    )
+    response = client.get(url, {"token": token})
+
+    assert response.status_code == 200
+    assert response.context["verified"] is True
+    assert response.context["certificate_status"] == "REVOKED"
 
 
 @pytest.mark.django_db

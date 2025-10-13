@@ -11,6 +11,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
 
@@ -183,6 +184,16 @@ def verify_certificate(request, certificate_uuid: UUID):
     verified = False
     status_code = 200
 
+    certificate_id = str(consultant.certificate_uuid)
+    expires_on = consultant.certificate_expires_at
+
+    if consultant.status != Consultant.Status.APPROVED:
+        certificate_status = "REVOKED"
+    elif expires_on and expires_on < timezone.localdate():
+        certificate_status = "EXPIRED"
+    else:
+        certificate_status = "VALID"
+
     if not consultant.certificate_pdf or not consultant.certificate_generated_at:
         verification_error = "No active certificate found for this consultant."
         status_code = 404
@@ -201,9 +212,11 @@ def verify_certificate(request, certificate_uuid: UUID):
     context = {
         "consultant": consultant,
         "issued_on": issued_on,
-        "expires_on": consultant.certificate_expires_at,
+        "expires_on": expires_on,
         "verified": verified,
         "verification_error": verification_error,
+        "certificate_id": certificate_id,
+        "certificate_status": certificate_status,
     }
 
     return render(
