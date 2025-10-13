@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -64,6 +65,22 @@ class Consultant(models.Model):
     staff_comment = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user",),
+                name="consultants_unique_application_per_user",
+            ),
+            models.UniqueConstraint(
+                fields=("id_number",),
+                name="consultants_unique_id_number",
+            ),
+            models.UniqueConstraint(
+                fields=("email", "nationality"),
+                name="consultants_unique_email_per_nationality",
+            ),
+        ]
+
     def __str__(self):
         return f"{self.full_name} ({self.status})"
 
@@ -87,7 +104,9 @@ class Notification(models.Model):
         choices=NotificationType.choices,
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    delivered_at = models.DateTimeField(default=timezone.now, editable=False)
     is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(blank=True, null=True)
     audit_log = models.ForeignKey(
         "users.AuditLog",
         on_delete=models.SET_NULL,

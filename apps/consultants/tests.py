@@ -340,6 +340,84 @@ class AutoSaveDraftViewTests(TestCase):
         self.assertEqual(self.consultant.registration_number, 'REG-001')
         self.assertEqual(self.consultant.status, 'draft')
 
+    def test_autosave_rejects_invalid_date(self):
+        url = reverse('autosave_consultant_draft')
+        payload = {'dob': 'not-a-date'}
+
+        response = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body['status'], 'error')
+        self.assertIn('dob', body['errors'])
+        self.consultant.refresh_from_db()
+        self.assertEqual(self.consultant.dob, date(1985, 7, 1))
+
+    def test_autosave_returns_unchanged_when_payload_empty(self):
+        url = reverse('autosave_consultant_draft')
+
+        response = self.client.post(
+            url,
+            data=json.dumps({}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['status'], 'unchanged')
+        self.assertIn('timestamp', body)
+
+
+class AutoSaveDraftCreationTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user('autosave-new', password='password123')
+        consultant_group, _ = Group.objects.get_or_create(name=CONSULTANTS_GROUP_NAME)
+        self.user.groups.add(consultant_group)
+        self.client.force_login(self.user)
+
+    def test_autosave_requires_minimum_fields_for_new_consultant(self):
+        url = reverse('autosave_consultant_draft')
+
+        response = self.client.post(
+            url,
+            data=json.dumps({'full_name': '  '}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['status'], 'skipped')
+        self.assertIn('Provide your personal and contact details', body['message'])
+
+    def test_autosave_creates_consultant_when_required_fields_present(self):
+        url = reverse('autosave_consultant_draft')
+        payload = {
+            'full_name': 'New User',
+            'id_number': 'ID000111',
+            'dob': '1990-01-02',
+            'gender': 'F',
+            'nationality': 'Exampleland',
+            'email': 'new@example.com',
+            'phone_number': '0700000001',
+            'business_name': 'New Biz',
+        }
+
+        response = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['status'], 'saved')
+        self.assertTrue(Consultant.objects.filter(user=self.user).exists())
+
 
 class NotificationViewsTests(TestCase):
     def setUp(self):
@@ -354,6 +432,8 @@ class NotificationViewsTests(TestCase):
             message='Test notification',
             notification_type=Notification.NotificationType.APPROVED,
         )
+        self.assertIsNotNone(self.notification.delivered_at)
+        self.assertIsNone(self.notification.read_at)
 
     def test_mark_notification_read_marks_as_read(self):
         response = self.client.post(
@@ -364,6 +444,7 @@ class NotificationViewsTests(TestCase):
         self.assertRedirects(response, reverse('dashboard'))
         self.notification.refresh_from_db()
         self.assertTrue(self.notification.is_read)
+        self.assertIsNotNone(self.notification.read_at)
 
     def test_mark_notification_read_is_scoped_to_owner(self):
         other_user = self.user_model.objects.create_user('other', password='pass123456')

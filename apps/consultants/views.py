@@ -9,7 +9,7 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 from django.urls import reverse
 
-from .emails import send_submission_confirmation_email
+from .tasks import send_submission_confirmation_email_task
 from .forms import ConsultantForm
 from .models import Consultant, Notification
 from apps.users.constants import UserRole as Roles
@@ -69,7 +69,7 @@ def submit_application(request):
 
             if is_submission:
                 try:
-                    send_submission_confirmation_email(consultant)
+                    send_submission_confirmation_email_task.delay(consultant.pk)
                 except Exception:
                     messages.warning(
                         request,
@@ -211,7 +211,8 @@ def mark_notification_read(request, notification_id: int):
 
     if not notification.is_read:
         notification.is_read = True
-        notification.save(update_fields=["is_read"])
+        notification.read_at = timezone.now()
+        notification.save(update_fields=["is_read", "read_at"])
 
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or reverse("dashboard")
     return redirect(next_url)

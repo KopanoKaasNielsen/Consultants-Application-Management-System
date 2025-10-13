@@ -59,17 +59,18 @@ def consultant_form_files(**overrides):
 
 
 def create_consultant_instance(user, **overrides):
+    counter = Consultant.objects.count()
     defaults = {
         "user": user,
-        "full_name": "Existing Consultant",
-        "id_number": "ID987654",
+        "full_name": f"Existing Consultant {counter}",
+        "id_number": f"ID987654-{counter}",
         "dob": date(1985, 5, 1),
         "gender": "M",
         "nationality": "Testland",
-        "email": "existing@example.com",
+        "email": f"existing{counter}@example.com",
         "phone_number": "+1987654321",
-        "business_name": "Existing Consulting Ltd",
-        "registration_number": "REG999",
+        "business_name": f"Existing Consulting Ltd {counter}",
+        "registration_number": f"REG999-{counter}",
     }
     defaults.update(overrides)
     return Consultant.objects.create(**defaults)
