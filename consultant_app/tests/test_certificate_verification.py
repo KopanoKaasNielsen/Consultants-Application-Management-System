@@ -12,6 +12,7 @@ from django.utils import timezone
 from PIL import Image
 
 from apps.consultants.models import Consultant
+from consultant_app.models import Certificate
 from consultant_app.certificates import (
     CertificateTokenError,
     build_certificate_token,
@@ -52,6 +53,14 @@ def consultant_with_certificate(db):
     )
     consultant.certificate_pdf.save(
         "certificate.pdf", ContentFile(b"%PDF-1.4"), save=True
+    )
+
+    Certificate.objects.create(
+        consultant=consultant,
+        status=Certificate.Status.VALID,
+        issued_at=consultant.certificate_generated_at,
+        status_set_at=consultant.certificate_generated_at,
+        valid_at=consultant.certificate_generated_at,
     )
 
     consultant.refresh_from_db()
@@ -138,8 +147,14 @@ def test_verify_certificate_view_marks_expired_certificate(client, consultant_wi
     consultant = consultant_with_certificate
     consultant.certificate_expires_at = timezone.localdate() - timedelta(days=1)
     consultant.save(update_fields=["certificate_expires_at"])
-
     token = build_certificate_token(consultant)
+    certificate = Certificate.objects.latest_for_consultant(consultant)
+    certificate.mark_status(
+        Certificate.Status.EXPIRED,
+        timestamp=timezone.now(),
+        reason="Expired automatically",
+    )
+
     url = reverse(
         "consultant-certificate-verify",
         kwargs={"certificate_uuid": consultant.certificate_uuid},
@@ -155,11 +170,16 @@ def test_verify_certificate_view_marks_expired_certificate(client, consultant_wi
 @pytest.mark.django_db
 def test_verify_certificate_view_marks_revoked_certificate(client, consultant_with_certificate):
     consultant = consultant_with_certificate
-    consultant.status = "rejected"
     consultant.certificate_expires_at = timezone.localdate() + timedelta(days=10)
-    consultant.save(update_fields=["status", "certificate_expires_at"])
-
+    consultant.save(update_fields=["certificate_expires_at"])
     token = build_certificate_token(consultant)
+    certificate = Certificate.objects.latest_for_consultant(consultant)
+    certificate.mark_status(
+        Certificate.Status.REVOKED,
+        timestamp=timezone.now(),
+        reason="Revoked for testing",
+    )
+
     url = reverse(
         "consultant-certificate-verify",
         kwargs={"certificate_uuid": consultant.certificate_uuid},

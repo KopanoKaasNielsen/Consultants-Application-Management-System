@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from apps.consultants.models import Consultant
 from apps.certificates.models import CertificateRenewal
+from consultant_app.models import Certificate
 from apps.users.constants import (
     BACKOFFICE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
@@ -57,6 +58,13 @@ class CertificatesDashboardViewTests(TestCase):
                 "certificate_expires_at",
                 "certificate_pdf",
             ]
+        )
+        Certificate.objects.create(
+            consultant=consultant,
+            status=Certificate.Status.VALID,
+            issued_at=issued_at,
+            status_set_at=issued_at,
+            valid_at=issued_at,
         )
         consultant.refresh_from_db()
         return consultant

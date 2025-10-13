@@ -9,7 +9,7 @@ from django import forms
 from django.utils import timezone
 
 from apps.consultants.models import Consultant
-from consultant_app.models import LogEntry
+from consultant_app.models import Certificate, LogEntry
 
 
 class ConsultantValidationSerializer(forms.Form):
@@ -109,6 +109,12 @@ class ConsultantDashboardSerializer:
     def data(self) -> Dict[str, Any]:
         consultant = self.consultant
         missing_documents = self._missing_documents()
+        certificate_record = Certificate.objects.latest_for_consultant(consultant)
+        certificate_status = (
+            certificate_record.status.upper()
+            if certificate_record
+            else None
+        )
 
         return {
             "id": consultant.pk,
@@ -120,6 +126,12 @@ class ConsultantDashboardSerializer:
             "updated_at": self._serialize_datetime(consultant.updated_at),
             "certificate_expires_at": self._serialize_date(
                 consultant.certificate_expires_at
+            ),
+            "certificate_status": certificate_status,
+            "certificate_status_reason": (
+                certificate_record.status_reason or None
+                if certificate_record
+                else None
             ),
             "documents": {
                 "is_complete": not missing_documents,

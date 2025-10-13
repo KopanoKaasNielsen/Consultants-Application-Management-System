@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
 
-from consultant_app.models import Consultant, LogEntry
+from consultant_app.models import Certificate, Consultant, LogEntry
 
 from apps.users.constants import UserRole
 from apps.users.permissions import user_has_role
@@ -186,15 +186,18 @@ def verify_certificate(request, certificate_uuid: UUID):
 
     certificate_id = str(consultant.certificate_uuid)
     expires_on = consultant.certificate_expires_at
+    certificate_record = Certificate.objects.latest_for_consultant(consultant)
+    certificate_status = (
+        certificate_record.status.upper()
+        if certificate_record
+        else Certificate.Status.REVOKED.upper()
+    )
 
-    if consultant.status != Consultant.Status.APPROVED:
-        certificate_status = "REVOKED"
-    elif expires_on and expires_on < timezone.localdate():
-        certificate_status = "EXPIRED"
-    else:
-        certificate_status = "VALID"
-
-    if not consultant.certificate_pdf or not consultant.certificate_generated_at:
+    if (
+        not consultant.certificate_pdf
+        or not certificate_record
+        or not certificate_record.issued_at
+    ):
         verification_error = "No active certificate found for this consultant."
         status_code = 404
     elif not token:
@@ -204,6 +207,14 @@ def verify_certificate(request, certificate_uuid: UUID):
         try:
             details = decode_certificate_metadata(token, consultant)
             issued_on = details.get("issued_on")
+            metadata = details.get("metadata")
+            if metadata:
+                matched_record = Certificate.objects.matching_issue_timestamp(
+                    consultant, metadata.issued_at
+                )
+                if matched_record:
+                    certificate_record = matched_record
+                    certificate_status = matched_record.status.upper()
             verified = True
         except CertificateTokenError as exc:
             verification_error = str(exc)
