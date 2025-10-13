@@ -44,7 +44,7 @@
     <div class="certificate-verification__status certificate-verification__status--invalid">
         ❌ Unable to verify certificate
     </div>
-    <p class="certificate-verification__message">{{ verification_error }}</p>
+    <p class="certificate-verification__message">{{ verification_error|default:"Invalid Certificate" }}</p>
     <dl class="certificate-verification__details">
         <div class="certificate-verification__row">
             <dt>Consultant</dt>

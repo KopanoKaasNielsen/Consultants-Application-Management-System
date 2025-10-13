@@ -182,7 +182,7 @@ def test_verify_certificate_view_rejects_invalid_token(client, consultant_with_c
 
     assert response.status_code == 400
     assert response.context["verified"] is False
-    assert "Invalid" in response.context["verification_error"]
+    assert response.context["verification_error"] == "Invalid Certificate"
 
 
 @pytest.mark.django_db
