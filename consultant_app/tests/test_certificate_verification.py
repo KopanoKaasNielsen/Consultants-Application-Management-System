@@ -138,6 +138,10 @@ def test_verify_certificate_view_success(client, consultant_with_certificate):
     assert response.context["consultant"] == consultant
     assert response.context["certificate_id"] == str(consultant.certificate_uuid)
     assert response.context["certificate_status"] == "VALID"
+    assert response.context["certificate_status_message"] == "Certificate verified successfully."
+    assert response.context["certificate_status_display"] == "Valid"
+    assert response.context["certificate_status_effective_at"] == consultant.certificate_generated_at
+    assert response.context["certificate_status_reason"] is None
     assert response.context["issued_on"] == consultant.certificate_generated_at.date()
     assert response.context["expires_on"] == consultant.certificate_expires_at
 
@@ -161,9 +165,12 @@ def test_verify_certificate_view_marks_expired_certificate(client, consultant_wi
     )
     response = client.get(url, {"token": token})
 
-    assert response.status_code == 200
-    assert response.context["verified"] is True
+    assert response.status_code == 410
+    assert response.context["verified"] is False
     assert response.context["certificate_status"] == "EXPIRED"
+    assert response.context["certificate_status_message"] == "This certificate has expired and can no longer be verified."
+    assert response.context["certificate_status_reason"] == "Expired automatically"
+    assert response.context["verification_error"] == "Certificate has expired."
     assert response.context["expires_on"] == consultant.certificate_expires_at
 
 
@@ -186,9 +193,37 @@ def test_verify_certificate_view_marks_revoked_certificate(client, consultant_wi
     )
     response = client.get(url, {"token": token})
 
-    assert response.status_code == 200
-    assert response.context["verified"] is True
+    assert response.status_code == 410
+    assert response.context["verified"] is False
     assert response.context["certificate_status"] == "REVOKED"
+    assert response.context["certificate_status_message"] == "This certificate has been revoked and is no longer valid."
+    assert response.context["certificate_status_reason"] == "Revoked for testing"
+    assert response.context["verification_error"] == "Certificate has been revoked."
+
+
+@pytest.mark.django_db
+def test_verify_certificate_view_handles_reissued_certificate(client, consultant_with_certificate):
+    consultant = consultant_with_certificate
+    token = build_certificate_token(consultant)
+    certificate = Certificate.objects.latest_for_consultant(consultant)
+    certificate.mark_status(
+        Certificate.Status.REISSUED,
+        timestamp=timezone.now(),
+        reason="Reissued with updated details",
+    )
+
+    url = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": consultant.certificate_uuid},
+    )
+    response = client.get(url, {"token": token})
+
+    assert response.status_code == 409
+    assert response.context["verified"] is False
+    assert response.context["certificate_status"] == "REISSUED"
+    assert response.context["certificate_status_message"] == "This certificate has been replaced by a new issue."
+    assert response.context["certificate_status_reason"] == "Reissued with updated details"
+    assert response.context["verification_error"] == "Token is no longer valid for this certificate."
 
 
 @pytest.mark.django_db
@@ -203,6 +238,7 @@ def test_verify_certificate_view_rejects_invalid_token(client, consultant_with_c
     assert response.status_code == 400
     assert response.context["verified"] is False
     assert response.context["verification_error"] == "Invalid Certificate"
+    assert response.context["certificate_status_message"] == "Invalid Certificate"
 
 
 @pytest.mark.django_db
