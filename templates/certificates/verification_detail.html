@@ -5,7 +5,7 @@
     <h1 class="certificate-verification__title">Consultant Certificate Verification</h1>
     {% if verified %}
     <div class="certificate-verification__status certificate-verification__status--valid">
-        ✅ Certificate verified successfully
+        ✅ {{ certificate_status_message }}
     </div>
     <dl class="certificate-verification__details">
         <div class="certificate-verification__row">
@@ -14,7 +14,11 @@
         </div>
         <div class="certificate-verification__row">
             <dt>Certificate status</dt>
-            <dd>{{ certificate_status }}</dd>
+            <dd>{{ certificate_status_display }} ({{ certificate_status }})</dd>
+        </div>
+        <div class="certificate-verification__row">
+            <dt>Status updated</dt>
+            <dd>{% if certificate_status_effective_at %}{{ certificate_status_effective_at|date:"j F Y H:i" }}{% else %}Not available{% endif %}</dd>
         </div>
         <div class="certificate-verification__row">
             <dt>Consultant</dt>
@@ -38,14 +42,34 @@
             <dd>{{ consultant.registration_number }}</dd>
         </div>
         {% endif %}
+        {% if certificate_status_reason %}
+        <div class="certificate-verification__row">
+            <dt>Status reason</dt>
+            <dd>{{ certificate_status_reason }}</dd>
+        </div>
+        {% endif %}
     </dl>
     <p class="certificate-verification__hint">For additional assurance please confirm that the consultant details above match the printed certificate.</p>
     {% else %}
     <div class="certificate-verification__status certificate-verification__status--invalid">
-        ❌ Unable to verify certificate
+        ❌ {% if certificate_status_message %}{{ certificate_status_message }}{% else %}Unable to verify certificate{% endif %}
     </div>
-    <p class="certificate-verification__message">{{ verification_error|default:"Invalid Certificate" }}</p>
+    <p class="certificate-verification__message">{{ verification_error|default:certificate_status_message|default:"Invalid Certificate" }}</p>
     <dl class="certificate-verification__details">
+        <div class="certificate-verification__row">
+            <dt>Certificate status</dt>
+            <dd>{{ certificate_status_display }} ({{ certificate_status }})</dd>
+        </div>
+        <div class="certificate-verification__row">
+            <dt>Status updated</dt>
+            <dd>{% if certificate_status_effective_at %}{{ certificate_status_effective_at|date:"j F Y H:i" }}{% else %}Not available{% endif %}</dd>
+        </div>
+        {% if certificate_status_reason %}
+        <div class="certificate-verification__row">
+            <dt>Status reason</dt>
+            <dd>{{ certificate_status_reason }}</dd>
+        </div>
+        {% endif %}
         <div class="certificate-verification__row">
             <dt>Consultant</dt>
             <dd>{{ consultant.full_name }}</dd>

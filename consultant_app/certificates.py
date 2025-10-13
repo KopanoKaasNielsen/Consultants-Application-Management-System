@@ -122,8 +122,15 @@ def verify_certificate_token(token: str, consultant: Consultant) -> CertificateM
     if issued_at != certificate.issued_at.isoformat():
         raise CertificateTokenError("Token is no longer valid for this certificate.")
 
-    if certificate.status == Certificate.Status.REISSUED:
-        raise CertificateTokenError("Token is no longer valid for this certificate.")
+    invalid_status_errors = {
+        Certificate.Status.REVOKED: "Certificate has been revoked.",
+        Certificate.Status.EXPIRED: "Certificate has expired.",
+        Certificate.Status.REISSUED: "Token is no longer valid for this certificate.",
+    }
+
+    error_message = invalid_status_errors.get(certificate.status)
+    if error_message:
+        raise CertificateTokenError(error_message)
 
     return CertificateMetadata(consultant_id=consultant.pk, issued_at=issued_at)
 

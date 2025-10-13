@@ -182,16 +182,45 @@ def verify_certificate(request, certificate_uuid: UUID):
     verification_error = None
     issued_on = None
     verified = False
-    status_code = 200
 
     certificate_id = str(consultant.certificate_uuid)
     expires_on = consultant.certificate_expires_at
     certificate_record = Certificate.objects.latest_for_consultant(consultant)
-    certificate_status = (
-        certificate_record.status.upper()
+    certificate_status = certificate_record.status if certificate_record else Certificate.Status.REVOKED
+    certificate_status_display = (
+        certificate_record.get_status_display()
         if certificate_record
-        else Certificate.Status.REVOKED.upper()
+        else Certificate.Status.REVOKED.label
     )
+
+    status_messages = {
+        Certificate.Status.VALID: (
+            "Certificate verified successfully.",
+            200,
+        ),
+        Certificate.Status.REVOKED: (
+            "This certificate has been revoked and is no longer valid.",
+            410,
+        ),
+        Certificate.Status.EXPIRED: (
+            "This certificate has expired and can no longer be verified.",
+            410,
+        ),
+        Certificate.Status.REISSUED: (
+            "This certificate has been replaced by a new issue.",
+            409,
+        ),
+    }
+
+    status_message, status_code = status_messages.get(
+        certificate_status,
+        ("Certificate status is unavailable.", 404),
+    )
+
+    status_effective_at = (
+        certificate_record.status_set_at if certificate_record else None
+    )
+    status_reason = certificate_record.status_reason if certificate_record else ""
 
     if (
         not consultant.certificate_pdf
@@ -214,11 +243,26 @@ def verify_certificate(request, certificate_uuid: UUID):
                 )
                 if matched_record:
                     certificate_record = matched_record
-                    certificate_status = matched_record.status.upper()
-            verified = True
+                    certificate_status = matched_record.status
+                    certificate_status_display = matched_record.get_status_display()
+                    status_message, status_code = status_messages.get(
+                        certificate_status,
+                        ("Certificate status is unavailable.", 404),
+                    )
+                    status_effective_at = matched_record.status_set_at
+                    status_reason = matched_record.status_reason
+
+            if certificate_status == Certificate.Status.VALID:
+                verified = True
+            else:
+                verification_error = status_message
         except CertificateTokenError as exc:
             verification_error = str(exc)
-            status_code = 400
+            if certificate_status == Certificate.Status.VALID:
+                status_code = 400
+
+    if verification_error and certificate_status == Certificate.Status.VALID:
+        status_message = verification_error
 
     context = {
         "consultant": consultant,
@@ -227,7 +271,11 @@ def verify_certificate(request, certificate_uuid: UUID):
         "verified": verified,
         "verification_error": verification_error,
         "certificate_id": certificate_id,
-        "certificate_status": certificate_status,
+        "certificate_status": certificate_status.upper(),
+        "certificate_status_display": certificate_status_display,
+        "certificate_status_message": status_message,
+        "certificate_status_effective_at": status_effective_at,
+        "certificate_status_reason": status_reason or None,
     }
 
     return render(
