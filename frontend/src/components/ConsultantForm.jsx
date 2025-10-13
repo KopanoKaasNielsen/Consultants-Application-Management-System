@@ -46,7 +46,7 @@ export async function checkConsultantUniqueness({
   return {};
 }
 
-export default function ConsultantForm({ onSubmit, consultantId }) {
+export default function ConsultantForm({ onSubmit, onSaveDraft, consultantId }) {
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -55,7 +55,7 @@ export default function ConsultantForm({ onSubmit, consultantId }) {
     registration_number: '',
   });
   const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -71,29 +71,40 @@ export default function ConsultantForm({ onSubmit, consultantId }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setIsSubmitting(true);
 
-    const uniquenessErrors = await checkConsultantUniqueness({
-      email: formData.email,
-      id_number: formData.id_number,
-      registration_number: formData.registration_number,
-      nationality: formData.nationality,
-      consultantId,
-    });
+    const submitter = event.nativeEvent?.submitter;
+    const action = submitter?.value === 'draft' ? 'draft' : 'submit';
+    const isDraft = action === 'draft';
 
-    if (Object.keys(uniquenessErrors).length > 0) {
-      setErrors(uniquenessErrors);
-      setIsSubmitting(false);
-      return;
+    setPendingAction(action);
+
+    try {
+      if (!isDraft) {
+        const uniquenessErrors = await checkConsultantUniqueness({
+          email: formData.email,
+          id_number: formData.id_number,
+          registration_number: formData.registration_number,
+          nationality: formData.nationality,
+          consultantId,
+        });
+
+        if (Object.keys(uniquenessErrors).length > 0) {
+          setErrors(uniquenessErrors);
+          setPendingAction(null);
+          return;
+        }
+      }
+
+      setErrors({});
+
+      if (isDraft && onSaveDraft) {
+        await onSaveDraft(formData, { isDraft });
+      } else if (onSubmit) {
+        await onSubmit(formData, { isDraft });
+      }
+    } finally {
+      setPendingAction(null);
     }
-
-    setErrors({});
-
-    if (onSubmit) {
-      await onSubmit(formData);
-    }
-
-    setIsSubmitting(false);
   };
 
   return (
@@ -160,9 +171,25 @@ export default function ConsultantForm({ onSubmit, consultantId }) {
         )}
       </div>
 
-      <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Submitting…' : 'Submit'}
-      </button>
+      <div>
+        <button
+          type="submit"
+          name="action"
+          value="draft"
+          disabled={pendingAction !== null}
+          formNoValidate
+        >
+          {pendingAction === 'draft' ? 'Saving…' : 'Save Draft'}
+        </button>
+        <button
+          type="submit"
+          name="action"
+          value="submit"
+          disabled={pendingAction !== null}
+        >
+          {pendingAction === 'submit' ? 'Submitting…' : 'Submit'}
+        </button>
+      </div>
     </form>
   );
 }

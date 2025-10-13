@@ -11,7 +11,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.core.paginator import Paginator
 from django.db.models import Q
 
-from apps.consultants.models import Consultant
+from consultant_app.models import Consultant
 
 from .serializers import (
     ConsultantDashboardSerializer,
@@ -80,7 +80,7 @@ def validate_consultant(request):
 def consultant_dashboard(request):
     """Return paginated consultant data for the staff dashboard."""
 
-    queryset = Consultant.objects.all()
+    queryset = Consultant.objects.exclude(status=Consultant.Status.DRAFT)
 
     statuses = _split_status_filter(request.GET.get("status"))
     if statuses:

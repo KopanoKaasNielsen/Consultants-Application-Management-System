@@ -169,3 +169,23 @@ def test_dashboard_reports_missing_documents(client, consultant_factory):
         "Qualifications",
         "Business certificate",
     }
+
+
+@pytest.mark.django_db
+def test_dashboard_excludes_draft_applications(client, consultant_factory):
+    """Board reviewers should not see draft applications in the listing."""
+
+    consultant_factory(status="draft", submitted_at=None)
+    visible = consultant_factory(status="submitted", submitted_at=timezone.now())
+
+    response = client.get("/api/staff/consultants/")
+
+    assert response.status_code == 200
+    payload = response.json()
+    result_ids = [item["id"] for item in payload["results"]]
+    assert result_ids == [visible.id]
+
+    # Even when filtering explicitly for draft status, no records should be returned.
+    filtered = client.get("/api/staff/consultants/", {"status": "draft"})
+    assert filtered.status_code == 200
+    assert filtered.json()["pagination"]["total_results"] == 0
