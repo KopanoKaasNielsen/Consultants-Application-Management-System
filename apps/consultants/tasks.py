@@ -38,6 +38,13 @@ def send_submission_confirmation_email_task(consultant_id: int) -> None:
         logger.warning(
             "Consultant %s disappeared before confirmation email could be sent.",
             consultant_id,
+            extra={
+                "consultant_id": consultant_id,
+                "context": {
+                    "action": "submission_confirmation_email.missing",
+                    "consultant_id": consultant_id,
+                },
+            },
         )
         return
 
@@ -56,4 +63,28 @@ def send_submission_confirmation_email_task(consultant_id: int) -> None:
         logger.exception(
             "Failed to send submission confirmation email for consultant %s",
             consultant_id,
+            extra={
+                "consultant_id": consultant_id,
+                "user_id": consultant.user_id,
+                "context": {
+                    "action": "submission_confirmation_email.error",
+                    "consultant_id": consultant_id,
+                    "user_id": consultant.user_id,
+                },
+            },
         )
+        return
+
+    logger.info(
+        "Submission confirmation email sent for consultant %s",
+        consultant_id,
+        extra={
+            "consultant_id": consultant_id,
+            "user_id": consultant.user_id,
+            "context": {
+                "action": "submission_confirmation_email.sent",
+                "consultant_id": consultant_id,
+                "user_id": consultant.user_id,
+            },
+        },
+    )

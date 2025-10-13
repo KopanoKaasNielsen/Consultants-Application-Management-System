@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 import mimetypes
 from datetime import date
 from io import BytesIO
@@ -41,6 +42,9 @@ from apps.users.permissions import role_required, user_has_role
 from apps.users.audit import log_audit_event
 from apps.users.models import AuditLog
 from apps.users.reports import build_report_context, generate_analytics_report
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_distinct_consultant_types() -> List[str]:
@@ -573,6 +577,29 @@ def staff_dashboard(request):
             consultant.staff_comment = request.POST.get("comment", "").strip()
             consultant.save(update_fields=["status", "staff_comment"])
 
+            log_context = {
+                "action": f"staff_dashboard.{action}",
+                "consultant_id": consultant.pk,
+                "actor": {
+                    "id": request.user.pk,
+                    "email": request.user.email,
+                },
+                "previous_status": previous_status,
+                "new_status": consultant.status,
+                "comment_provided": bool(consultant.staff_comment),
+            }
+            logger.info(
+                "Staff user %s set consultant %s status to %s",
+                request.user.pk,
+                consultant.pk,
+                consultant.status,
+                extra={
+                    "user_id": request.user.pk,
+                    "consultant_id": consultant.pk,
+                    "context": log_context,
+                },
+            )
+
             if action == "approved":
                 action_type = AuditLog.ActionType.APPROVE_APPLICATION
             elif action == "rejected":
@@ -610,6 +637,7 @@ def staff_dashboard(request):
                 else:
                     notification_message = "A staff member left a comment on your application."
 
+            notification = None
             if notification_type:
                 notification_kwargs = {
                     "recipient": consultant.user,
@@ -618,7 +646,25 @@ def staff_dashboard(request):
                 }
                 if audit_log is not None:
                     notification_kwargs["audit_log"] = audit_log
-                Notification.objects.create(**notification_kwargs)
+                notification = Notification.objects.create(**notification_kwargs)
+
+            if notification is not None:
+                logger.info(
+                    "Notification %s dispatched for consultant %s",
+                    notification.pk,
+                    consultant.pk,
+                    extra={
+                        "user_id": request.user.pk,
+                        "consultant_id": consultant.pk,
+                        "context": {
+                            "action": "notification.dispatch",
+                            "consultant_id": consultant.pk,
+                            "notification_id": notification.pk,
+                            "notification_type": notification.notification_type,
+                            "actor_id": request.user.pk,
+                        },
+                    },
+                )
 
             if action in {"approved", "rejected"}:
                 try:

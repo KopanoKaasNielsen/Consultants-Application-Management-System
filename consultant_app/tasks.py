@@ -65,11 +65,27 @@ def send_confirmation_email(self, consultant_identifier: Any) -> None:
         logger.warning(
             "Consultant %s could not be found for confirmation email.",
             consultant_identifier,
+            extra={
+                "context": {
+                    "action": "consultant_app.confirmation_email.missing",
+                    "identifier": consultant_identifier,
+                },
+            },
         )
         return None
 
     logger.info(
-        "Dispatching confirmation email for consultant %s", consultant.pk
+        "Dispatching confirmation email for consultant %s",
+        consultant.pk,
+        extra={
+            "consultant_id": consultant.pk,
+            "user_id": consultant.user_id,
+            "context": {
+                "action": "consultant_app.confirmation_email.dispatch",
+                "consultant_id": consultant.pk,
+                "user_id": consultant.user_id,
+            },
+        },
     )
 
     try:
@@ -78,10 +94,31 @@ def send_confirmation_email(self, consultant_identifier: Any) -> None:
         logger.exception(
             "Failed to send confirmation email for consultant %s",
             consultant.pk,
+            extra={
+                "consultant_id": consultant.pk,
+                "user_id": consultant.user_id,
+                "context": {
+                    "action": "consultant_app.confirmation_email.error",
+                    "consultant_id": consultant.pk,
+                    "user_id": consultant.user_id,
+                },
+            },
         )
         raise
 
-    logger.info("Sent confirmation email for consultant %s", consultant.pk)
+    logger.info(
+        "Sent confirmation email for consultant %s",
+        consultant.pk,
+        extra={
+            "consultant_id": consultant.pk,
+            "user_id": consultant.user_id,
+            "context": {
+                "action": "consultant_app.confirmation_email.sent",
+                "consultant_id": consultant.pk,
+                "user_id": consultant.user_id,
+            },
+        },
+    )
 
 
 __all__ = ["celery_app", "send_confirmation_email"]

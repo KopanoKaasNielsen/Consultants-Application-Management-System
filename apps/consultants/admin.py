@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Consultant, Notification
+from .models import Consultant, LogEntry, Notification
 
 @admin.register(Consultant)
 class ConsultantAdmin(admin.ModelAdmin):
@@ -19,3 +19,12 @@ class NotificationAdmin(admin.ModelAdmin):
     )
     list_filter = ("notification_type", "is_read")
     search_fields = ("recipient__username", "message")
+
+
+@admin.register(LogEntry)
+class LogEntryAdmin(admin.ModelAdmin):
+    list_display = ("timestamp", "level", "logger_name", "user", "message")
+    list_filter = ("timestamp", "level", "user")
+    search_fields = ("message", "logger_name", "context")
+    date_hierarchy = "timestamp"
+    readonly_fields = ("timestamp", "level", "logger_name", "message", "context", "user")

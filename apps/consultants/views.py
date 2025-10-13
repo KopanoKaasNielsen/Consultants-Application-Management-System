@@ -1,4 +1,5 @@
 import json
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -14,6 +15,9 @@ from .forms import ConsultantForm
 from .models import Consultant, Notification
 from apps.users.constants import UserRole as Roles
 from apps.users.permissions import role_required
+
+
+logger = logging.getLogger(__name__)
 
 
 AUTO_SAVE_FIELDS = [
@@ -66,6 +70,26 @@ def submit_application(request):
                 consultant.status = 'draft'
 
             consultant.save()
+
+            log_context = {
+                "action": "submit_application" if is_submission else "save_draft",
+                "consultant_id": consultant.pk,
+                "status": consultant.status,
+                "actor": {
+                    "id": request.user.pk,
+                    "email": request.user.email,
+                },
+            }
+            logger.info(
+                "Consultant %s %s their application",
+                consultant.pk,
+                "submitted" if is_submission else "saved",
+                extra={
+                    "user_id": request.user.pk,
+                    "consultant_id": consultant.pk,
+                    "context": log_context,
+                },
+            )
 
             if is_submission:
                 try:

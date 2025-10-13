@@ -5,16 +5,21 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Iterable, List
 
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import JsonResponse
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
-from django.core.paginator import Paginator
-from django.db.models import Q
 
-from consultant_app.models import Consultant
+from consultant_app.models import Consultant, LogEntry
+
+from apps.users.constants import UserRole
+from apps.users.permissions import user_has_role
 
 from .serializers import (
     ConsultantDashboardSerializer,
+    LogEntrySerializer,
     ConsultantValidationSerializer,
 )
 
@@ -74,6 +79,10 @@ def validate_consultant(request):
 
     errors = _flatten_errors(serializer.errors)
     return JsonResponse({"errors": errors}, status=400)
+
+
+def _user_is_staff(user) -> bool:
+    return user_has_role(user, UserRole.STAFF) or getattr(user, "is_superuser", False)
 
 
 @require_GET
@@ -154,6 +163,68 @@ def consultant_dashboard(request):
                 "date_to": date_to.isoformat() if date_to else None,
                 "search": search_query or None,
                 "sort": applied_sort,
+            },
+        }
+    )
+
+
+@login_required
+@require_GET
+def log_entries(request):
+    """Return paginated structured log entries for authorised staff."""
+
+    if not _user_is_staff(request.user):
+        return JsonResponse({"detail": "Forbidden"}, status=403)
+
+    queryset = LogEntry.objects.select_related("user").all()
+
+    level = (request.GET.get("level") or "").strip().upper()
+    if level:
+        queryset = queryset.filter(level=level)
+
+    logger_name = (request.GET.get("logger") or "").strip()
+    if logger_name:
+        queryset = queryset.filter(logger_name__icontains=logger_name)
+
+    user_id = request.GET.get("user_id")
+    if user_id and user_id.isdigit():
+        queryset = queryset.filter(user_id=int(user_id))
+
+    action = (request.GET.get("action") or "").strip()
+    if action:
+        queryset = queryset.filter(context__action=action)
+
+    search_query = (request.GET.get("search") or "").strip()
+    if search_query:
+        queryset = queryset.filter(message__icontains=search_query)
+
+    queryset = queryset.order_by("-timestamp", "-id")
+
+    page = _parse_int(request.GET.get("page"), 1)
+    page_size = min(_parse_int(request.GET.get("page_size"), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE)
+
+    paginator = Paginator(queryset, page_size)
+    page_obj = paginator.get_page(page)
+
+    results = [LogEntrySerializer(entry).data for entry in page_obj.object_list]
+
+    return JsonResponse(
+        {
+            "results": results,
+            "pagination": {
+                "page": page_obj.number,
+                "page_size": page_obj.paginator.per_page,
+                "total_pages": page_obj.paginator.num_pages,
+                "total_results": page_obj.paginator.count,
+                "has_next": page_obj.has_next(),
+                "has_previous": page_obj.has_previous(),
+            },
+            "applied_filters": {
+                "level": level or None,
+                "logger": logger_name or None,
+                "user_id": int(user_id) if user_id and user_id.isdigit() else None,
+                "action": action or None,
+                "search": search_query or None,
             },
         }
     )

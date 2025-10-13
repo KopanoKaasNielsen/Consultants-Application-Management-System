@@ -121,3 +121,34 @@ class Notification(models.Model):
     def __str__(self):  # pragma: no cover - human readable representation
         return f"Notification to {self.recipient} - {self.notification_type}"
 
+
+class LogEntry(models.Model):
+    """Persisted application log record for staff observability."""
+
+    LEVEL_CHOICES = [
+        ("DEBUG", "Debug"),
+        ("INFO", "Info"),
+        ("WARNING", "Warning"),
+        ("ERROR", "Error"),
+        ("CRITICAL", "Critical"),
+    ]
+
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    logger_name = models.CharField(max_length=255, db_index=True)
+    level = models.CharField(max_length=16, choices=LEVEL_CHOICES)
+    message = models.TextField()
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="consultant_logs",
+    )
+    context = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        ordering = ("-timestamp", "-id")
+
+    def __str__(self) -> str:  # pragma: no cover - human readable representation
+        return f"[{self.level}] {self.logger_name}: {self.message[:75]}"
+
