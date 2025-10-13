@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
 
@@ -22,6 +23,7 @@ from .serializers import (
     LogEntrySerializer,
     ConsultantValidationSerializer,
 )
+from .certificates import CertificateTokenError, decode_certificate_metadata
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
@@ -165,6 +167,49 @@ def consultant_dashboard(request):
                 "sort": applied_sort,
             },
         }
+    )
+
+
+@require_GET
+def verify_certificate(request, certificate_id: int):
+    """Render a public verification page for consultant certificates."""
+
+    consultant = get_object_or_404(Consultant, pk=certificate_id)
+
+    token = request.GET.get("token", "")
+    verification_error = None
+    issued_on = None
+    verified = False
+    status_code = 200
+
+    if not consultant.certificate_pdf or not consultant.certificate_generated_at:
+        verification_error = "No active certificate found for this consultant."
+        status_code = 404
+    elif not token:
+        verification_error = "Verification token is required."
+        status_code = 400
+    else:
+        try:
+            details = decode_certificate_metadata(token, consultant)
+            issued_on = details.get("issued_on")
+            verified = True
+        except CertificateTokenError as exc:
+            verification_error = str(exc)
+            status_code = 400
+
+    context = {
+        "consultant": consultant,
+        "issued_on": issued_on,
+        "expires_on": consultant.certificate_expires_at,
+        "verified": verified,
+        "verification_error": verification_error,
+    }
+
+    return render(
+        request,
+        "certificates/verification_detail.html",
+        context,
+        status=status_code,
     )
 
 
