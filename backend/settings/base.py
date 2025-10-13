@@ -12,6 +12,8 @@ import dj_database_url
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
+from consultant_app import settings as consultant_celery_settings
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -81,6 +83,7 @@ def init_sentry() -> None:
 
 INSTALLED_APPS = [
     'channels',
+    'consultant_app',
     'apps.consultants',
     'apps.vetting',
     'apps.decisions',
@@ -203,6 +206,25 @@ EMAIL_USE_SSL = get_env_bool("EMAIL_USE_SSL", False)
 DEFAULT_FROM_EMAIL = os.getenv(
     "DEFAULT_FROM_EMAIL", "no-reply@consultant-management.local"
 )
+
+
+# Celery configuration shared with the worker process.
+CELERY_BROKER_URL = consultant_celery_settings.CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = consultant_celery_settings.CELERY_RESULT_BACKEND
+CELERY_TASK_DEFAULT_QUEUE = consultant_celery_settings.CELERY_TASK_DEFAULT_QUEUE
+CELERY_TASK_DEFAULT_EXCHANGE = consultant_celery_settings.CELERY_TASK_DEFAULT_EXCHANGE
+CELERY_TASK_DEFAULT_ROUTING_KEY = (
+    consultant_celery_settings.CELERY_TASK_DEFAULT_ROUTING_KEY
+)
+CELERY_TASK_ALWAYS_EAGER = consultant_celery_settings.CELERY_TASK_ALWAYS_EAGER
+CELERY_TASK_EAGER_PROPAGATES = (
+    consultant_celery_settings.CELERY_TASK_EAGER_PROPAGATES
+)
+CELERY_TASK_ACKS_LATE = consultant_celery_settings.CELERY_TASK_ACKS_LATE
+CELERY_TASK_SOFT_TIME_LIMIT = (
+    consultant_celery_settings.CELERY_TASK_SOFT_TIME_LIMIT
+)
+CELERY_TASK_TIME_LIMIT = consultant_celery_settings.CELERY_TASK_TIME_LIMIT
 
 
 # Weekly analytics email scheduling (every Monday at 08:00 UTC).
