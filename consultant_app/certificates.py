@@ -99,7 +99,10 @@ def build_verification_url(consultant: Consultant) -> str:
     """Return the URL embedded in the QR code for certificate verification."""
 
     token = build_certificate_token(consultant)
-    path = reverse("consultant-certificate-verify", args=[consultant.pk])
+    path = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": consultant.certificate_uuid},
+    )
 
     base_url = getattr(settings, "CERTIFICATE_VERIFY_BASE_URL", "")
     if base_url:
