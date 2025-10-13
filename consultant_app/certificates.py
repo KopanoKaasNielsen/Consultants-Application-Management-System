@@ -1,6 +1,7 @@
 """Helpers for generating and validating consultant certificates."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO
@@ -26,6 +27,8 @@ QR_SIZE: Final = 420
 QR_MARGIN_BOTTOM: Final = 180
 
 _TOKEN_SALT: Final = "consultant_app.certificates.token"
+
+logger = logging.getLogger(__name__)
 
 
 class CertificateTokenError(Exception):
@@ -80,7 +83,10 @@ def verify_certificate_token(token: str, consultant: Consultant) -> CertificateM
     try:
         payload = signing.loads(token, salt=_TOKEN_SALT)
     except signing.BadSignature as exc:
-        raise CertificateTokenError("Invalid or tampered verification token.") from exc
+        logger.warning(
+            "Invalid certificate token provided for consultant %s", consultant.pk, exc_info=exc
+        )
+        raise CertificateTokenError("Invalid Certificate") from exc
 
     if payload.get("consultant_id") != consultant.pk:
         raise CertificateTokenError("Token does not match the requested certificate.")
