@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
@@ -55,6 +57,7 @@ class Consultant(models.Model):
     certificate_pdf = models.FileField(upload_to='documents/decision_certificates/', blank=True, null=True)
     certificate_generated_at = models.DateTimeField(blank=True, null=True)
     certificate_expires_at = models.DateField(blank=True, null=True)
+    certificate_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     rejection_letter = models.FileField(upload_to='documents/rejection_letters/', blank=True, null=True)
     rejection_letter_generated_at = models.DateTimeField(blank=True, null=True)
 

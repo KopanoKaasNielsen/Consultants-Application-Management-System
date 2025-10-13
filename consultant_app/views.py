@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, Iterable, List
+from uuid import UUID
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -171,10 +172,10 @@ def consultant_dashboard(request):
 
 
 @require_GET
-def verify_certificate(request, certificate_id: int):
+def verify_certificate(request, certificate_uuid: UUID):
     """Render a public verification page for consultant certificates."""
 
-    consultant = get_object_or_404(Consultant, pk=certificate_id)
+    consultant = get_object_or_404(Consultant, certificate_uuid=certificate_uuid)
 
     token = request.GET.get("token", "")
     verification_error = None

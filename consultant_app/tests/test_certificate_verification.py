@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from io import BytesIO
 
 import pytest
@@ -13,6 +14,7 @@ from apps.consultants.models import Consultant
 from consultant_app.certificates import (
     CertificateTokenError,
     build_certificate_token,
+    build_verification_url,
     verify_certificate_token,
 )
 from utils.qr_generator import generate_qr_code
@@ -52,6 +54,7 @@ def consultant_with_certificate(db):
     )
 
     consultant.refresh_from_db()
+    assert consultant.certificate_uuid is not None
     return consultant
 
 
@@ -101,11 +104,23 @@ def test_certificate_token_invalid_for_other_consultant(consultant_with_certific
 
 
 @pytest.mark.django_db
+def test_build_verification_url_includes_uuid(consultant_with_certificate):
+    consultant = consultant_with_certificate
+
+    url = build_verification_url(consultant)
+
+    assert str(consultant.certificate_uuid) in url
+
+
+@pytest.mark.django_db
 def test_verify_certificate_view_success(client, consultant_with_certificate):
     consultant = consultant_with_certificate
     token = build_certificate_token(consultant)
 
-    url = reverse("consultant-certificate-verify", args=[consultant.pk])
+    url = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": consultant.certificate_uuid},
+    )
     response = client.get(url, {"token": token})
 
     assert response.status_code == 200
@@ -116,7 +131,10 @@ def test_verify_certificate_view_success(client, consultant_with_certificate):
 @pytest.mark.django_db
 def test_verify_certificate_view_rejects_invalid_token(client, consultant_with_certificate):
     consultant = consultant_with_certificate
-    url = reverse("consultant-certificate-verify", args=[consultant.pk])
+    url = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": consultant.certificate_uuid},
+    )
     response = client.get(url, {"token": "invalid-token"})
 
     assert response.status_code == 400
@@ -130,8 +148,25 @@ def test_verify_certificate_view_handles_missing_certificate(client, consultant_
     consultant.certificate_pdf.delete(save=True)
     consultant.refresh_from_db()
 
-    url = reverse("consultant-certificate-verify", args=[consultant.pk])
+    url = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": consultant.certificate_uuid},
+    )
     response = client.get(url, {"token": "anything"})
 
     assert response.status_code == 404
     assert response.context["verified"] is False
+
+
+@pytest.mark.django_db
+def test_verify_certificate_view_uses_uuid_lookup(client, consultant_with_certificate):
+    _ = consultant_with_certificate  # ensure fixture creates consultant
+    random_uuid = uuid.uuid4()
+
+    url = reverse(
+        "consultant-certificate-verify",
+        kwargs={"certificate_uuid": random_uuid},
+    )
+    response = client.get(url)
+
+    assert response.status_code == 404
