@@ -9,6 +9,7 @@ from django import forms
 from django.utils import timezone
 
 from apps.consultants.models import Consultant
+from consultant_app.models import LogEntry
 
 
 class ConsultantValidationSerializer(forms.Form):
@@ -124,4 +125,39 @@ class ConsultantDashboardSerializer:
                 "is_complete": not missing_documents,
                 "missing": missing_documents,
             },
+        }
+
+
+class LogEntrySerializer:
+    """Serialize ``LogEntry`` instances for the staff activity feed."""
+
+    def __init__(self, entry: LogEntry):
+        self.entry = entry
+
+    def _serialize_timestamp(self):
+        timestamp = self.entry.timestamp
+        if timezone.is_aware(timestamp):
+            timestamp = timezone.localtime(timestamp)
+        return timestamp.isoformat()
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        entry = self.entry
+        user_payload: Dict[str, Any] | None = None
+        if entry.user_id:
+            user = entry.user
+            user_payload = {
+                "id": entry.user_id,
+                "username": user.get_username() if user else None,
+                "email": getattr(user, "email", None) if user else None,
+            }
+
+        return {
+            "id": entry.pk,
+            "timestamp": self._serialize_timestamp(),
+            "logger": entry.logger_name,
+            "level": entry.level,
+            "message": entry.message,
+            "user": user_payload,
+            "context": entry.context or {},
         }

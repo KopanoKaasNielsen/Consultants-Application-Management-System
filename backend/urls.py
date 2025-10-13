@@ -19,7 +19,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from consultant_app.views import consultant_dashboard, validate_consultant
+from consultant_app.views import consultant_dashboard, log_entries, validate_consultant
 
 from .health import database_health_view, health_view
 
@@ -37,6 +37,11 @@ urlpatterns = [
         'api/staff/consultants/',
         consultant_dashboard,
         name='consultant-dashboard',
+    ),
+    path(
+        'api/staff/logs/',
+        log_entries,
+        name='consultant-log-entries',
     ),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from django.db import models
 
-from apps.consultants.models import Consultant as BaseConsultant
+from apps.consultants.models import (
+    Consultant as BaseConsultant,
+    LogEntry as BaseLogEntry,
+)
 
 
 class Consultant(BaseConsultant):
@@ -22,4 +25,13 @@ class Consultant(BaseConsultant):
         verbose_name_plural = BaseConsultant._meta.verbose_name_plural  # type: ignore[attr-defined]
 
 
-__all__ = ["Consultant"]
+class LogEntry(BaseLogEntry):
+    """Proxy exposing log entries in the public API layer."""
+
+    class Meta:
+        proxy = True
+        verbose_name = BaseLogEntry._meta.verbose_name  # type: ignore[attr-defined]
+        verbose_name_plural = BaseLogEntry._meta.verbose_name_plural  # type: ignore[attr-defined]
+
+
+__all__ = ["Consultant", "LogEntry"]
