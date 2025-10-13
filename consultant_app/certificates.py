@@ -14,6 +14,7 @@ from django.urls import reverse
 from PIL import Image, ImageDraw, ImageFont
 
 from apps.consultants.models import Consultant
+from consultant_app.models import Certificate
 
 from utils.qr_generator import generate_qr_code
 
@@ -57,18 +58,36 @@ def _issued_at_to_date(value: str) -> date | None:
     return parsed.date()
 
 
+def _certificate_for_consultant(consultant: Consultant) -> Certificate | None:
+    if not consultant.certificate_generated_at:
+        return None
+
+    issued_at_iso = consultant.certificate_generated_at.isoformat()
+    certificate = Certificate.objects.matching_issue_timestamp(
+        consultant, issued_at_iso
+    )
+    if certificate:
+        return certificate
+
+    return Certificate.objects.active_for_consultant(consultant)
+
+
 def build_certificate_token(consultant: Consultant) -> str:
     """Create a signed token tied to the consultant's active certificate."""
 
     if not consultant.pk:
         raise ValueError("Consultant must be saved before issuing a certificate.")
 
-    if not consultant.certificate_generated_at:
+    certificate = _certificate_for_consultant(consultant)
+    if not certificate or not certificate.issued_at:
         raise ValueError("Certificate issue timestamp is required to build a token.")
+
+    if not certificate.is_active:
+        raise ValueError("Certificate is not currently valid.")
 
     payload = {
         "consultant_id": consultant.pk,
-        "issued_at": consultant.certificate_generated_at.isoformat(),
+        "issued_at": certificate.issued_at.isoformat(),
     }
 
     return signing.dumps(payload, salt=_TOKEN_SALT)
@@ -92,10 +111,17 @@ def verify_certificate_token(token: str, consultant: Consultant) -> CertificateM
         raise CertificateTokenError("Token does not match the requested certificate.")
 
     issued_at = payload.get("issued_at")
-    if not issued_at or not consultant.certificate_generated_at:
+    if not issued_at:
         raise CertificateTokenError("Certificate is not currently active.")
 
-    if issued_at != consultant.certificate_generated_at.isoformat():
+    certificate = Certificate.objects.matching_issue_timestamp(consultant, issued_at)
+    if not certificate or not certificate.issued_at:
+        raise CertificateTokenError("Certificate is not currently active.")
+
+    if issued_at != certificate.issued_at.isoformat():
+        raise CertificateTokenError("Token is no longer valid for this certificate.")
+
+    if certificate.status == Certificate.Status.REISSUED:
         raise CertificateTokenError("Token is no longer valid for this certificate.")
 
     return CertificateMetadata(consultant_id=consultant.pk, issued_at=issued_at)

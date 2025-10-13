@@ -18,6 +18,7 @@ from apps.users.constants import (
     BOARD_COMMITTEE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
 )
+from consultant_app.models import Certificate
 
 
 class DecisionsViewTests(TestCase):
@@ -97,6 +98,13 @@ class DecisionsViewTests(TestCase):
                 "certificate_generated_at",
                 "certificate_expires_at",
             ]
+        )
+        Certificate.objects.create(
+            consultant=consultant,
+            status=Certificate.Status.VALID,
+            issued_at=issued_at,
+            status_set_at=issued_at,
+            valid_at=issued_at,
         )
         consultant.refresh_from_db()
         return consultant

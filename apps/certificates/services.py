@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 from apps.consultants.models import Consultant
 from apps.certificates.models import CertificateRenewal
 from consultant_app.certificates import build_verification_url, render_certificate_pdf
+from consultant_app.models import Certificate
 
 
 PAGE_WIDTH = 1654  # approx A4 @ 150dpi
@@ -72,6 +73,44 @@ def generate_approval_certificate(
     consultant.certificate_expires_at = timezone.localdate() + timedelta(
         days=CERTIFICATE_VALIDITY_DAYS
     )
+
+    certificate_record, _ = Certificate.objects.get_or_create(
+        consultant=consultant,
+        issued_at=issued_at,
+        defaults={
+            "status": Certificate.Status.VALID,
+            "status_set_at": issued_at,
+            "valid_at": issued_at,
+        },
+    )
+    certificate_record.status = Certificate.Status.VALID
+    certificate_record.issued_at = issued_at
+    certificate_record.status_set_at = issued_at
+    certificate_record.valid_at = issued_at
+    certificate_record.revoked_at = None
+    certificate_record.expired_at = None
+    certificate_record.reissued_at = None
+    certificate_record.status_reason = ""
+    certificate_record.save(
+        update_fields=[
+            "status",
+            "issued_at",
+            "status_set_at",
+            "valid_at",
+            "revoked_at",
+            "expired_at",
+            "reissued_at",
+            "status_reason",
+            "updated_at",
+        ]
+    )
+
+    for previous in consultant.certificate_records.exclude(pk=certificate_record.pk):
+        previous.mark_status(
+            Certificate.Status.REISSUED,
+            timestamp=issued_at,
+            reason=f"Superseded by certificate issued on {issued_at.date().isoformat()}",
+        )
 
     verification_url = build_verification_url(consultant)
     pdf_stream = render_certificate_pdf(
@@ -149,4 +188,12 @@ def generate_rejection_letter(
             "certificate_expires_at",
         ]
     )
+
+    certificate_record = Certificate.objects.latest_for_consultant(consultant)
+    if certificate_record and certificate_record.status != Certificate.Status.REVOKED:
+        certificate_record.mark_status(
+            Certificate.Status.REVOKED,
+            timestamp=timezone.now(),
+            reason=f"Revoked when rejection letter issued on {timezone.localdate().isoformat()}",
+        )
     return consultant.rejection_letter
