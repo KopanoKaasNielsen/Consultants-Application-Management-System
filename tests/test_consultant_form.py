@@ -39,3 +39,19 @@ def test_consultant_form_rejects_invalid_file_type():
 
     assert not form.is_valid()
     assert "Only PDF, JPG, or PNG files are allowed." in form.errors["id_document"]
+
+
+@pytest.mark.django_db
+def test_consultant_form_detects_mismatched_file_signature():
+    data = consultant_form_data()
+    disguised_zip = SimpleUploadedFile(
+        "cv.pdf",
+        b"PK\x03\x04fake-zip",
+        content_type="application/octet-stream",
+    )
+    files = consultant_form_files(cv=disguised_zip)
+
+    form = ConsultantForm(data=data, files=files)
+
+    assert not form.is_valid()
+    assert "Only PDF, JPG, or PNG files are allowed." in form.errors["cv"]

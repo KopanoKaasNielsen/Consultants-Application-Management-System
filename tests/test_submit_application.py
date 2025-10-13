@@ -18,8 +18,8 @@ def test_submit_application_success(client, user_factory, mocker):
     user = user_factory(role=Roles.CONSULTANT)
     client.force_login(user)
 
-    mock_send = mocker.patch(
-        "apps.consultants.views.send_submission_confirmation_email"
+    mock_delay = mocker.patch(
+        "apps.consultants.views.send_submission_confirmation_email_task.delay"
     )
 
     payload = {**consultant_form_data(), **consultant_form_files()}
@@ -32,7 +32,7 @@ def test_submit_application_success(client, user_factory, mocker):
     consultant = Consultant.objects.get(user=user)
     assert consultant.status == "submitted"
     assert consultant.submitted_at is not None
-    mock_send.assert_called_once_with(consultant)
+    mock_delay.assert_called_once_with(consultant.pk)
 
 
 @pytest.mark.django_db
@@ -65,8 +65,8 @@ def test_submit_application_handles_email_failure(client, user_factory, mocker):
     user = user_factory(role=Roles.CONSULTANT)
     client.force_login(user)
 
-    mock_send = mocker.patch(
-        "apps.consultants.views.send_submission_confirmation_email",
+    mock_delay = mocker.patch(
+        "apps.consultants.views.send_submission_confirmation_email_task.delay",
         side_effect=Exception("email failure"),
     )
 
@@ -78,7 +78,7 @@ def test_submit_application_handles_email_failure(client, user_factory, mocker):
     consultant = Consultant.objects.get(user=user)
     assert consultant.status == "submitted"
     assert consultant.submitted_at is not None
-    mock_send.assert_called_once_with(consultant)
+    mock_delay.assert_called_once_with(consultant.pk)
 
     messages = list(get_messages(response.wsgi_request))
     assert any(
