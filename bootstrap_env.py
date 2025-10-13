@@ -4,8 +4,10 @@ import subprocess, sys, os, psycopg2
 # === 1. Python dependencies ===
 python_packages = [
     "django", "djangorestframework", "django-crontab", "channels",
-    "daphne", "openai", "psycopg2-binary", "gunicorn"
+    "daphne", "openai", "psycopg2-binary", "gunicorn", "PyPDF2", "weasyprint"
 ]
+
+
 
 print("🔍 Checking Python dependencies...")
 for pkg in python_packages:
