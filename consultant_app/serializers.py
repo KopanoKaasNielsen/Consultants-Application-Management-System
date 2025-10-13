@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
 from django import forms
+from django.utils import timezone
 
 from apps.consultants.models import Consultant
 
@@ -64,3 +66,62 @@ class ConsultantValidationSerializer(forms.Form):
             raise forms.ValidationError(errors)
 
         return cleaned
+
+
+@dataclass
+class ConsultantDashboardSerializer:
+    """Serialize consultant information for the staff dashboard."""
+
+    consultant: Consultant
+
+    #: Mapping of document field names to human friendly labels.
+    DOCUMENT_LABELS = {
+        "photo": "Photo",
+        "id_document": "ID document",
+        "cv": "CV",
+        "police_clearance": "Police clearance",
+        "qualifications": "Qualifications",
+        "business_certificate": "Business certificate",
+    }
+
+    def _serialize_datetime(self, value):
+        if not value:
+            return None
+        if timezone.is_aware(value):
+            value = timezone.localtime(value)
+        return value.isoformat()
+
+    def _serialize_date(self, value):
+        if not value:
+            return None
+        return value.isoformat()
+
+    def _missing_documents(self) -> List[str]:
+        missing: List[str] = []
+        consultant = self.consultant
+        for field, label in self.DOCUMENT_LABELS.items():
+            if not getattr(consultant, field):
+                missing.append(label)
+        return missing
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        consultant = self.consultant
+        missing_documents = self._missing_documents()
+
+        return {
+            "id": consultant.pk,
+            "name": consultant.full_name,
+            "email": consultant.email,
+            "status": consultant.status,
+            "status_display": consultant.get_status_display(),
+            "submitted_at": self._serialize_datetime(consultant.submitted_at),
+            "updated_at": self._serialize_datetime(consultant.updated_at),
+            "certificate_expires_at": self._serialize_date(
+                consultant.certificate_expires_at
+            ),
+            "documents": {
+                "is_complete": not missing_documents,
+                "missing": missing_documents,
+            },
+        }
