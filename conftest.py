@@ -1,10 +1,6 @@
 import os
 
 import pytest
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
-
-from apps.users.constants import ROLE_GROUP_MAP, UserRole as Roles
 
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.dev")
@@ -12,6 +8,12 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.dev")
 import django  # noqa: E402
 
 django.setup()
+
+
+from django.contrib.auth import get_user_model  # noqa: E402
+from django.contrib.auth.models import Group  # noqa: E402
+
+from apps.users.constants import ROLE_GROUP_MAP, UserRole as Roles  # noqa: E402
 
 
 User = get_user_model()
