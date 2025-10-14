@@ -2,9 +2,22 @@
 {% block title %}Admin dashboard{% endblock %}
 
 {% block content %}
+{% if messages %}
+<div class="flash-messages">
+    {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
 <section class="page-header">
-    <h1>Audit log</h1>
-    <p class="text-muted">Track staff activity across the system. Only superusers can view this data.</p>
+    <div class="page-header__intro">
+        <h1>Audit log</h1>
+        <p class="text-muted">Track staff activity across the system. Only superusers can view this data.</p>
+    </div>
+    <form method="post" action="{% url 'admin_dashboard_send_report' %}" class="page-header__action">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Send analytics report now</button>
+    </form>
 </section>
 
 <form method="get" class="filter-form">

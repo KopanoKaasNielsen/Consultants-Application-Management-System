@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ frequency_label }} consultant analytics report</title>
+    <style>
+        body { font-family: Arial, sans-serif; color: #1f2933; }
+        h1 { font-size: 20px; margin-bottom: 0.25rem; }
+        p { margin: 0.5rem 0; line-height: 1.4; }
+        .summary-list { margin: 0; padding-left: 1.1rem; }
+        .summary-list li { margin: 0.15rem 0; }
+        .section-title { font-size: 16px; margin-top: 1.25rem; }
+        table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+        th, td { border: 1px solid #d2d6dc; padding: 0.4rem; text-align: left; font-size: 13px; }
+        th { background-color: #f4f5f7; font-weight: 600; }
+        .meta { font-size: 12px; color: #52606d; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <h1>{{ frequency_label }} consultant analytics report</h1>
+    <p>The attached PDF contains the latest consultant dashboard analytics generated on
+        <strong>{{ generated_at|date:"F j, Y g:i A" }}</strong>.</p>
+
+    {% if triggered_by %}
+        <p class="meta">Triggered by: {{ triggered_by }}</p>
+    {% endif %}
+
+    <p>Total consultants in report: <strong>{{ summary.total }}</strong></p>
+
+    <h2 class="section-title">Status breakdown</h2>
+    {% if summary.statuses %}
+        <ul class="summary-list">
+            {% for status in summary.statuses %}
+                <li>{{ status.label }} &mdash; {{ status.count }} ({{ status.percentage }}%)</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No consultant submissions were available for this period.</p>
+    {% endif %}
+
+    <h2 class="section-title">Consultant categories</h2>
+    {% if summary.categories %}
+        <table role="presentation">
+            <thead>
+                <tr>
+                    <th scope="col">Category</th>
+                    <th scope="col">Consultants</th>
+                    <th scope="col">Share</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category in summary.categories %}
+                    <tr>
+                        <td>{{ category.label }}</td>
+                        <td>{{ category.count }}</td>
+                        <td>{{ category.percentage }}%</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No category information was available.</p>
+    {% endif %}
+
+    <h2 class="section-title">Document completion</h2>
+    <ul class="summary-list">
+        <li>Complete submissions: {{ summary.documents.complete }}</li>
+        <li>Incomplete submissions: {{ summary.documents.incomplete }}</li>
+    </ul>
+
+    {% if filters %}
+        <h2 class="section-title">Applied filters</h2>
+        <ul class="summary-list">
+            {% for item in filters %}
+                <li>{{ item.label }}: {{ item.value }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <p>You can review the live audit log anytime on the admin dashboard:
+        <a href="{{ dashboard_url }}">{{ dashboard_url }}</a>.</p>
+
+    <p class="meta">Sent to: {{ recipients|join:", " }}</p>
+</body>
+</html>

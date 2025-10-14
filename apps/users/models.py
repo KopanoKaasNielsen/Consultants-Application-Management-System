@@ -15,6 +15,10 @@ class AuditLog(models.Model):
         APPROVE_APPLICATION = "approve_application", "Approved application"
         REJECT_APPLICATION = "reject_application", "Rejected application"
         REQUEST_INFO = "request_info", "Requested more information"
+        SEND_ANALYTICS_REPORT = (
+            "send_analytics_report",
+            "Sent analytics report",
+        )
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
