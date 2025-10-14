@@ -1,36 +1,48 @@
-"""API views for consultant validation."""
+"""API views for consultant validation and staff tooling."""
 
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Iterable, List
+from dataclasses import dataclass
+from datetime import date as date_type
+from typing import Any, Dict, Iterable, List, Tuple
 from uuid import UUID
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q, CharField
+from django.db.models import CharField, Q, QuerySet
+from django.db.models.functions import Cast
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
-from django.urls import reverse
-from django.db.models.functions import Cast
-
-from consultant_app.models import Certificate, Consultant, LogEntry
 
 from apps.users.constants import UserRole
 from apps.users.permissions import user_has_role
-
-from .serializers import (
+from consultant_app.certificates import CertificateTokenError, decode_certificate_metadata
+from consultant_app.models import Certificate, Consultant, LogEntry
+from consultant_app.serializers import (
     ConsultantDashboardSerializer,
-    LogEntrySerializer,
     ConsultantValidationSerializer,
+    LogEntrySerializer,
 )
-from .certificates import CertificateTokenError, decode_certificate_metadata
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
+
+
+@dataclass(frozen=True)
+class DashboardFilters:
+    """Structured representation of filters applied to the dashboard."""
+
+    statuses: List[str]
+    date_from: date_type | None
+    date_to: date_type | None
+    search: str | None
+    category: str | None
+    sort: str
 
 
 def _parse_int(value: str | None, default: int) -> int:
@@ -52,6 +64,76 @@ def _split_status_filter(value: str | None) -> List[str]:
 
 def _serialize_page(results: Iterable[Consultant]) -> List[Dict[str, Any]]:
     return [ConsultantDashboardSerializer(result).data for result in results]
+
+
+def build_dashboard_queryset(
+    params,
+) -> Tuple[QuerySet[Consultant], DashboardFilters]:
+    """Return the filtered consultant queryset and applied filter metadata."""
+
+    queryset = Consultant.objects.exclude(status=Consultant.Status.DRAFT)
+
+    statuses = _split_status_filter(params.get("status"))
+    if statuses:
+        queryset = queryset.filter(status__in=statuses)
+
+    category = (params.get("category") or "").strip()
+    if category:
+        queryset = queryset.filter(consultant_type__iexact=category)
+
+    date_from = parse_date(params.get("date_from"))
+    if date_from:
+        queryset = queryset.filter(submitted_at__date__gte=date_from)
+
+    date_to = parse_date(params.get("date_to"))
+    if date_to:
+        queryset = queryset.filter(submitted_at__date__lte=date_to)
+
+    search_query = (params.get("search") or "").strip()
+    if search_query:
+        queryset = queryset.filter(
+            Q(full_name__icontains=search_query)
+            | Q(email__icontains=search_query)
+            | Q(business_name__icontains=search_query)
+        )
+
+    sort_param = (params.get("sort") or "-date").strip()
+    sort_field_map = {
+        "name": "full_name",
+        "email": "email",
+        "status": "status",
+        "date": "submitted_at",
+        "updated": "updated_at",
+    }
+
+    descending = False
+    if sort_param.startswith("-"):
+        descending = True
+        sort_param = sort_param[1:]
+
+    sort_field = sort_field_map.get(sort_param)
+    if not sort_field:
+        sort_field = "submitted_at"
+        descending = True
+        applied_sort = "-date"
+    else:
+        applied_sort = f"-{sort_param}" if descending else sort_param
+
+    if descending:
+        sort_field = f"-{sort_field}"
+
+    queryset = queryset.order_by(sort_field, "-id")
+
+    filters = DashboardFilters(
+        statuses=statuses,
+        date_from=date_from,
+        date_to=date_to,
+        search=search_query or None,
+        category=category or None,
+        sort=applied_sort,
+    )
+
+    return queryset, filters
 
 
 def _flatten_errors(errors: Dict[str, Any]) -> Dict[str, str]:
@@ -95,54 +177,7 @@ def _user_is_staff(user) -> bool:
 def consultant_dashboard(request):
     """Return paginated consultant data for the staff dashboard."""
 
-    queryset = Consultant.objects.exclude(status=Consultant.Status.DRAFT)
-
-    statuses = _split_status_filter(request.GET.get("status"))
-    if statuses:
-        queryset = queryset.filter(status__in=statuses)
-
-    date_from = parse_date(request.GET.get("date_from"))
-    if date_from:
-        queryset = queryset.filter(submitted_at__date__gte=date_from)
-
-    date_to = parse_date(request.GET.get("date_to"))
-    if date_to:
-        queryset = queryset.filter(submitted_at__date__lte=date_to)
-
-    search_query = (request.GET.get("search") or "").strip()
-    if search_query:
-        queryset = queryset.filter(
-            Q(full_name__icontains=search_query)
-            | Q(email__icontains=search_query)
-            | Q(business_name__icontains=search_query)
-        )
-
-    sort_param = (request.GET.get("sort") or "-date").strip()
-    sort_field_map = {
-        "name": "full_name",
-        "email": "email",
-        "status": "status",
-        "date": "submitted_at",
-        "updated": "updated_at",
-    }
-
-    descending = False
-    if sort_param.startswith("-"):
-        descending = True
-        sort_param = sort_param[1:]
-
-    sort_field = sort_field_map.get(sort_param)
-    if not sort_field:
-        sort_field = "submitted_at"
-        descending = True
-        applied_sort = "-date"
-    else:
-        applied_sort = f"-{sort_param}" if descending else sort_param
-
-    if descending:
-        sort_field = f"-{sort_field}"
-
-    queryset = queryset.order_by(sort_field, "-id")
+    queryset, filters = build_dashboard_queryset(request.GET)
 
     page = _parse_int(request.GET.get("page"), 1)
     page_size = min(_parse_int(request.GET.get("page_size"), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE)
@@ -164,11 +199,12 @@ def consultant_dashboard(request):
                 "has_previous": page_obj.has_previous(),
             },
             "applied_filters": {
-                "status": statuses,
-                "date_from": date_from.isoformat() if date_from else None,
-                "date_to": date_to.isoformat() if date_to else None,
-                "search": search_query or None,
-                "sort": applied_sort,
+                "status": filters.statuses,
+                "date_from": filters.date_from.isoformat() if filters.date_from else None,
+                "date_to": filters.date_to.isoformat() if filters.date_to else None,
+                "category": filters.category,
+                "search": filters.search,
+                "sort": filters.sort,
             },
         }
     )

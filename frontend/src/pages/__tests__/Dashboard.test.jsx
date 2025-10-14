@@ -1,8 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-import Dashboard, { fetchConsultantDashboard } from '../Dashboard.jsx';
+import Dashboard, {
+  createDashboardQueryParams,
+  fetchConsultantDashboard,
+} from '../Dashboard.jsx';
 
 const originalFetch = global.fetch;
+const originalOpen = window.open;
 
 const createMockResponse = (data) => ({
   ok: true,
@@ -12,6 +16,7 @@ const createMockResponse = (data) => ({
 afterEach(() => {
   global.fetch = originalFetch;
   jest.clearAllMocks();
+  window.open = originalOpen;
 });
 
 describe('fetchConsultantDashboard', () => {
@@ -27,6 +32,7 @@ describe('fetchConsultantDashboard', () => {
       dateTo: '2024-01-31',
       search: 'alice',
       sort: 'name',
+      category: 'Legal',
     });
 
     expect(mock).toHaveBeenCalledTimes(1);
@@ -40,6 +46,7 @@ describe('fetchConsultantDashboard', () => {
     expect(url.searchParams.get('date_to')).toBe('2024-01-31');
     expect(url.searchParams.get('search')).toBe('alice');
     expect(url.searchParams.get('sort')).toBe('name');
+    expect(url.searchParams.get('category')).toBe('Legal');
   });
 
   it('throws an error when the response is not ok', async () => {
@@ -48,6 +55,25 @@ describe('fetchConsultantDashboard', () => {
     await expect(fetchConsultantDashboard()).rejects.toThrow(
       'Failed to fetch consultant dashboard.',
     );
+  });
+});
+
+describe('createDashboardQueryParams', () => {
+  it('omits pagination values when disabled', () => {
+    const params = createDashboardQueryParams(
+      {
+        page: 3,
+        pageSize: 100,
+        status: ['approved'],
+        category: 'Financial',
+      },
+      { includePagination: false },
+    );
+
+    expect(params.has('page')).toBe(false);
+    expect(params.has('page_size')).toBe(false);
+    expect(params.get('status')).toBe('approved');
+    expect(params.get('category')).toBe('Financial');
   });
 });
 
@@ -130,5 +156,52 @@ describe('Dashboard component', () => {
 
     expect(await screen.findByText('Bob Example')).toBeInTheDocument();
     expect(screen.getByText('Missing: ID document')).toBeInTheDocument();
+  });
+
+  it('opens export links with active filters', async () => {
+    global.fetch = jest.fn().mockResolvedValue(createMockResponse(completeResponse));
+    window.open = jest.fn();
+
+    render(<Dashboard />);
+
+    expect(await screen.findByText('Alice Johnson')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Status'), {
+      target: { value: 'approved' },
+    });
+    fireEvent.change(screen.getByLabelText('Consultant type'), {
+      target: { value: 'Legal' },
+    });
+    fireEvent.change(screen.getByLabelText('Submitted from'), {
+      target: { value: '2024-01-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Submitted to'), {
+      target: { value: '2024-01-31' },
+    });
+    fireEvent.change(screen.getByLabelText('Search'), {
+      target: { value: 'alice' },
+    });
+    fireEvent.change(screen.getByLabelText('Sort by'), {
+      target: { value: 'name' },
+    });
+
+    const csvButton = screen.getByRole('button', { name: 'Export as CSV' });
+    fireEvent.click(csvButton);
+
+    expect(window.open).toHaveBeenCalledTimes(1);
+    const [exportUrl, target, features] = window.open.mock.calls[0];
+    expect(target).toBe('_blank');
+    expect(features).toBe('noopener');
+
+    const parsed = new URL(exportUrl, 'http://example.com');
+    expect(parsed.pathname).toBe('/api/staff/consultants/export/csv/');
+    expect(parsed.searchParams.get('status')).toBe('approved');
+    expect(parsed.searchParams.get('category')).toBe('Legal');
+    expect(parsed.searchParams.get('date_from')).toBe('2024-01-01');
+    expect(parsed.searchParams.get('date_to')).toBe('2024-01-31');
+    expect(parsed.searchParams.get('search')).toBe('alice');
+    expect(parsed.searchParams.get('sort')).toBe('name');
+    expect(parsed.searchParams.has('page')).toBe(false);
+    expect(parsed.searchParams.has('page_size')).toBe(false);
   });
 });

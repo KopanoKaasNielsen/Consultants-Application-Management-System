@@ -124,6 +124,31 @@ def test_dashboard_filters_by_status_date_and_search(client, consultant_factory)
 
 
 @pytest.mark.django_db
+def test_dashboard_filters_by_category(client, consultant_factory):
+    consultant_factory(
+        full_name="Legal Specialist",
+        consultant_type="Legal",
+        status="approved",
+    )
+    consultant_factory(
+        full_name="Finance Expert",
+        consultant_type="Financial",
+        status="approved",
+    )
+
+    response = client.get(
+        "/api/staff/consultants/",
+        {"category": "legal"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["pagination"]["total_results"] == 1
+    assert payload["results"][0]["name"] == "Legal Specialist"
+    assert payload["applied_filters"]["category"] == "legal"
+
+
+@pytest.mark.django_db
 def test_dashboard_supports_sorting_and_pagination(client, consultant_factory):
     consultant_factory(full_name="Charlie Example", submitted_at=timezone.now())
     consultant_factory(full_name="Alice Example", submitted_at=timezone.now())

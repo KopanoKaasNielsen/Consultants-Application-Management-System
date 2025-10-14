@@ -25,6 +25,10 @@ from consultant_app.views import (
     validate_consultant,
     verify_certificate,
 )
+from consultant_app.views.reports import (
+    export_consultant_dashboard_csv,
+    export_consultant_dashboard_pdf,
+)
 
 from .health import database_health_view, health_view
 
@@ -44,6 +48,16 @@ urlpatterns = [
         'api/staff/consultants/',
         consultant_dashboard,
         name='consultant-dashboard',
+    ),
+    path(
+        'api/staff/consultants/export/pdf/',
+        export_consultant_dashboard_pdf,
+        name='consultant-dashboard-export-pdf',
+    ),
+    path(
+        'api/staff/consultants/export/csv/',
+        export_consultant_dashboard_csv,
+        name='consultant-dashboard-export-csv',
     ),
     path(
         'api/staff/logs/',

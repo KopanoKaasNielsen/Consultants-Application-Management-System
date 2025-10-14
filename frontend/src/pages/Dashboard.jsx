@@ -48,18 +48,25 @@ function buildStatusParam(status) {
   return status;
 }
 
-export async function fetchConsultantDashboard({
-  page = 1,
-  pageSize = DEFAULT_PAGE_SIZE,
-  status = '',
-  dateFrom,
-  dateTo,
-  search = '',
-  sort = '-date',
-} = {}) {
+export function createDashboardQueryParams(
+  {
+    page = 1,
+    pageSize = DEFAULT_PAGE_SIZE,
+    status = '',
+    dateFrom,
+    dateTo,
+    search = '',
+    sort = '-date',
+    category = '',
+  } = {},
+  { includePagination = true } = {},
+) {
   const params = new URLSearchParams();
-  params.set('page', String(page));
-  params.set('page_size', String(pageSize));
+
+  if (includePagination) {
+    params.set('page', String(page));
+    params.set('page_size', String(pageSize));
+  }
 
   const statusParam = buildStatusParam(status);
   if (statusParam) {
@@ -78,7 +85,15 @@ export async function fetchConsultantDashboard({
   if (sort) {
     params.set('sort', sort);
   }
+  if (category) {
+    params.set('category', category);
+  }
 
+  return params;
+}
+
+export async function fetchConsultantDashboard(options = {}) {
+  const params = createDashboardQueryParams(options);
   const url = `/api/staff/consultants/?${params.toString()}`;
   const response = await fetch(url);
 
@@ -100,6 +115,7 @@ export default function Dashboard() {
     dateTo: '',
     search: '',
     sort: '-date',
+    category: '',
   });
   const [dashboardData, setDashboardData] = useState({
     results: [],
@@ -129,6 +145,7 @@ export default function Dashboard() {
           dateTo: filters.dateTo || undefined,
           search: filters.search || undefined,
           sort: filters.sort,
+          category: filters.category || undefined,
         });
 
         if (isCancelled) {
@@ -176,6 +193,27 @@ export default function Dashboard() {
       ...previous,
       page: nextPage,
     }));
+  };
+
+  const handleExport = (format) => {
+    const params = createDashboardQueryParams(
+      {
+        status: filters.status,
+        category: filters.category || undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        search: filters.search || undefined,
+        sort: filters.sort,
+      },
+      { includePagination: false },
+    );
+
+    const endpoint =
+      format === 'pdf'
+        ? '/api/staff/consultants/export/pdf/'
+        : '/api/staff/consultants/export/csv/';
+    const exportUrl = `${endpoint}?${params.toString()}`;
+    window.open(exportUrl, '_blank', 'noopener');
   };
 
   const documentSummaries = useMemo(() => {
@@ -250,6 +288,18 @@ export default function Dashboard() {
         </div>
 
         <div>
+          <label htmlFor="category">Consultant type</label>
+          <input
+            id="category"
+            name="category"
+            type="search"
+            value={filters.category}
+            onChange={handleInputChange}
+            placeholder="e.g. Financial or Legal"
+          />
+        </div>
+
+        <div>
           <label htmlFor="sort">Sort by</label>
           <select
             id="sort"
@@ -265,6 +315,25 @@ export default function Dashboard() {
           </select>
         </div>
       </form>
+
+      <div className="export-actions" aria-label="Export options">
+        <button
+          type="button"
+          onClick={() =>
+            handleExport('pdf')
+          }
+        >
+          Export as PDF
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            handleExport('csv')
+          }
+        >
+          Export as CSV
+        </button>
+      </div>
 
       {error && (
         <div role="alert">
