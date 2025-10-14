@@ -2,8 +2,10 @@ from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.consultants.models import Consultant
 from apps.users.models import AuditLog
@@ -114,3 +116,49 @@ class AdminAuditDashboardTests(TestCase):
         response = self.client.get(reverse("admin_dashboard"))
 
         self.assertEqual(response.status_code, 403)
+
+    @override_settings(ADMIN_REPORT_RECIPIENTS=("board@example.com",))
+    def test_manual_report_send_creates_audit_log_and_email(self):
+        applicant = self.user_model.objects.create_user(
+            username="manual-report",
+            password="pass-12345",
+            email="manual-report@example.com",
+        )
+        Consultant.objects.create(
+            user=applicant,
+            full_name="Manual Report",
+            id_number="MR-001",
+            dob=date(1990, 1, 1),
+            gender="F",
+            nationality="Testland",
+            email=applicant.email,
+            phone_number="0712345678",
+            business_name="Manual Co",
+            status="submitted",
+            submitted_at=timezone.now(),
+            consultant_type="General",
+        )
+
+        self.client.login(username=self.superuser.username, password=self.password)
+        mail.outbox = []
+
+        response = self.client.post(reverse("admin_dashboard_send_report"))
+
+        self.assertRedirects(response, reverse("admin_dashboard"))
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["board@example.com"])
+        self.assertTrue(message.attachments)
+        attachment = message.attachments[0]
+        self.assertEqual(attachment[2], "application/pdf")
+        self.assertTrue(attachment[1].startswith(b"%PDF"))
+
+        log = AuditLog.objects.filter(
+            action_type=AuditLog.ActionType.SEND_ANALYTICS_REPORT
+        ).first()
+        self.assertIsNotNone(log)
+        assert log is not None
+        self.assertEqual(log.user, self.superuser)
+        self.assertEqual(log.metadata["status"], "sent")
+        self.assertEqual(log.metadata["report_type"], "manual")
+        self.assertEqual(log.metadata["recipient_count"], 1)

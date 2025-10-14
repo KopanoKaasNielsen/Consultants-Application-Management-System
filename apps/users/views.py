@@ -42,6 +42,7 @@ from apps.users.permissions import role_required, user_has_role
 from apps.users.audit import log_audit_event
 from apps.users.models import AuditLog
 from apps.users.reports import build_report_context, generate_analytics_report
+from consultant_app.tasks.scheduled_reports import send_admin_report
 
 
 logger = logging.getLogger(__name__)
@@ -978,6 +979,57 @@ def admin_dashboard(request):
             "filters": filter_params,
         },
     )
+
+
+@login_required
+@require_POST
+def send_admin_report_now(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied
+
+    result = send_admin_report("manual", actor=request.user)
+    generated_at = result.get("generated_at")
+    metadata = {
+        "status": result.get("status"),
+        "report_type": result.get("frequency"),
+        "recipient_count": len(result.get("recipients", [])),
+    }
+    if generated_at:
+        metadata["generated_at"] = timezone.localtime(generated_at).isoformat()
+    if result.get("attachment_name"):
+        metadata["attachment"] = result["attachment_name"]
+
+    AuditLog.objects.create(
+        user=request.user,
+        action_type=AuditLog.ActionType.SEND_ANALYTICS_REPORT,
+        metadata=metadata,
+    )
+
+    if result.get("status") == "sent":
+        messages.success(
+            request,
+            "Consultant analytics report sent to "
+            f"{metadata['recipient_count']} recipient(s).",
+        )
+        logger.info(
+            "Manual analytics report dispatched by admin.",
+            extra={
+                "user_id": request.user.pk,
+                "recipient_count": metadata["recipient_count"],
+                "report_type": result.get("frequency"),
+            },
+        )
+    else:
+        messages.warning(
+            request,
+            "Consultant analytics report could not be sent because no recipients are configured.",
+        )
+        logger.info(
+            "Manual analytics report dispatch skipped due to missing recipients.",
+            extra={"user_id": request.user.pk},
+        )
+
+    return redirect("admin_dashboard")
 
 
 @login_required

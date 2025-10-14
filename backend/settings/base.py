@@ -274,6 +274,15 @@ CELERY_TASK_SOFT_TIME_LIMIT = (
     consultant_celery_settings.CELERY_TASK_SOFT_TIME_LIMIT
 )
 CELERY_TASK_TIME_LIMIT = consultant_celery_settings.CELERY_TASK_TIME_LIMIT
+CELERY_BEAT_SCHEDULE = consultant_celery_settings.CELERY_BEAT_SCHEDULE
+
+ADMIN_REPORT_RECIPIENTS = consultant_celery_settings.ADMIN_REPORT_RECIPIENTS
+ADMIN_REPORT_FROM_EMAIL = consultant_celery_settings.ADMIN_REPORT_FROM_EMAIL
+ADMIN_REPORT_BASE_URL = consultant_celery_settings.ADMIN_REPORT_BASE_URL
+ADMIN_REPORT_ATTACHMENT_PREFIX = (
+    consultant_celery_settings.ADMIN_REPORT_ATTACHMENT_PREFIX
+)
+ADMIN_REPORT_SUBJECTS = consultant_celery_settings.ADMIN_REPORT_SUBJECTS
 
 
 # Weekly analytics email scheduling (every Monday at 08:00 UTC).
