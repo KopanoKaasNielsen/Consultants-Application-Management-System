@@ -33,11 +33,7 @@ from weasyprint import HTML
 
 from apps.consultants.emails import send_status_update_email
 from apps.consultants.models import Consultant, Notification
-from apps.users.constants import (
-    CONSULTANTS_GROUP_NAME,
-    ADMINS_GROUP_NAME,
-    UserRole as Roles,
-)
+from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
 from apps.users.permissions import role_required, user_has_role
 from apps.users.audit import log_audit_event
 from apps.users.models import AuditLog
@@ -178,19 +174,6 @@ def _build_pdf_response(request, consultant) -> HttpResponse:
     return response
 
 
-def _user_is_admin(user):
-    return user.is_superuser or user.groups.filter(name=ADMINS_GROUP_NAME).exists()
-
-
-def _user_is_board_or_staff(user):
-    if not user.is_authenticated:
-        return False
-
-    return user.is_superuser or user.groups.filter(
-        name__in=['Board', 'Staff']
-    ).exists()
-
-
 def register(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
@@ -214,10 +197,8 @@ def logout_view(request):
     return redirect('login')
 
 
-@login_required
+@role_required(Roles.ADMIN)
 def impersonation_dashboard(request):
-    if not _user_is_admin(request.user):
-        raise PermissionDenied
 
     query = request.GET.get('q', '').strip()
     user_model = get_user_model()
@@ -239,14 +220,11 @@ def impersonation_dashboard(request):
     )
 
 
-@login_required
+@role_required(Roles.ADMIN)
 @require_POST
 def start_impersonation(request):
     if IMPERSONATOR_ID_SESSION_KEY in request.session:
         return HttpResponseBadRequest('Already impersonating a user.')
-
-    if not _user_is_admin(request.user):
-        raise PermissionDenied
 
     user_id = request.POST.get('user_id')
     if not user_id:
@@ -297,10 +275,8 @@ def stop_impersonation(request):
     return redirect('impersonation_dashboard')
 
 
-@login_required
+@role_required(Roles.BOARD, Roles.STAFF)
 def board_dashboard(request):
-    if not _user_is_board_or_staff(request.user):
-        raise PermissionDenied
 
     consultants = (
         Consultant.objects.filter(status='submitted')
@@ -921,10 +897,8 @@ def staff_consultant_bulk_pdf(request):
     return response
 
 
-@login_required
+@role_required(Roles.ADMIN)
 def admin_dashboard(request):
-    if not request.user.is_superuser:
-        raise PermissionDenied
 
     logs = AuditLog.objects.select_related("user")
 
@@ -981,11 +955,9 @@ def admin_dashboard(request):
     )
 
 
-@login_required
+@role_required(Roles.ADMIN)
 @require_POST
 def send_admin_report_now(request):
-    if not request.user.is_superuser:
-        raise PermissionDenied
 
     result = send_admin_report("manual", actor=request.user)
     generated_at = result.get("generated_at")
@@ -1044,6 +1016,9 @@ def dashboard(request):
             return True
         return user_has_role(user, role)
 
+    if has_role(Roles.ADMIN):
+        return redirect('admin_dashboard')
+
     if has_role(Roles.BOARD):
         return redirect('decisions_dashboard')
 
@@ -1080,6 +1055,20 @@ def home_view(request):
     return render(request, 'home.html')
 
 
+def forbidden_view(request):
+    """Render a dedicated forbidden page for unauthorized access attempts."""
+
+    requested_path = request.GET.get("next") or request.META.get("HTTP_REFERER")
+    response = render(
+        request,
+        "forbidden.html",
+        {"requested_path": requested_path},
+        status=403,
+    )
+    response.rendered_forbidden_page = True
+    return response
+
+
 class RoleBasedLoginView(LoginView):
     """Login view that redirects users to dashboards based on their role."""
 
@@ -1096,6 +1085,9 @@ class RoleBasedLoginView(LoginView):
         user = self.request.user
 
         if user.is_superuser:
+            return str(self.admin_dashboard_url)
+
+        if user_has_role(user, Roles.ADMIN):
             return str(self.admin_dashboard_url)
 
         if user_has_role(user, Roles.BOARD):

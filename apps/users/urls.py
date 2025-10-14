@@ -20,6 +20,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register, name='register'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('forbidden/', views.forbidden_view, name='forbidden'),
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path(
         'admin-dashboard/send-report/',

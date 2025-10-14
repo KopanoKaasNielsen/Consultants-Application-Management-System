@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from urllib.parse import urlencode
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -19,6 +20,10 @@ from apps.users.constants import (
     CONSULTANTS_GROUP_NAME,
 )
 from consultant_app.models import Certificate
+
+
+def _forbidden_target(path: str) -> str:
+    return f"{reverse('forbidden')}?{urlencode({'next': path})}"
 
 
 class DecisionsViewTests(TestCase):
@@ -119,7 +124,9 @@ class DecisionsViewTests(TestCase):
         self.assertEqual(self.client.get(url).status_code, 200)
 
         self.client.force_login(self.non_reviewer)
-        self.assertEqual(self.client.get(url).status_code, 403)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
     def test_decisions_dashboard_lists_pending_applications(self):
         url = reverse("decisions_dashboard")
@@ -146,7 +153,9 @@ class DecisionsViewTests(TestCase):
         self.assertEqual(self.client.get(url).status_code, 200)
 
         self.client.force_login(self.non_reviewer)
-        self.assertEqual(self.client.get(url).status_code, 403)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
     def test_application_detail_access_control(self):
         detail_target = self.list_consultants["submitted"]
@@ -159,7 +168,9 @@ class DecisionsViewTests(TestCase):
         self.assertEqual(self.client.get(url).status_code, 200)
 
         self.client.force_login(self.non_reviewer)
-        self.assertEqual(self.client.get(url).status_code, 403)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
     def test_applications_list_default_status_filter(self):
         url = reverse("officer_applications_list")
@@ -276,7 +287,9 @@ class DecisionsViewTests(TestCase):
         self.assertEqual(self.client.get(url).status_code, 200)
 
         self.client.force_login(self.non_reviewer)
-        self.assertEqual(self.client.get(url).status_code, 403)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
     @patch("apps.decisions.views.transaction.on_commit")
     @patch("apps.decisions.tasks.generate_approval_certificate_task.delay")

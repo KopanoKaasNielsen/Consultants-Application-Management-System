@@ -1,20 +1,44 @@
-"""Custom context processors for the users app."""
+"""Context helpers exposing role information to templates."""
 
-from apps.users.views import _user_is_admin, _user_is_board_or_staff
+from __future__ import annotations
+
+from typing import Dict
+
+from django.http import HttpRequest
+
+from apps.users.constants import UserRole
+from apps.users.permissions import user_has_role
 
 
-def user_is_admin(request):
-    """Expose whether the current user is an admin to templates."""
+def role_flags(request: HttpRequest) -> Dict[str, object]:
+    """Expose role-aware navigation flags for the authenticated user."""
+
+    user = getattr(request, "user", None)
+    is_authenticated = getattr(user, "is_authenticated", False)
+
+    def _has(role: UserRole) -> bool:
+        if not is_authenticated:
+            return False
+        return user_has_role(user, role)
+
+    has_admin_role = _has(UserRole.ADMIN)
+    has_board_role = _has(UserRole.BOARD)
+    has_staff_role = _has(UserRole.STAFF)
+    has_consultant_role = _has(UserRole.CONSULTANT)
+
     return {
-        "user_is_admin": _user_is_admin(request.user)
-        if request.user.is_authenticated
-        else False,
-    }
-
-
-def user_is_board_or_staff(request):
-    """Expose whether the user can access the board dashboard."""
-
-    return {
-        "user_is_board_or_staff": _user_is_board_or_staff(request.user)
+        "has_admin_role": has_admin_role,
+        "has_board_role": has_board_role,
+        "has_staff_role": has_staff_role,
+        "has_consultant_role": has_consultant_role,
+        "user_roles": {
+            role
+            for role, is_active in {
+                UserRole.ADMIN.value: has_admin_role,
+                UserRole.BOARD.value: has_board_role,
+                UserRole.STAFF.value: has_staff_role,
+                UserRole.CONSULTANT.value: has_consultant_role,
+            }.items()
+            if is_active
+        },
     }

@@ -2,6 +2,7 @@ import os
 from datetime import date, datetime, timedelta
 import csv
 from io import BytesIO
+from urllib.parse import urlencode
 from unittest.mock import MagicMock, patch
 
 from django.conf import settings
@@ -41,6 +42,18 @@ from apps.users.views import (
     IMPERSONATOR_ID_SESSION_KEY,
     IMPERSONATOR_USERNAME_SESSION_KEY,
 )
+
+
+def assert_forbidden_redirect(testcase, response, next_path):
+    """Assert that ``response`` redirects to the shared forbidden page."""
+
+    forbidden_url = reverse("forbidden")
+    expected_url = forbidden_url
+    if next_path:
+        expected_url = f"{forbidden_url}?{urlencode({'next': next_path})}"
+
+    testcase.assertEqual(response.status_code, 302)
+    testcase.assertEqual(response.url, expected_url)
 
 
 class RegistrationTests(TestCase):
@@ -193,12 +206,13 @@ class ImpersonationViewTests(TestCase):
         )
 
         self.client.login(username="regular", password=self.password)
+        url = reverse("start_impersonation")
         response = self.client.post(
-            reverse("start_impersonation"),
+            url,
             {"user_id": self.target_user.pk},
         )
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
         session = self.client.session
         self.assertNotIn(IMPERSONATOR_ID_SESSION_KEY, session)
 
@@ -355,7 +369,7 @@ class StaffConsultantDetailViewTests(TestCase):
 
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
     def test_staff_can_download_consultant_pdf(self):
         self.client.force_login(self.staff_user)
@@ -441,12 +455,13 @@ class StaffConsultantDetailViewTests(TestCase):
 
     def test_bulk_pdf_denies_non_staff(self):
         self.client.force_login(self.regular_user)
+        url = reverse("staff_consultant_bulk_pdf")
         response = self.client.post(
-            reverse("staff_consultant_bulk_pdf"),
+            url,
             {"selected_applications": [str(self.consultant.pk)]},
         )
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
 
 class ConsultantApplicationPdfTests(TestCase):
@@ -498,9 +513,10 @@ class ConsultantApplicationPdfTests(TestCase):
         )
 
         self.client.login(username=other_user.username, password=self.password)
-        response = self.client.get(reverse("consultant_application_pdf"))
+        url = reverse("consultant_application_pdf")
+        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
 class RolePermissionTests(TestCase):
     def setUp(self):
@@ -972,9 +988,10 @@ class StaffDashboardExportTests(TestCase):
         self.client.logout()
         self.client.login(username=other_user.username, password="pass123456")
 
-        response = self.client.get(reverse("staff_dashboard_export"))
+        url = reverse("staff_dashboard_export")
+        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
 
 class StaffAnalyticsTests(TestCase):
@@ -1120,17 +1137,21 @@ class StaffAnalyticsTests(TestCase):
         )
         self.client.force_login(other_user)
 
-        response = self.client.get(reverse("staff_analytics"))
-        self.assertEqual(response.status_code, 403)
+        analytics_url = reverse("staff_analytics")
+        response = self.client.get(analytics_url)
+        assert_forbidden_redirect(self, response, analytics_url)
 
-        api_response = self.client.get(reverse("staff_analytics_data"))
-        self.assertEqual(api_response.status_code, 403)
+        data_url = reverse("staff_analytics_data")
+        api_response = self.client.get(data_url)
+        assert_forbidden_redirect(self, api_response, data_url)
 
-        csv_export = self.client.get(reverse("staff_analytics_export_csv"))
-        self.assertEqual(csv_export.status_code, 403)
+        csv_url = reverse("staff_analytics_export_csv")
+        csv_export = self.client.get(csv_url)
+        assert_forbidden_redirect(self, csv_export, csv_url)
 
-        pdf_export = self.client.get(reverse("staff_analytics_export_pdf"))
-        self.assertEqual(pdf_export.status_code, 403)
+        pdf_url = reverse("staff_analytics_export_pdf")
+        pdf_export = self.client.get(pdf_url)
+        assert_forbidden_redirect(self, pdf_export, pdf_url)
 
 
 class WeeklyAnalyticsReportTests(TestCase):

@@ -33,3 +33,27 @@ cycle.
 
 With `CELERY_TASK_ALWAYS_EAGER=true` the task executes synchronously, which is
 useful when running the Django test suite or working without a running worker.
+
+## Role-based access control
+
+The CAMS dashboards enforce dedicated user roles backed by Django groups. To
+initialise the required groups in a new environment run:
+
+```bash
+python manage.py seed_groups
+```
+
+After seeding the groups you can promote users to specific roles by assigning
+them to the relevant group(s):
+
+| Role        | Groups to assign                                                  |
+|-------------|-------------------------------------------------------------------|
+| Admin       | `Admins`                                                          |
+| Staff       | `CounterStaff`, `BackOffice`, `DISAgents`, `SeniorImmigration` or `Staff` |
+| Board       | `BoardCommittee`                                                  |
+| Consultant  | `Consultants` or `Applicant`                                      |
+
+Administrators can access the audit dashboard and impersonation tools, staff
+members can work with vetting dashboards and analytics, board members access
+decision dashboards, and consultants are restricted to their own application
+portal.

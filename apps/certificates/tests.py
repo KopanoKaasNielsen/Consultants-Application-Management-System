@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -15,6 +16,10 @@ from apps.users.constants import (
     BACKOFFICE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
 )
+
+
+def _forbidden_target(path: str) -> str:
+    return f"{reverse('forbidden')}?{urlencode({'next': path})}"
 
 
 class CertificatesDashboardViewTests(TestCase):
@@ -211,4 +216,5 @@ class CertificatesDashboardViewTests(TestCase):
         self.client.force_login(staff_user)
 
         response = self.client.get(self.dashboard_url)
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(self.dashboard_url))
