@@ -8,12 +8,14 @@ from uuid import UUID
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, CharField
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
+from django.urls import reverse
+from django.db.models.functions import Cast
 
 from consultant_app.models import Certificate, Consultant, LogEntry
 
@@ -170,6 +172,83 @@ def consultant_dashboard(request):
             },
         }
     )
+
+
+@require_GET
+def search_certificate(request):
+    """Render a public search portal for consultant certificates."""
+
+    name_query = (request.GET.get("name") or "").strip()
+    certificate_query = (request.GET.get("certificate_id") or "").strip()
+    issue_date_query = (request.GET.get("issue_date") or "").strip()
+
+    search_performed = any((name_query, certificate_query, issue_date_query))
+
+    parsed_issue_date = None
+    form_errors: Dict[str, str] = {}
+    if issue_date_query:
+        parsed_issue_date = parse_date(issue_date_query)
+        if not parsed_issue_date:
+            form_errors["issue_date"] = "Enter a valid date in YYYY-MM-DD format."
+
+    results: List[Dict[str, Any]] = []
+
+    if search_performed and not form_errors:
+        queryset = (
+            Certificate.objects.select_related("consultant")
+            .filter(consultant__certificate_uuid__isnull=False)
+        )
+
+        if name_query:
+            queryset = queryset.filter(consultant__full_name__icontains=name_query)
+
+        if certificate_query:
+            queryset = queryset.annotate(
+                certificate_uuid_text=Cast(
+                    "consultant__certificate_uuid",
+                    output_field=CharField(),
+                )
+            ).filter(certificate_uuid_text__icontains=certificate_query)
+
+        if parsed_issue_date:
+            queryset = queryset.filter(issued_at__date=parsed_issue_date)
+
+        queryset = queryset.order_by("-issued_at", "-status_set_at", "-pk")
+
+        for certificate in queryset:
+            issued_on = certificate.issued_at or certificate.consultant.certificate_generated_at
+            if issued_on:
+                issued_on = timezone.localtime(issued_on).date()
+
+            results.append(
+                {
+                    "certificate_id": str(certificate.consultant.certificate_uuid),
+                    "consultant_name": certificate.consultant.full_name,
+                    "issued_on": issued_on,
+                    "status": certificate.get_status_display(),
+                    "status_code": certificate.status.upper(),
+                    "verification_url": reverse(
+                        "consultant-certificate-verify",
+                        kwargs={
+                            "certificate_uuid": certificate.consultant.certificate_uuid
+                        },
+                    ),
+                }
+            )
+
+    context = {
+        "form": {
+            "name": name_query,
+            "certificate_id": certificate_query,
+            "issue_date": issue_date_query,
+        },
+        "form_errors": form_errors,
+        "results": results,
+        "result_count": len(results),
+        "search_performed": search_performed,
+    }
+
+    return render(request, "certificates/search_certificate.html", context)
 
 
 @require_GET
