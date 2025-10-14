@@ -37,6 +37,7 @@ urlpatterns = [
     path('certificates/', include(('apps.certificates.urls', 'certificates'), namespace='certificates')),
     path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
     path('vetting/', include('apps.vetting.urls')),
+    path('', include('consultant_app.urls')),
     path('verify/<uuid:certificate_uuid>/', verify_certificate, name='consultant-certificate-verify'),
     path('api/consultants/validate/', validate_consultant, name='consultant-validate'),
     path(

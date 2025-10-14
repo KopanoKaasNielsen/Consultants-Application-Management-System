@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Search Consultant Certificates{% endblock %}
+{% block content %}
+<section class="certificate-search">
+    <h1 class="certificate-search__title">Search Consultant Certificates</h1>
+    <p class="certificate-search__intro">
+        Look up certificate validity without scanning a QR code. Enter any combination of the
+        consultant name, certificate ID, or issue date to begin.
+    </p>
+    <form method="get" class="certificate-search__form" novalidate>
+        <div class="certificate-search__fields">
+            <div class="certificate-search__field">
+                <label class="certificate-search__label" for="id_name">Consultant name</label>
+                <input
+                    class="certificate-search__input"
+                    id="id_name"
+                    type="text"
+                    name="name"
+                    value="{{ form.name }}"
+                    placeholder="e.g. Jane Doe"
+                    autocomplete="name"
+                >
+            </div>
+            <div class="certificate-search__field">
+                <label class="certificate-search__label" for="id_certificate_id">Certificate ID</label>
+                <input
+                    class="certificate-search__input"
+                    id="id_certificate_id"
+                    type="text"
+                    name="certificate_id"
+                    value="{{ form.certificate_id }}"
+                    placeholder="e.g. 1234-abcd"
+                    inputmode="search"
+                    autocomplete="off"
+                >
+            </div>
+            <div class="certificate-search__field">
+                <label class="certificate-search__label" for="id_issue_date">Issue date</label>
+                <input
+                    class="certificate-search__input"
+                    id="id_issue_date"
+                    type="date"
+                    name="issue_date"
+                    value="{{ form.issue_date }}"
+                    aria-describedby="issue-date-help"
+                >
+                <p id="issue-date-help" class="certificate-search__help">Format: YYYY-MM-DD</p>
+                {% if form_errors.issue_date %}
+                <p class="certificate-search__error" role="alert">{{ form_errors.issue_date }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="certificate-search__actions">
+            <button type="submit" class="certificate-search__submit">Search</button>
+            <a class="certificate-search__reset" href="{% url 'certificate-search' %}">Clear</a>
+        </div>
+    </form>
+
+    {% if search_performed %}
+    <div class="certificate-search__results">
+        {% if results %}
+        <p class="certificate-search__summary">{{ result_count }} result{% if result_count != 1 %}s{% endif %} found.</p>
+        <div class="certificate-search__table-wrapper">
+            <table class="certificate-search__table">
+                <thead>
+                    <tr>
+                        <th scope="col">Certificate number</th>
+                        <th scope="col">Consultant name</th>
+                        <th scope="col">Issue date</th>
+                        <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in results %}
+                    <tr>
+                        <td data-label="Certificate number">
+                            <a href="{{ result.verification_url }}" class="certificate-search__link">
+                                {{ result.certificate_id }}
+                            </a>
+                        </td>
+                        <td data-label="Consultant name">{{ result.consultant_name }}</td>
+                        <td data-label="Issue date">
+                            {% if result.issued_on %}
+                                {{ result.issued_on|date:"j F Y" }}
+                            {% else %}
+                                Not available
+                            {% endif %}
+                        </td>
+                        <td data-label="Status">
+                            <span class="certificate-search__status">{{ result.status }} ({{ result.status_code }})</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="certificate-search__empty">No certificates matched your search. Adjust your filters and try again.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
