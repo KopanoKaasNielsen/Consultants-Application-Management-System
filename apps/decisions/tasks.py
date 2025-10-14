@@ -8,6 +8,7 @@ from apps.certificates.services import (
     generate_rejection_letter,
 )
 from apps.consultants.models import Consultant
+from consultant_app.models import Certificate
 from .emails import send_decision_email
 
 try:  # pragma: no cover - exercised implicitly when Celery is installed
@@ -30,6 +31,19 @@ except ModuleNotFoundError:  # pragma: no cover - provides a fallback in tests
 def generate_approval_certificate_task(consultant_id: int, generated_by: str | None = None):
     consultant = Consultant.objects.get(pk=consultant_id)
     generate_approval_certificate(consultant, generated_by=generated_by)
+    certificate = Certificate.objects.latest_for_consultant(consultant)
+    if certificate:
+        from consultant_app.tasks.notifications import send_certificate_notification
+
+        send_certificate_notification.delay(
+            consultant.pk,
+            event="issued",
+            certificate_id=certificate.pk,
+            metadata={
+                "source": "decisions.generate_approval_certificate",
+                "generated_by": generated_by,
+            },
+        )
     send_decision_email_task.delay(consultant_id, "approved")
 
 

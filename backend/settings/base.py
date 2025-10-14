@@ -83,7 +83,7 @@ def init_sentry() -> None:
 
 INSTALLED_APPS = [
     'channels',
-    'consultant_app',
+    'consultant_app.apps.ConsultantAppConfig',
     'apps.consultants',
     'apps.vetting',
     'apps.decisions',
