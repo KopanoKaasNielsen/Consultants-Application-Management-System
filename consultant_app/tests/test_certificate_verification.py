@@ -17,6 +17,7 @@ from consultant_app.certificates import (
     CertificateTokenError,
     build_certificate_token,
     build_verification_url,
+    update_certificate_status,
     verify_certificate_token,
 )
 from utils.qr_generator import generate_qr_code
@@ -86,6 +87,63 @@ def test_certificate_token_round_trip(consultant_with_certificate):
 
     assert metadata.consultant_id == consultant.pk
     assert metadata.issued_at == consultant.certificate_generated_at.isoformat()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "status,error_message",
+    (
+        (Certificate.Status.REVOKED, "Certificate has been revoked."),
+        (Certificate.Status.EXPIRED, "Certificate has expired."),
+        (Certificate.Status.REISSUED, "Token is no longer valid for this certificate."),
+    ),
+)
+def test_certificate_token_rejects_inactive_statuses(
+    consultant_with_certificate, status, error_message
+):
+    consultant = consultant_with_certificate
+    token = build_certificate_token(consultant)
+
+    certificate = Certificate.objects.latest_for_consultant(consultant)
+    certificate.mark_status(status.value, timestamp=timezone.now(), reason=f"{status.label} test")
+
+    with pytest.raises(CertificateTokenError) as exc:
+        verify_certificate_token(token, consultant)
+
+    assert str(exc.value) == error_message
+
+
+@pytest.mark.django_db
+def test_certificate_token_double_revoke_remains_blocked(consultant_with_certificate):
+    consultant = consultant_with_certificate
+    token = build_certificate_token(consultant)
+
+    certificate = Certificate.objects.latest_for_consultant(consultant)
+    update_certificate_status(
+        consultant,
+        status=Certificate.Status.REVOKED,
+        user=None,
+        reason="Initial revoke",
+        timestamp=timezone.now(),
+    )
+
+    # Attempt to revoke a second time to mimic an accidental double action.
+    update_certificate_status(
+        consultant,
+        status=Certificate.Status.REVOKED,
+        user=None,
+        reason="Second revoke",
+        timestamp=timezone.now() + timedelta(seconds=5),
+    )
+
+    certificate.refresh_from_db()
+    assert certificate.status == Certificate.Status.REVOKED
+    assert certificate.status_reason == "Second revoke"
+
+    with pytest.raises(CertificateTokenError) as exc:
+        verify_certificate_token(token, consultant)
+
+    assert str(exc.value) == "Certificate has been revoked."
 
 
 @pytest.mark.django_db
