@@ -3,6 +3,7 @@ import json
 import shutil
 import tempfile
 from datetime import date, timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -19,6 +20,10 @@ from apps.users.constants import (
     BACKOFFICE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
 )
+
+
+def _forbidden_target(path: str) -> str:
+    return f"{reverse('forbidden')}?{urlencode({'next': path})}"
 
 
 def create_image_file(name='photo.png'):
@@ -289,8 +294,10 @@ class SubmitApplicationViewTests(TestCase):
 
         self.client.force_login(staff_user)
 
-        response = self.client.get(reverse('submit_application'))
-        self.assertEqual(response.status_code, 403)
+        url = reverse('submit_application')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
 
 class AutoSaveDraftViewTests(TestCase):

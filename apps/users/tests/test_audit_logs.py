@@ -1,4 +1,5 @@
 from datetime import date
+from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -9,6 +10,10 @@ from django.utils import timezone
 
 from apps.consultants.models import Consultant
 from apps.users.models import AuditLog
+
+
+def _forbidden_target(next_path: str) -> str:
+    return f"{reverse('forbidden')}?{urlencode({'next': next_path})}"
 
 
 class AuditLogIntegrationTests(TestCase):
@@ -113,9 +118,11 @@ class AdminAuditDashboardTests(TestCase):
         staff_user.groups.add(self.staff_group)
         self.client.login(username=staff_user.username, password=self.password)
 
-        response = self.client.get(reverse("admin_dashboard"))
+        url = reverse("admin_dashboard")
+        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
     @override_settings(ADMIN_REPORT_RECIPIENTS=("board@example.com",))
     def test_manual_report_send_creates_audit_log_and_email(self):

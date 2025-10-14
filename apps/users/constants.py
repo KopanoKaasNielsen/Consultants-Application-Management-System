@@ -19,6 +19,7 @@ class UserRole(str, Enum):
     CONSULTANT = "consultant"
     STAFF = "staff"
     BOARD = "board"
+    ADMIN = "admin"
 
 
 ROLE_GROUP_MAP: Dict[UserRole, Set[str]] = {
@@ -32,6 +33,7 @@ ROLE_GROUP_MAP: Dict[UserRole, Set[str]] = {
         "Staff",
     },
     UserRole.BOARD: {BOARD_COMMITTEE_GROUP_NAME},
+    UserRole.ADMIN: {ADMINS_GROUP_NAME},
 }
 
 
