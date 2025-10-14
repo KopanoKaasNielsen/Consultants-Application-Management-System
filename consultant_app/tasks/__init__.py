@@ -299,6 +299,19 @@ def revoke_certificate_task(
                     "certificate_id": certificate.pk,
                 },
             )
+            from .notifications import send_certificate_notification
+
+            send_certificate_notification.delay(
+                consultant.pk,
+                event="revoked",
+                certificate_id=certificate.pk,
+                reason=reason,
+                actor_id=getattr(actor, "pk", None),
+                metadata={
+                    **task_context,
+                    "action": "certificate.revoke.notification",
+                },
+            )
 
         logger.info(
             "Certificate %s for consultant %s revoked via task",
@@ -441,6 +454,19 @@ def reissue_certificate_task(
                     "certificate_id": fresh_certificate.pk,
                 },
             )
+            from .notifications import send_certificate_notification
+
+            send_certificate_notification.delay(
+                consultant.pk,
+                event="reissued",
+                certificate_id=fresh_certificate.pk,
+                reason=reason,
+                actor_id=getattr(actor, "pk", None),
+                metadata={
+                    **task_context,
+                    "action": "certificate.reissue.notification",
+                },
+            )
 
         logger.info(
             "Issued replacement certificate %s for consultant %s",
@@ -460,9 +486,13 @@ def reissue_certificate_task(
         )
 
 
+from .notifications import send_certificate_notification
+
+
 __all__ = [
     "celery_app",
     "reissue_certificate_task",
     "revoke_certificate_task",
+    "send_certificate_notification",
     "send_confirmation_email",
 ]

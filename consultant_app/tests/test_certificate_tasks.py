@@ -130,9 +130,12 @@ def test_reissue_certificate_task_regenerates_certificate(consultant_with_live_c
 
 
 @pytest.mark.django_db
-def test_certificate_tasks_dispatch_notifications(consultant_with_live_certificate):
+def test_certificate_tasks_dispatch_notifications(consultant_with_live_certificate, mocker):
     consultant, _ = consultant_with_live_certificate
     Notification.objects.all().delete()
+    mocked_delay = mocker.patch(
+        "consultant_app.tasks.notifications.send_certificate_notification.delay"
+    )
 
     revoke_certificate_task(
         consultant.pk,
@@ -155,3 +158,6 @@ def test_certificate_tasks_dispatch_notifications(consultant_with_live_certifica
     messages = [entry.message for entry in notifications]
     assert any("revoked" in message.lower() for message in messages)
     assert any("reissued" in message.lower() for message in messages)
+    events = [call.kwargs.get("event") for call in mocked_delay.call_args_list]
+    assert events.count("revoked") == 1
+    assert events.count("reissued") == 1
