@@ -76,6 +76,7 @@ def consultant_with_live_certificate(db, temporary_media_root):
 @pytest.mark.django_db
 def test_revoke_certificate_task_updates_status(consultant_with_live_certificate):
     consultant, certificate = consultant_with_live_certificate
+    token = build_certificate_token(consultant)
 
     revoke_certificate_task(
         consultant.pk,
@@ -88,6 +89,11 @@ def test_revoke_certificate_task_updates_status(consultant_with_live_certificate
     assert certificate.status == Certificate.Status.REVOKED
     assert certificate.status_reason == "Revoked for compliance"
     assert certificate.revoked_at is not None
+
+    with pytest.raises(CertificateTokenError) as exc:
+        verify_certificate_token(token, consultant)
+
+    assert str(exc.value) == "Certificate has been revoked."
 
 
 @pytest.mark.django_db
