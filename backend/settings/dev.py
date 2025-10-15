@@ -2,8 +2,24 @@
 
 from __future__ import annotations
 
+import os
+import sys
+
 from .base import *  # noqa: F401,F403
 from .base import BASE_DIR, get_env_bool, get_secret_key
+
+# Ensure the repository root is on ``sys.path`` and reflected in ``PYTHONPATH`` so
+# imports work consistently in local environments and CI.
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+pythonpath = os.environ.get("PYTHONPATH", "")
+pythonpath_parts = [path for path in pythonpath.split(os.pathsep) if path]
+if str(BASE_DIR) not in pythonpath_parts:
+    pythonpath_parts.insert(0, str(BASE_DIR))
+    os.environ["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.dev")
 
 DEBUG = get_env_bool("DJANGO_DEBUG", default=True)
 
