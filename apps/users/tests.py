@@ -32,7 +32,7 @@ from apps.users.constants import (
     SENIOR_IMMIGRATION_GROUP_NAME,
     UserRole,
 )
-from apps.users.permissions import role_required, user_has_role
+from apps.users.permissions import role_required, user_has_any_role, user_has_role
 from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
 from tests.utils import create_consultant_instance
@@ -556,6 +556,23 @@ class RolePermissionTests(TestCase):
         self.assertTrue(user_has_role(consultant, UserRole.CONSULTANT))
         self.assertTrue(user_has_role(staff, UserRole.STAFF))
         self.assertTrue(user_has_role(board, UserRole.BOARD))
+
+    def test_user_has_role_includes_admin_membership(self):
+        admin = self._create_user_with_groups("admin", [ADMINS_GROUP_NAME])
+
+        self.assertTrue(user_has_role(admin, UserRole.ADMIN))
+        self.assertTrue(user_has_role(admin, UserRole.STAFF))
+
+    def test_user_has_any_role_supports_admin(self):
+        admin = self._create_user_with_groups("any-admin", [ADMINS_GROUP_NAME])
+        outsider = self._create_user_with_groups("any-outsider", [])
+
+        self.assertTrue(
+            user_has_any_role(admin, [UserRole.CONSULTANT, UserRole.ADMIN])
+        )
+        self.assertFalse(
+            user_has_any_role(outsider, [UserRole.ADMIN, UserRole.BOARD])
+        )
 
     def test_user_has_role_rejects_unknown_membership(self):
         outsider = self._create_user_with_groups("outsider", [])
