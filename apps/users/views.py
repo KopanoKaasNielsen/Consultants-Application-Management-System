@@ -37,6 +37,8 @@ from apps.consultants.emails import send_status_update_email
 from apps.consultants.forms import DocumentUploadForm
 from apps.consultants.models import Consultant, Notification
 from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
+from apps.users.forms import BoardSignatureForm
+from apps.users.models import BoardMemberProfile
 from apps.users.permissions import role_required, user_has_role
 from apps.security.models import AuditLog
 from apps.security.utils import log_audit_event
@@ -312,16 +314,40 @@ def stop_impersonation(request):
 def board_dashboard(request):
 
     consultants = (
-        Consultant.objects.filter(status='submitted')
-        .select_related('user')
-        .order_by('full_name')
+        Consultant.objects.filter(status="submitted")
+        .select_related("user")
+        .order_by("full_name")
     )
+
+    signature_form = None
+    board_profile = None
+
+    if user_has_role(request.user, Roles.BOARD):
+        board_profile, _ = BoardMemberProfile.objects.get_or_create(user=request.user)
+
+        if request.method == "POST":
+            signature_form = BoardSignatureForm(
+                request.POST,
+                request.FILES,
+                instance=board_profile,
+            )
+            if signature_form.is_valid():
+                signature_form.save()
+                messages.success(request, "Your signature has been updated.")
+                return redirect("board_dashboard")
+            messages.error(request, "Please correct the errors below.")
+        else:
+            signature_form = BoardSignatureForm(instance=board_profile)
+    elif request.method == "POST":
+        raise PermissionDenied("Only board members can update their signature.")
 
     return render(
         request,
-        'board_dashboard.html',
+        "board_dashboard.html",
         {
-            'consultants': consultants,
+            "consultants": consultants,
+            "signature_form": signature_form,
+            "board_profile": board_profile,
         },
     )
 
