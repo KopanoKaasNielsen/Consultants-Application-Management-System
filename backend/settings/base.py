@@ -90,6 +90,7 @@ INSTALLED_APPS = [
     'apps.vetting',
     'apps.decisions',
     'apps.certificates',
+    'apps.security',
     'apps.users',
     'django_crontab',
     'django.contrib.admin',

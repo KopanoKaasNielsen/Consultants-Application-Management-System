@@ -114,7 +114,9 @@ class VettingDashboardViewTests(TestCase):
         self.assertEqual(action.actor, self.user)
 
         generated_by = self.user.get_full_name() or self.user.username
-        mock_rejection_delay.assert_called_once_with(self.consultant.id, generated_by)
+        mock_rejection_delay.assert_called_once_with(
+            self.consultant.id, generated_by, self.user.pk
+        )
         mock_approval_delay.assert_not_called()
         mock_on_commit.assert_called_once()
 

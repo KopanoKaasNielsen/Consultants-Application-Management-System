@@ -35,8 +35,8 @@ from apps.consultants.emails import send_status_update_email
 from apps.consultants.models import Consultant, Notification
 from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
 from apps.users.permissions import role_required, user_has_role
-from apps.users.audit import log_audit_event
-from apps.users.models import AuditLog
+from apps.security.models import AuditLog
+from apps.security.utils import log_audit_event
 from apps.users.reports import build_report_context, generate_analytics_report
 from consultant_app.tasks.scheduled_reports import send_admin_report
 
@@ -578,17 +578,18 @@ def staff_dashboard(request):
             )
 
             if action == "approved":
-                action_type = AuditLog.ActionType.APPROVE_APPLICATION
+                action_code = AuditLog.ActionCode.APPROVE_APPLICATION
             elif action == "rejected":
-                action_type = AuditLog.ActionType.REJECT_APPLICATION
+                action_code = AuditLog.ActionCode.REJECT_APPLICATION
             else:
-                action_type = AuditLog.ActionType.REQUEST_INFO
+                action_code = AuditLog.ActionCode.REQUEST_INFO
 
             audit_log = log_audit_event(
-                request.user,
-                action_type,
-                target_object=f"Consultant:{consultant.pk}",
-                metadata={
+                action_code=action_code,
+                request=request,
+                user=request.user,
+                target=f"Consultant:{consultant.pk}",
+                context={
                     "consultant_id": consultant.pk,
                     "previous_status": previous_status,
                     "new_status": consultant.status,
@@ -782,10 +783,11 @@ def staff_dashboard_export_csv(request):
         )
 
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.EXPORT_CSV,
-        target_object=f"Consultants:{active_status}",
-        metadata={
+        action_code=AuditLog.ActionCode.EXPORT_CSV,
+        request=request,
+        user=request.user,
+        target=f"Consultants:{active_status}",
+        context={
             "status": active_status,
             "search_query": search_query,
             "sort_field": sort_field,
@@ -804,10 +806,11 @@ def staff_consultant_detail(request, pk: int):
     )
 
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.VIEW_CONSULTANT,
-        target_object=f"Consultant:{consultant.pk}",
-        metadata={
+        action_code=AuditLog.ActionCode.VIEW_CONSULTANT,
+        request=request,
+        user=request.user,
+        target=f"Consultant:{consultant.pk}",
+        context={
             "consultant_id": consultant.pk,
             "status": consultant.status,
         },
@@ -830,10 +833,11 @@ def staff_consultant_detail(request, pk: int):
 def staff_consultant_pdf(request, pk: int):
     consultant = get_object_or_404(Consultant, pk=pk)
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.EXPORT_PDF,
-        target_object=f"Consultant:{consultant.pk}",
-        metadata={"consultant_id": consultant.pk},
+        action_code=AuditLog.ActionCode.EXPORT_PDF,
+        request=request,
+        user=request.user,
+        target=f"Consultant:{consultant.pk}",
+        context={"consultant_id": consultant.pk},
     )
     return _build_pdf_response(request, consultant)
 
@@ -889,10 +893,11 @@ def staff_consultant_bulk_pdf(request):
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.EXPORT_BULK_PDF,
-        target_object="ConsultantBulk",
-        metadata={"consultant_ids": consultant_ids, "filename": filename},
+        action_code=AuditLog.ActionCode.EXPORT_BULK_PDF,
+        request=request,
+        user=request.user,
+        target="ConsultantBulk",
+        context={"consultant_ids": consultant_ids, "filename": filename},
     )
     return response
 
@@ -902,14 +907,14 @@ def admin_dashboard(request):
 
     logs = AuditLog.objects.select_related("user")
 
-    action_type = request.GET.get("action_type", "").strip()
+    action_code = request.GET.get("action_type", "").strip()
     user_filter = request.GET.get("user", "").strip()
     start_date = request.GET.get("start", "").strip()
     end_date = request.GET.get("end", "").strip()
     page_number = request.GET.get("page")
 
-    if action_type:
-        logs = logs.filter(action_type=action_type)
+    if action_code:
+        logs = logs.filter(action_code=action_code)
     if user_filter:
         logs = logs.filter(user_id=user_filter)
 
@@ -927,15 +932,15 @@ def admin_dashboard(request):
 
     for entry in page_obj.object_list:
         try:
-            entry.metadata_pretty = json.dumps(entry.metadata, indent=2, sort_keys=True)
+            entry.context_pretty = json.dumps(entry.context, indent=2, sort_keys=True)
         except TypeError:
-            entry.metadata_pretty = str(entry.metadata)
+            entry.context_pretty = str(entry.context)
 
     user_model = get_user_model()
     active_users = user_model.objects.filter(is_active=True).order_by("username")
 
     filter_params = {
-        "action_type": action_type,
+        "action_type": action_code,
         "user": user_filter,
         "start": start_date,
         "end": end_date,
@@ -948,7 +953,7 @@ def admin_dashboard(request):
             "page_obj": page_obj,
             "paginator": paginator,
             "logs": page_obj.object_list,
-            "action_choices": AuditLog.ActionType.choices,
+            "action_choices": AuditLog.ActionCode.choices,
             "users": active_users,
             "filters": filter_params,
         },
@@ -971,10 +976,12 @@ def send_admin_report_now(request):
     if result.get("attachment_name"):
         metadata["attachment"] = result["attachment_name"]
 
-    AuditLog.objects.create(
+    log_audit_event(
+        action_code=AuditLog.ActionCode.SEND_ANALYTICS_REPORT,
+        request=request,
         user=request.user,
-        action_type=AuditLog.ActionType.SEND_ANALYTICS_REPORT,
-        metadata=metadata,
+        target="AdminReport",
+        context=metadata,
     )
 
     if result.get("status") == "sent":
@@ -1076,6 +1083,28 @@ class RoleBasedLoginView(LoginView):
     staff_dashboard_url = reverse_lazy("staff_dashboard")
     applicant_dashboard_url = reverse_lazy("dashboard")
     board_dashboard_url = reverse_lazy("decisions_dashboard")
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        log_audit_event(
+            action_code=AuditLog.ActionCode.LOGIN_SUCCESS,
+            request=self.request,
+            user=self.request.user,
+            context={"username": self.request.user.get_username()},
+        )
+        return response
+
+    def form_invalid(self, form):
+        submitted_username = form.data.get(form.username_field, "")
+        log_audit_event(
+            action_code=AuditLog.ActionCode.LOGIN_FAILURE,
+            request=self.request,
+            context={
+                "username": submitted_username,
+                "errors": form.errors.get_json_data(),
+            },
+        )
+        return super().form_invalid(form)
 
     def get_success_url(self):
         redirect_url = self.get_redirect_url()

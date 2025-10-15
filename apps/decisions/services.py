@@ -97,9 +97,17 @@ def process_decision_action(
     # block (such as our tests) still see the side-effects, instead of waiting
     # for a later on_commit hook that might never run in that context.
     if action == "approved":
-        generate_approval_certificate_task.delay(consultant.pk, generated_by)
+        generate_approval_certificate_task.delay(
+            consultant.pk,
+            generated_by,
+            actor.pk if getattr(actor, "pk", None) else None,
+        )
     elif action == "rejected":
-        generate_rejection_letter_task.delay(consultant.pk, generated_by)
+        generate_rejection_letter_task.delay(
+            consultant.pk,
+            generated_by,
+            actor.pk if getattr(actor, "pk", None) else None,
+        )
     elif action == "vetted":
         # No side-effects besides the status change.
         pass

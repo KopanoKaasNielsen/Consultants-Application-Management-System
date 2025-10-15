@@ -63,9 +63,12 @@
             <tr>
                 <th scope="col">Timestamp</th>
                 <th scope="col">User</th>
+                <th scope="col">Role</th>
                 <th scope="col">Action</th>
+                <th scope="col">Endpoint</th>
+                <th scope="col">Client IP</th>
                 <th scope="col">Target</th>
-                <th scope="col">Metadata</th>
+                <th scope="col">Context</th>
             </tr>
         </thead>
         <tbody>
@@ -73,12 +76,21 @@
                 {% for log in logs %}
                     <tr>
                         <td>{{ log.timestamp }}</td>
-                        <td>{{ log.user.get_full_name|default:log.user.username }}</td>
-                        <td>{{ log.get_action_type_display }}</td>
-                        <td>{{ log.target_object|default:"—" }}</td>
                         <td>
-                            {% if log.metadata_pretty %}
-                                <pre class="metadata">{{ log.metadata_pretty }}</pre>
+                            {% if log.user %}
+                                {{ log.user.get_full_name|default:log.user.username }}
+                            {% else %}
+                                <span class="text-muted">Anonymous</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.resolved_role|default:"—" }}</td>
+                        <td>{{ log.get_action_code_display }}</td>
+                        <td>{{ log.endpoint|default:"—" }}</td>
+                        <td>{{ log.client_ip|default:"—" }}</td>
+                        <td>{{ log.target|default:"—" }}</td>
+                        <td>
+                            {% if log.context_pretty %}
+                                <pre class="metadata">{{ log.context_pretty }}</pre>
                             {% else %}
                                 <span class="text-muted">No metadata</span>
                             {% endif %}
@@ -87,7 +99,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="5" class="text-muted">No audit log entries match the selected filters.</td>
+                    <td colspan="8" class="text-muted">No audit log entries match the selected filters.</td>
                 </tr>
             {% endif %}
         </tbody>
