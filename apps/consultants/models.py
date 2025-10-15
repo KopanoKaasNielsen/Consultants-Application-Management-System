@@ -65,7 +65,9 @@ class Consultant(models.Model):
     business_certificate = models.FileField(upload_to='documents/business_certificates/', blank=True, null=True)
 
     # Decision documents
-    certificate_pdf = models.FileField(upload_to='documents/decision_certificates/', blank=True, null=True)
+    certificate_pdf = models.FileField(
+        upload_to="certificates/signed/", blank=True, null=True
+    )
     certificate_generated_at = models.DateTimeField(blank=True, null=True)
     certificate_expires_at = models.DateField(blank=True, null=True)
     certificate_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
