@@ -10,6 +10,7 @@ from apps.api.views import (
     ConsultantDashboardPDFExportView,
     ConsultantValidationView,
     HealthSummaryView,
+    ServiceMetricsView,
     StaffConsultantViewSet,
     StaffLogEntryViewSet,
 )
@@ -25,6 +26,7 @@ app_name = 'api'
 urlpatterns = [
     path('', include(router.urls)),
     path('health/', HealthSummaryView.as_view(), name='health-summary'),
+    path('metrics/', ServiceMetricsView.as_view(), name='service-metrics'),
     path('consultants/validate/', ConsultantValidationView.as_view(), name='consultant-validate'),
     path(
         'staff/consultants/export/pdf/',

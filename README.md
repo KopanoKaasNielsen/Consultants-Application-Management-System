@@ -109,6 +109,12 @@ current database status, timestamp and the number of recent critical events (las
 15 minutes). It can be used by uptime monitors to confirm that the alerting
 pipeline is healthy.
 
+For a richer, human-friendly view, superusers can open the service health
+dashboard at `/admin/health/`. The dashboard combines audit log telemetry,
+role-based throttle configuration and Celery worker statistics, refreshing every
+60 seconds. See `docs/service_health_dashboard.md` for a full feature overview
+and troubleshooting guidance.
+
 ## Sharing logs with ChatGPT Plus
 
 Security-sensitive investigations sometimes need lightweight context from the
