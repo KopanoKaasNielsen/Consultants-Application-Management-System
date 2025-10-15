@@ -48,7 +48,9 @@ def test_generate_approval_certificate_task_dispatches_email_after_document(
 
     generate_approval_certificate_task(consultant.pk, generated_by="Reviewer")
 
-    generate.assert_called_once_with(consultant, generated_by="Reviewer")
+    generate.assert_called_once_with(
+        consultant, generated_by="Reviewer", actor=None
+    )
     send_email.assert_called_once_with(consultant.pk, "approved")
 
 
@@ -68,5 +70,39 @@ def test_generate_rejection_letter_task_dispatches_email_after_document(
 
     generate_rejection_letter_task(consultant.pk, generated_by="Reviewer")
 
-    generate.assert_called_once_with(consultant, generated_by="Reviewer")
+    generate.assert_called_once_with(
+        consultant, generated_by="Reviewer", actor=None
+    )
     send_email.assert_called_once_with(consultant.pk, "rejected")
+
+
+@pytest.fixture
+@pytest.mark.django_db
+def decision_actor(db):
+    user_model = get_user_model()
+    return user_model.objects.create_user(
+        username="task-reviewer",
+        email="task-reviewer@example.com",
+        password="password123",
+        first_name="Task",
+        last_name="Reviewer",
+    )
+
+
+@pytest.mark.django_db
+def test_generate_approval_certificate_task_passes_actor(
+    mocker, consultant, decision_actor
+):
+    send_email = mocker.patch("apps.decisions.tasks.send_decision_email_task.delay")
+    generate = mocker.patch("apps.decisions.tasks.generate_approval_certificate")
+
+    generate_approval_certificate_task(
+        consultant.pk,
+        generated_by="Reviewer",
+        actor_id=decision_actor.pk,
+    )
+
+    generate.assert_called_once_with(
+        consultant, generated_by="Reviewer", actor=decision_actor
+    )
+    send_email.assert_called_once_with(consultant.pk, "approved")
