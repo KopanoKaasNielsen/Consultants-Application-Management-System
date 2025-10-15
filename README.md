@@ -80,6 +80,35 @@ structured context for each security event.
 limited to 30 requests per minute, and board tokens to 15 requests per minute. Admin tokens are
 exempt from throttling.
 
+## Monitoring and real-time alerts
+
+Critical security events are surfaced through a combination of Sentry error
+tracking, Slack notifications and email alerts. To enable the integrations set
+the following environment variables:
+
+```bash
+export SENTRY_DSN="https://example.ingest.sentry.io/12345"
+export SENTRY_ENVIRONMENT="production"  # Optional override for environment tagging
+
+export SECURITY_ALERT_SLACK_WEBHOOK="https://hooks.slack.com/services/..."
+export SECURITY_ALERT_EMAIL_RECIPIENTS="secops@example.com,platform@example.com"
+export SECURITY_ALERT_EMAIL_SENDER="alerts@example.com"
+export SECURITY_ALERT_EMAIL_SUBJECT_PREFIX="CAMS"
+export SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD="5"  # Override the default threshold
+```
+
+Any audit log entry flagged with a `critical` or `high` severity, certificate
+revocations, HTTP 5xx errors or repeated login failures automatically trigger an
+alert. Alerts contain contextual metadata (user, endpoint, IP address, etc.) and
+are delivered via the configured Slack webhook and email recipients. Celery
+dispatches the notifications, respecting the existing
+`CELERY_TASK_ALWAYS_EAGER=true` shortcut for local testing.
+
+The monitoring API at `/api/health/` provides a JSON summary including the
+current database status, timestamp and the number of recent critical events (last
+15 minutes). It can be used by uptime monitors to confirm that the alerting
+pipeline is healthy.
+
 ## Sharing logs with ChatGPT Plus
 
 Security-sensitive investigations sometimes need lightweight context from the

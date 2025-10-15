@@ -64,6 +64,13 @@ def _get_sample_rate(name: str, default: float) -> float:
         return default
 
 
+def _split_env_set(name: str) -> set[str]:
+    """Return a set of comma separated values for an environment variable."""
+
+    raw_value = os.getenv(name, "")
+    return {item.strip() for item in raw_value.split(",") if item.strip()}
+
+
 def init_sentry() -> None:
     """Configure Sentry monitoring when a DSN is available."""
 
@@ -71,13 +78,22 @@ def init_sentry() -> None:
     if not dsn:
         return None
 
+    environment = (
+        os.getenv("SENTRY_ENVIRONMENT")
+        or os.getenv("DJANGO_ENV")
+        or os.getenv("ENVIRONMENT")
+        or ("development" if get_env_bool("DJANGO_DEBUG", True) else "production")
+    )
+
     sentry_sdk.init(
         dsn=dsn,
         integrations=[DjangoIntegration()],
+        environment=environment,
         send_default_pii=False,
         traces_sample_rate=_get_sample_rate("SENTRY_TRACES_SAMPLE_RATE", 0.2),
         profiles_sample_rate=_get_sample_rate("SENTRY_PROFILES_SAMPLE_RATE", 0.0),
     )
+    sentry_sdk.set_tag("environment", environment)
     return None
 
 
@@ -275,6 +291,29 @@ EMAIL_USE_TLS = get_env_bool("EMAIL_USE_TLS", True)
 EMAIL_USE_SSL = get_env_bool("EMAIL_USE_SSL", False)
 DEFAULT_FROM_EMAIL = os.getenv(
     "DEFAULT_FROM_EMAIL", "no-reply@consultant-management.local"
+)
+
+SECURITY_ALERT_EMAIL_RECIPIENTS = tuple(
+    _split_env_set("SECURITY_ALERT_EMAIL_RECIPIENTS")
+)
+SECURITY_ALERT_EMAIL_SENDER = os.getenv(
+    "SECURITY_ALERT_EMAIL_SENDER",
+    DEFAULT_FROM_EMAIL,
+)
+SECURITY_ALERT_EMAIL_SUBJECT_PREFIX = os.getenv(
+    "SECURITY_ALERT_EMAIL_SUBJECT_PREFIX",
+    "Security",
+)
+SECURITY_ALERT_SLACK_WEBHOOK = os.getenv("SECURITY_ALERT_SLACK_WEBHOOK", "")
+SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD = int(
+    os.getenv("SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD", "5")
+)
+_critical_action_env = _split_env_set("SECURITY_ALERT_CRITICAL_ACTIONS")
+DEFAULT_SECURITY_CRITICAL_ACTIONS = {
+    "certificate_revoked",
+}
+SECURITY_ALERT_CRITICAL_ACTIONS = (
+    _critical_action_env if _critical_action_env else DEFAULT_SECURITY_CRITICAL_ACTIONS
 )
 
 

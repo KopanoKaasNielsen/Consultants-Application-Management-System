@@ -1285,3 +1285,16 @@ class MonitoringInitTests(SimpleTestCase):
 
         with patch.dict(os.environ, {"SENTRY_DSN": ""}, clear=False):
             self.assertIsNone(settings_base.init_sentry())
+
+    @patch("backend.settings.base.sentry_sdk")
+    def test_init_sentry_sets_environment_tag(self, mock_sentry):
+        """Sentry initialisation includes environment metadata."""
+
+        env = {"SENTRY_DSN": "https://example.com/123", "SENTRY_ENVIRONMENT": "staging"}
+        with patch.dict(os.environ, env, clear=False):
+            settings_base.init_sentry()
+
+        self.assertTrue(mock_sentry.init.called)
+        init_kwargs = mock_sentry.init.call_args.kwargs
+        self.assertEqual(init_kwargs.get("environment"), "staging")
+        mock_sentry.set_tag.assert_called_with("environment", "staging")

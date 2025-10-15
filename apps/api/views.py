@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
+from django.conf import settings
+from django.db import connections
+from django.db.models import Q
+from django.db.utils import OperationalError
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
@@ -36,6 +42,56 @@ from consultant_app.views import (
 )
 from consultant_app.views.reports import _build_filename, _prepare_export_rows
 from consultant_app.models import LogEntry
+
+from apps.security.models import AuditLog
+
+
+class HealthSummaryView(APIView):
+    """Provide a JSON summary of the application's core health signals."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):  # type: ignore[override]
+        timestamp = timezone.now()
+
+        database_status = "ok"
+        overall_status = "ok"
+        connection = connections["default"]
+        try:
+            if connection.connection is not None and connection.is_usable():
+                database_status = "ok"
+            else:
+                with connection.cursor():
+                    database_status = "ok"
+        except OperationalError:
+            database_status = "unavailable"
+            overall_status = "degraded"
+
+        fifteen_minutes_ago = timestamp - timedelta(minutes=15)
+        severity_filter = Q(context__severity__iexact="critical") | Q(
+            context__severity__iexact="high"
+        )
+        critical_action_filter = Q(
+            action_code__in=getattr(settings, "SECURITY_ALERT_CRITICAL_ACTIONS", set())
+        )
+        login_failure_filter = Q(action_code=AuditLog.ActionCode.LOGIN_FAILURE) & Q(
+            context__failure_count__gte=getattr(
+                settings, "SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD", 5
+            )
+        )
+        recent_critical = AuditLog.objects.filter(
+            Q(timestamp__gte=fifteen_minutes_ago)
+            & (severity_filter | critical_action_filter | login_failure_filter)
+        ).count()
+
+        payload = {
+            "status": overall_status,
+            "timestamp": timestamp.isoformat(),
+            "database": database_status,
+            "recent_critical_events": recent_critical,
+        }
+
+        return Response(payload)
 
 
 class ConsultantValidationView(APIView):
