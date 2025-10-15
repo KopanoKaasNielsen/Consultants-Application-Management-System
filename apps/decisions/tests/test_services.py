@@ -54,7 +54,7 @@ def test_process_decision_action_queues_approval_tasks(mocker, consultant, actor
 
     assert consultant.status == "approved"
     assert ApplicationAction.objects.filter(pk=action.pk, action="approved").exists()
-    generate_task.assert_called_once_with(consultant.pk, "Review Er")
+    generate_task.assert_called_once_with(consultant.pk, "Review Er", actor.pk)
     email_task.assert_not_called()
 
 
@@ -70,7 +70,7 @@ def test_process_decision_action_queues_rejection_tasks(mocker, consultant, acto
     consultant.refresh_from_db()
 
     assert consultant.status == "rejected"
-    generate_task.assert_called_once_with(consultant.pk, "Review Er")
+    generate_task.assert_called_once_with(consultant.pk, "Review Er", actor.pk)
     email_task.assert_not_called()
 
 

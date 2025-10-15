@@ -111,7 +111,7 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(blank=True, null=True)
     audit_log = models.ForeignKey(
-        "users.AuditLog",
+        "security.AuditLog",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

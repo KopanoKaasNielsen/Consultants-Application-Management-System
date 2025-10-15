@@ -6,12 +6,15 @@ from datetime import timedelta
 from io import BytesIO
 from typing import Iterable, Optional
 
+from django.contrib.auth.models import AbstractBaseUser
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from PIL import Image, ImageDraw, ImageFont
 
 from apps.consultants.models import Consultant
 from apps.certificates.models import CertificateRenewal
+from apps.security.models import AuditLog
+from apps.security.utils import log_audit_event
 from consultant_app.certificates import build_verification_url, render_certificate_pdf
 from consultant_app.models import Certificate
 
@@ -57,7 +60,11 @@ CERTIFICATE_VALIDITY_DAYS = 365
 
 
 def generate_approval_certificate(
-    consultant: Consultant, generated_by: Optional[str] = None
+    consultant: Consultant,
+    generated_by: Optional[str] = None,
+    *,
+    actor: Optional[AbstractBaseUser] = None,
+    request=None,
 ):
     """Generate an approval certificate for the consultant and persist it."""
     if consultant.certificate_pdf:
@@ -148,11 +155,32 @@ def generate_approval_certificate(
         pending_renewal.save(
             update_fields=["status", "processed_at", "processed_by"]
         )
+    audit_context = {
+        "consultant_id": consultant.pk,
+        "certificate_id": certificate_record.pk,
+        "generated_by": generated_by,
+        "expires_at": consultant.certificate_expires_at.isoformat()
+        if consultant.certificate_expires_at
+        else None,
+    }
+    log_audit_event(
+        action_code=AuditLog.ActionCode.CERTIFICATE_ISSUED,
+        request=request,
+        user=actor,
+        target=f"Consultant:{consultant.pk}",
+        context=audit_context,
+        endpoint="apps.certificates.services.generate_approval_certificate",
+    )
+
     return consultant.certificate_pdf
 
 
 def generate_rejection_letter(
-    consultant: Consultant, generated_by: Optional[str] = None
+    consultant: Consultant,
+    generated_by: Optional[str] = None,
+    *,
+    actor: Optional[AbstractBaseUser] = None,
+    request=None,
 ):
     """Generate a rejection letter for the consultant and persist it."""
     if consultant.rejection_letter:
@@ -196,4 +224,18 @@ def generate_rejection_letter(
             timestamp=timezone.now(),
             reason=f"Revoked when rejection letter issued on {timezone.localdate().isoformat()}",
         )
+    audit_context = {
+        "consultant_id": consultant.pk,
+        "certificate_id": certificate_record.pk if certificate_record else None,
+        "generated_by": generated_by,
+    }
+    log_audit_event(
+        action_code=AuditLog.ActionCode.CERTIFICATE_REVOKED,
+        request=request,
+        user=actor,
+        target=f"Consultant:{consultant.pk}",
+        context=audit_context,
+        endpoint="apps.certificates.services.generate_rejection_letter",
+    )
+
     return consultant.rejection_letter
