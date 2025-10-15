@@ -15,11 +15,19 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET
 
+from apps.users.constants import UserRole
+from apps.users.permissions import user_has_role
 from consultant_app.certificates import CertificateTokenError, decode_certificate_metadata
 from consultant_app.models import Certificate, Consultant
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
+
+
+def _user_is_staff(user) -> bool:
+    """Return ``True`` if the user has a staff role."""
+
+    return user_has_role(user, UserRole.STAFF)
 
 
 @dataclass(frozen=True)

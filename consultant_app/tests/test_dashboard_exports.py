@@ -7,6 +7,7 @@ import io
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.utils import timezone
 
 from consultant_app.models import Certificate
@@ -135,3 +136,27 @@ def test_exports_require_staff_permissions(client, consultant_factory):
 
     response = client.get("/api/staff/consultants/export/csv/")
     assert response.status_code == 403
+
+    response = client.get("/api/staff/consultants/export/pdf/")
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_staff_group_members_can_export(client, consultant_factory):
+    staff_group = Group.objects.create(name="BackOffice")
+    user_model = get_user_model()
+    staff_user = user_model.objects.create_user(
+        username="staffmember",
+        email="staffmember@example.com",
+        password="testpass123",
+    )
+    staff_user.groups.add(staff_group)
+
+    consultant_factory()
+    client.force_login(staff_user)
+
+    csv_response = client.get("/api/staff/consultants/export/csv/")
+    assert csv_response.status_code == 200
+
+    pdf_response = client.get("/api/staff/consultants/export/pdf/")
+    assert pdf_response.status_code == 200
