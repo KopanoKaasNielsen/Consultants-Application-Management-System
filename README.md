@@ -57,3 +57,16 @@ Administrators can access the audit dashboard and impersonation tools, staff
 members can work with vetting dashboards and analytics, board members access
 decision dashboards, and consultants are restricted to their own application
 portal.
+
+### API role matrix
+
+The REST API mirrors the same role-based restrictions. Use the table below to
+identify which roles can access each endpoint:
+
+| Endpoint | Method | Description | Allowed roles |
+|----------|--------|-------------|----------------|
+| `/api/consultants/validate/` | `POST` | Validate consultant registration fields for uniqueness. | Public (no authentication required) |
+| `/api/staff/consultants/` | `GET` | Paginated consultant dashboard data. | Staff, Admin |
+| `/api/staff/consultants/export/pdf/` | `GET` | Download the consultant dashboard as a PDF export. | Staff, Admin |
+| `/api/staff/consultants/export/csv/` | `GET` | Download the consultant dashboard as a CSV export. | Staff, Admin |
+| `/api/staff/logs/` | `GET` | View application audit log entries. | Staff, Admin |

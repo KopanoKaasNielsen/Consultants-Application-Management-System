@@ -1,19 +1,26 @@
 from django.contrib.auth.models import Group, Permission
-from django.core.management.base import BaseCommand
+from django.contrib.contenttypes.models import ContentType
 
-from apps.users.constants import ROLE_GROUP_MAP
+from apps.users.constants import (
+    ADMINS_GROUP_NAME,
+    BACKOFFICE_GROUP_NAME,
+    BOARD_COMMITTEE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+    COUNTERSTAFF_GROUP_NAME,
+    DISAGENTS_GROUP_NAME,
+    SENIOR_IMMIGRATION_GROUP_NAME,
+)
 
 
-def _default_groups() -> dict[str, list[str]]:
-    """Return the default groups derived from ``ROLE_GROUP_MAP``."""
-
-    group_names = {
-        group_name for groups in ROLE_GROUP_MAP.values() for group_name in groups
-    }
-    return {group_name: [] for group_name in sorted(group_names)}
-
-
-GROUPS = _default_groups()
+GROUPS = {
+    CONSULTANTS_GROUP_NAME: [],
+    COUNTERSTAFF_GROUP_NAME: [],
+    BACKOFFICE_GROUP_NAME: [],
+    DISAGENTS_GROUP_NAME: [],
+    BOARD_COMMITTEE_GROUP_NAME: [],
+    SENIOR_IMMIGRATION_GROUP_NAME: [],
+    ADMINS_GROUP_NAME: [],
+}
 
 
 class Command(BaseCommand):
