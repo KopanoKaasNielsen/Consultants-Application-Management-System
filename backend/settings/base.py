@@ -83,7 +83,6 @@ def init_sentry() -> None:
 
 INSTALLED_APPS = [
     'channels',
-    'rest_framework',
     'consultant_app.apps.ConsultantAppConfig',
     'apps.api',
     'apps.consultants',
@@ -100,6 +99,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 ]
+
+# Ensure Django REST framework is always available for tests and runtime features
+REST_FRAMEWORK_APP = 'rest_framework'
+if REST_FRAMEWORK_APP not in INSTALLED_APPS:
+    INSTALLED_APPS.insert(1, REST_FRAMEWORK_APP)
 
 REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
