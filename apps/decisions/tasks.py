@@ -42,10 +42,13 @@ def generate_approval_certificate_task(
             actor = UserModel.objects.get(pk=actor_id)
         except UserModel.DoesNotExist:
             actor = None
+    generate_kwargs: dict[str, object] = {"generated_by": generated_by}
+    if actor is not None:
+        generate_kwargs["actor"] = actor
+
     generate_approval_certificate(
         consultant,
-        generated_by=generated_by,
-        actor=actor,
+        **generate_kwargs,
     )
     certificate = Certificate.objects.latest_for_consultant(consultant)
     if certificate:
@@ -74,10 +77,13 @@ def generate_rejection_letter_task(
             actor = UserModel.objects.get(pk=actor_id)
         except UserModel.DoesNotExist:
             actor = None
+    generate_kwargs: dict[str, object] = {"generated_by": generated_by}
+    if actor is not None:
+        generate_kwargs["actor"] = actor
+
     generate_rejection_letter(
         consultant,
-        generated_by=generated_by,
-        actor=actor,
+        **generate_kwargs,
     )
     send_decision_email_task.delay(consultant_id, "rejected")
 

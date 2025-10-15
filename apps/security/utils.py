@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+from contextlib import suppress
 from typing import Any, Mapping, Optional
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 from django.utils.encoding import force_str
 from django.utils.functional import Promise
@@ -13,6 +16,8 @@ from apps.users.constants import UserRole
 from apps.users.permissions import user_has_role
 
 from .models import AuditLog
+
+logger = logging.getLogger(__name__)
 
 _ROLE_PRIORITY: tuple[UserRole, ...] = (
     UserRole.ADMIN,
@@ -111,4 +116,43 @@ def log_audit_event(
     )
 
 
-__all__ = ["log_audit_event"]
+def scan_uploaded_file(uploaded_file) -> None:
+    """Perform lightweight scanning of uploaded files for malicious content."""
+
+    file_descriptor = getattr(uploaded_file, "file", uploaded_file)
+    initial_position = None
+
+    try:
+        if hasattr(file_descriptor, "seek") and hasattr(file_descriptor, "tell"):
+            try:
+                initial_position = file_descriptor.tell()
+            except Exception:  # pragma: no cover - very defensive
+                initial_position = None
+
+        chunk = file_descriptor.read(4096)
+
+        if not chunk:
+            raise ValidationError("The uploaded file appears to be empty.")
+
+        lowered = chunk.lower()
+        if b"<?php" in lowered or b"<script" in lowered:
+            raise ValidationError("The uploaded file contains disallowed content.")
+
+    except ValidationError:
+        raise
+    except Exception:  # pragma: no cover - safety net for unexpected IO errors
+        logger.exception(
+            "Unable to perform malware scan on %s", getattr(uploaded_file, "name", "<unknown>")
+        )
+    finally:
+        if hasattr(file_descriptor, "seek") and initial_position is not None:
+            try:
+                file_descriptor.seek(initial_position)
+            except Exception:  # pragma: no cover - defensive guard
+                logger.debug("Failed to reset file pointer after scan.")
+        elif hasattr(uploaded_file, "seek"):
+            with suppress(Exception):  # type: ignore[name-defined]
+                uploaded_file.seek(0)
+
+
+__all__ = ["log_audit_event", "scan_uploaded_file"]

@@ -3,8 +3,12 @@ from contextlib import suppress
 from pathlib import Path
 
 from django import forms
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.db.models.fields.files import FieldFile
+from django.utils.translation import gettext_lazy as _
+
+from apps.security.utils import scan_uploaded_file
 
 from .models import Consultant
 
@@ -188,3 +192,44 @@ class ConsultantForm(forms.ModelForm):
         widgets = {
             'dob': forms.DateInput(attrs={'type': 'date'}),
         }
+
+
+class DocumentUploadForm(forms.Form):
+    """Validate supporting document uploads for consultant applications."""
+
+    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
+    ALLOWED_CONTENT_TYPES = {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "image/jpeg",
+        "image/png",
+    }
+
+    file = forms.FileField(label=_("File"))
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data["file"]
+        extension = Path(uploaded_file.name or "").suffix.lower()
+
+        if extension not in self.ALLOWED_EXTENSIONS:
+            raise ValidationError(
+                _("Unsupported file type. Upload PDF, DOCX, JPG, or PNG files."),
+                code="invalid_extension",
+            )
+
+        content_type = getattr(uploaded_file, "content_type", "") or getattr(
+            getattr(uploaded_file, "file", None), "content_type", ""
+        )
+
+        if content_type and content_type not in self.ALLOWED_CONTENT_TYPES:
+            raise ValidationError(
+                _("Unsupported file type. Upload PDF, DOCX, JPG, or PNG files."),
+                code="invalid_content_type",
+            )
+
+        scan_uploaded_file(uploaded_file)
+
+        return uploaded_file
+
+
+__all__ = ["ConsultantForm", "DocumentUploadForm"]

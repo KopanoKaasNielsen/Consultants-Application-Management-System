@@ -34,6 +34,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from weasyprint import HTML
 
 from apps.consultants.emails import send_status_update_email
+from apps.consultants.forms import DocumentUploadForm
 from apps.consultants.models import Consultant, Notification
 from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
 from apps.users.permissions import role_required, user_has_role
@@ -133,6 +134,29 @@ def _build_document_entry(file_field, label: str) -> Dict[str, object]:
     }
 
 
+def _build_uploaded_document_entry(document) -> Dict[str, object]:
+    uploader = document.uploaded_by.get_full_name() or document.uploaded_by.get_username()
+    download_url = reverse("consultant_document_download", args=[document.pk])
+    preview_url = (
+        reverse("consultant_document_preview", args=[document.pk])
+        if document.is_previewable
+        else None
+    )
+
+    return {
+        "id": str(document.pk),
+        "name": document.original_name or document.file.name.rsplit("/", 1)[-1],
+        "type": document.extension or "UNKNOWN",
+        "size": _format_file_size(document.size),
+        "uploaded_at": document.uploaded_at,
+        "uploaded_by": uploader,
+        "download_url": download_url,
+        "preview_url": preview_url,
+        "delete_url": reverse("consultant_document_delete", args=[document.pk]),
+        "is_previewable": document.is_previewable,
+    }
+
+
 def get_consultant_documents(consultant) -> Tuple[List[Dict[str, object]], List[Dict[str, object]]]:
     document_fields: List[Dict[str, object]] = []
     decision_documents: List[Dict[str, object]] = []
@@ -148,6 +172,13 @@ def get_consultant_documents(consultant) -> Tuple[List[Dict[str, object]], List[
             decision_documents.append(_build_document_entry(file_field, label))
 
     return document_fields, decision_documents
+
+
+def get_supporting_documents(consultant) -> List[Dict[str, object]]:
+    return [
+        _build_uploaded_document_entry(document)
+        for document in consultant.documents.select_related("uploaded_by")
+    ]
 
 
 def _render_consultant_pdf(request, consultant) -> Tuple[bytes, str]:
@@ -172,7 +203,7 @@ def _build_pdf_response(request, consultant) -> HttpResponse:
     pdf_bytes, filename = _render_consultant_pdf(request, consultant)
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
     return response
 
 
@@ -357,7 +388,7 @@ def staff_analytics_export_csv(request):
     filename = f"consultant-analytics-{generated_at.strftime('%Y%m%d%H%M%S')}.csv"
 
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     writer = csv.writer(response)
     writer.writerow(["Consultant analytics export"])
@@ -429,7 +460,7 @@ def staff_analytics_export_pdf(request):
 
     response = HttpResponse(report.pdf_bytes, content_type="application/pdf")
     filename = report.filename
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
@@ -767,7 +798,7 @@ def staff_dashboard_export_csv(request):
     filename = f"consultants_{active_status}_{timestamp}.csv"
 
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     writer = csv.writer(response)
     writer.writerow(["Consultant Name", "Business", "Status", "Submission Date"])
@@ -819,6 +850,14 @@ def staff_consultant_detail(request, pk: int):
     )
 
     document_fields, decision_documents = get_consultant_documents(consultant)
+    supporting_documents = get_supporting_documents(consultant)
+    can_manage_documents = user_has_role(request.user, Roles.STAFF)
+    document_upload_form = DocumentUploadForm() if can_manage_documents else None
+    document_upload_url = (
+        reverse("consultant_document_upload", args=[consultant.pk])
+        if can_manage_documents
+        else None
+    )
 
     return render(
         request,
@@ -827,6 +866,11 @@ def staff_consultant_detail(request, pk: int):
             "consultant": consultant,
             "document_fields": document_fields,
             "decision_documents": decision_documents,
+            "supporting_documents": supporting_documents,
+            "document_upload_form": document_upload_form,
+            "document_upload_url": document_upload_url,
+            "document_next_url": request.get_full_path(),
+            "can_manage_documents": can_manage_documents,
         },
     )
 
@@ -892,7 +936,7 @@ def staff_consultant_bulk_pdf(request):
     )
 
     response = HttpResponse(output.read(), content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     log_audit_event(
         action_code=AuditLog.ActionCode.EXPORT_BULK_PDF,
@@ -1054,15 +1098,28 @@ def dashboard(request):
 
     document_fields = []
     decision_documents = []
+    supporting_documents: List[Dict[str, object]] = []
+    document_upload_form: Optional[DocumentUploadForm] = None
+    document_upload_url: Optional[str] = None
 
     if application:
         document_fields, decision_documents = get_consultant_documents(application)
+        supporting_documents = get_supporting_documents(application)
+        document_upload_form = DocumentUploadForm()
+        document_upload_url = reverse(
+            "consultant_document_upload", args=[application.pk]
+        )
 
     return render(request, 'dashboard.html', {
         'application': application,
         'is_reviewer': False,
         'document_fields': document_fields,
         'decision_documents': decision_documents,
+        'supporting_documents': supporting_documents,
+        'document_upload_form': document_upload_form,
+        'document_upload_url': document_upload_url,
+        'document_next_url': request.get_full_path(),
+        'can_manage_documents': application is not None,
     })
 
 
@@ -1110,13 +1167,19 @@ class RoleBasedLoginView(LoginView):
         return response
 
     def form_invalid(self, form):
-        submitted_username = form.data.get(form.username_field, "")
+        field_name = getattr(form.username_field, "name", form.username_field)
+        submitted_username = self.request.POST.get(field_name, "")
+        if isinstance(submitted_username, (list, tuple)):
+            submitted_username = submitted_username[0]
+        error_data = form.errors.get_json_data()
+        if "__all__" in error_data and "non_field_errors" not in error_data:
+            error_data["non_field_errors"] = error_data["__all__"]
         log_audit_event(
             action_code=AuditLog.ActionCode.LOGIN_FAILURE,
             request=self.request,
             context={
                 "username": submitted_username,
-                "errors": form.errors.get_json_data(),
+                "errors": error_data,
             },
         )
         return super().form_invalid(form)

@@ -9,4 +9,24 @@ urlpatterns = [
         views.mark_notification_read,
         name='consultant_notification_mark_read',
     ),
+    path(
+        'applications/<int:application_id>/documents/upload/',
+        views.upload_document,
+        name='consultant_document_upload',
+    ),
+    path(
+        'documents/<uuid:document_id>/delete/',
+        views.delete_document,
+        name='consultant_document_delete',
+    ),
+    path(
+        'documents/<uuid:document_id>/download/',
+        views.download_document,
+        name='consultant_document_download',
+    ),
+    path(
+        'documents/<uuid:document_id>/preview/',
+        views.preview_document,
+        name='consultant_document_preview',
+    ),
 ]

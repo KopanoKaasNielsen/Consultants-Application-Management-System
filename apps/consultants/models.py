@@ -1,8 +1,17 @@
+import mimetypes
 import uuid
+from pathlib import Path
 
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+
+def document_upload_to(instance: "Document", filename: str) -> str:
+    application_id = instance.application_id or "unassigned"
+    extension = Path(filename).suffix.lower()
+    unique_name = f"{uuid.uuid4().hex}{extension}"
+    return f"docs/{application_id}/{unique_name}"
 
 class Consultant(models.Model):
     GENDER_CHOICES = [
@@ -156,4 +165,65 @@ class LogEntry(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - human readable representation
         return f"[{self.level}] {self.logger_name}: {self.message[:75]}"
+
+
+class Document(models.Model):
+    """Supporting document uploaded for a consultant application."""
+
+    PREVIEWABLE_TYPES = {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+    }
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application = models.ForeignKey(
+        Consultant,
+        on_delete=models.CASCADE,
+        related_name="documents",
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="uploaded_documents",
+    )
+    file = models.FileField(upload_to=document_upload_to, max_length=500)
+    original_name = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=255, blank=True)
+    size = models.PositiveBigIntegerField(default=0)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-uploaded_at", "-id")
+
+    def __str__(self) -> str:  # pragma: no cover - human readable representation
+        return f"Document({self.original_name}) for application {self.application_id}"
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.original_name:
+            self.original_name = Path(self.file.name).name
+
+        if self.file:
+            try:
+                self.size = self.file.size or 0
+            except Exception:  # pragma: no cover - defensive guard
+                self.size = 0
+
+            content_type = getattr(self.file, "content_type", "") or getattr(
+                getattr(self.file, "file", None), "content_type", ""
+            )
+            if not content_type:
+                guessed, _ = mimetypes.guess_type(self.original_name)
+                content_type = guessed or ""
+            self.content_type = content_type
+
+        super().save(*args, **kwargs)
+
+    @property
+    def extension(self) -> str:
+        return Path(self.original_name).suffix.replace(".", "").upper()
+
+    @property
+    def is_previewable(self) -> bool:
+        return (self.content_type or "").lower() in self.PREVIEWABLE_TYPES
 
