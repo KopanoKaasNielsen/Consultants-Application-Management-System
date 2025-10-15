@@ -19,7 +19,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from consultant_app.views import verify_certificate
+from consultant_app.views import search_certificate, verify_certificate
 
 from .health import database_health_view, health_view
 
@@ -32,7 +32,7 @@ urlpatterns = [
     path('certificates/', include(('apps.certificates.urls', 'certificates'), namespace='certificates')),
     path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
     path('vetting/', include('apps.vetting.urls')),
-    path('', include('consultant_app.urls')),
+    path('search-certificate/', search_certificate, name='certificate-search'),
     path('api/', include(('apps.api.urls', 'api'), namespace='api')),
     path('verify/<uuid:certificate_uuid>/', verify_certificate, name='consultant-certificate-verify'),
 
