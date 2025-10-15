@@ -1,32 +1,28 @@
 """Helpers for generating and validating consultant certificates."""
 from __future__ import annotations
 
+import base64
 import logging
+import mimetypes
+import os
 from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO
+from pathlib import Path
 from typing import Any, Final, Optional
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core import signing
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
-from PIL import Image, ImageDraw, ImageFont
+from weasyprint import HTML
 
 from apps.consultants.models import Consultant
 from consultant_app.models import Certificate
 
 from utils.qr_generator import generate_qr_code
-
-# Layout constants for the generated PDF document.
-PAGE_WIDTH: Final = 1654
-PAGE_HEIGHT: Final = 2339
-MARGIN_X: Final = 120
-TITLE_Y: Final = 220
-LINE_SPACING: Final = 18
-QR_SIZE: Final = 420
-QR_MARGIN_BOTTOM: Final = 180
 
 _TOKEN_SALT: Final = "consultant_app.certificates.token"
 
@@ -43,12 +39,6 @@ class CertificateMetadata:
 
     consultant_id: int
     issued_at: str
-
-
-def _format_date(value: date | None) -> str:
-    if not value:
-        return "N/A"
-    return value.strftime("%d %B %Y")
 
 
 def _issued_at_to_date(value: str) -> date | None:
@@ -154,11 +144,56 @@ def build_verification_url(consultant: Consultant) -> str:
     return f"{path}?{query}"
 
 
-def _load_font() -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    try:
-        return ImageFont.truetype("arial.ttf", 24)
-    except (OSError, IOError):  # pragma: no cover - fallback depends on runtime fonts
-        return ImageFont.load_default()
+def _image_to_data_uri(image: object | None) -> str | None:
+    """Return a data URI for the provided image-like object, when possible."""
+
+    if not image:
+        return None
+
+    if isinstance(image, str):
+        if image.startswith("data:") or image.startswith("http") or image.startswith("file:"):
+            return image
+
+        potential_path = Path(image)
+        if not potential_path.is_absolute():
+            media_root = getattr(settings, "MEDIA_ROOT", "")
+            if media_root:
+                potential_path = Path(media_root) / image
+
+        if potential_path.exists():
+            data = potential_path.read_bytes()
+            mime, _ = mimetypes.guess_type(potential_path.name)
+            mime = mime or "image/png"
+            encoded = base64.b64encode(data).decode("ascii")
+            return f"data:{mime};base64,{encoded}"
+
+        return image
+
+    file_path = getattr(image, "path", None)
+    if file_path and os.path.exists(file_path):
+        data = Path(file_path).read_bytes()
+        mime, _ = mimetypes.guess_type(file_path)
+        mime = mime or "image/png"
+        encoded = base64.b64encode(data).decode("ascii")
+        return f"data:{mime};base64,{encoded}"
+
+    if hasattr(image, "read"):
+        try:
+            data = image.read()
+        finally:
+            if hasattr(image, "seek"):
+                image.seek(0)
+        if not data:
+            return None
+        mime = mimetypes.guess_type(getattr(image, "name", ""))[0] or "image/png"
+        encoded = base64.b64encode(data).decode("ascii")
+        return f"data:{mime};base64,{encoded}"
+
+    url = getattr(image, "url", None)
+    if url:
+        return url
+
+    return None
 
 
 def render_certificate_pdf(
@@ -167,61 +202,40 @@ def render_certificate_pdf(
     issued_at: date,
     verification_url: str,
     generated_by: Optional[str] = None,
+    signature_image: object | None = None,
+    signing_datetime: Optional[datetime] = None,
+    request: Optional[object] = None,
 ) -> BytesIO:
     """Render the certificate PDF bytes including a QR code."""
 
-    image = Image.new("RGB", (PAGE_WIDTH, PAGE_HEIGHT), "white")
-    draw = ImageDraw.Draw(image)
-
-    title_font = _load_font()
-    body_font = ImageFont.load_default()
-
-    title = "Consultant Approval Certificate"
-    title_bbox = draw.textbbox((0, 0), title, font=title_font)
-    title_width = title_bbox[2] - title_bbox[0]
-    title_x = (PAGE_WIDTH - title_width) / 2
-    draw.text((title_x, TITLE_Y), title, fill="black", font=title_font)
-
-    paragraphs = [
-        f"This certifies that {consultant.full_name} has been approved as a registered consultant.",
-        f"Registration Number: {consultant.registration_number or 'N/A'}",
-        f"Issued on {_format_date(issued_at)}.",
-    ]
-
-    if consultant.certificate_expires_at:
-        paragraphs.append(
-            f"Certificate valid until {_format_date(consultant.certificate_expires_at)}."
-        )
-
-    if generated_by:
-        paragraphs.append(f"Processed by {generated_by}.")
-
-    paragraphs.append("Scan the QR code or visit the link below to verify this certificate.")
-    paragraphs.append(verification_url)
-
-    y = TITLE_Y + 140
-    for paragraph in paragraphs:
-        draw.multiline_text(
-            (MARGIN_X, y),
-            paragraph,
-            fill="black",
-            font=body_font,
-            spacing=LINE_SPACING,
-        )
-        paragraph_bbox = draw.multiline_textbbox(
-            (MARGIN_X, y), paragraph, font=body_font, spacing=LINE_SPACING
-        )
-        y = paragraph_bbox[3] + (LINE_SPACING * 2)
-
     qr_image = generate_qr_code(verification_url, box_size=8, border=2)
-    qr_image = qr_image.resize((QR_SIZE, QR_SIZE), Image.NEAREST)
+    qr_buffer = BytesIO()
+    qr_image.save(qr_buffer, format="PNG")
+    qr_data_uri = "data:image/png;base64," + base64.b64encode(qr_buffer.getvalue()).decode(
+        "ascii"
+    )
 
-    qr_x = PAGE_WIDTH - MARGIN_X - QR_SIZE
-    qr_y = PAGE_HEIGHT - QR_SIZE - QR_MARGIN_BOTTOM
-    image.paste(qr_image, (qr_x, qr_y))
+    signer_name = generated_by or ""
+    signing_time = signing_datetime or timezone.now()
+
+    context = {
+        "consultant": consultant,
+        "issued_at": issued_at,
+        "verification_url": verification_url,
+        "qr_code_data_uri": qr_data_uri,
+        "signer_name": signer_name,
+        "signing_datetime": signing_time,
+        "signature_image": _image_to_data_uri(signature_image),
+    }
+
+    rendered_html = render_to_string("certificate_template.html", context)
+
+    base_url = getattr(settings, "MEDIA_ROOT", "") or (
+        request.build_absolute_uri("/") if request else None
+    )
 
     buffer = BytesIO()
-    image.save(buffer, format="PDF")
+    HTML(string=rendered_html, base_url=base_url).write_pdf(target=buffer)
     buffer.seek(0)
     return buffer
 

@@ -15,6 +15,7 @@ from apps.consultants.models import Consultant
 from apps.certificates.models import CertificateRenewal
 from apps.security.models import AuditLog
 from apps.security.utils import log_audit_event
+from apps.users.models import get_board_signature
 from consultant_app.certificates import build_verification_url, render_certificate_pdf
 from consultant_app.models import Certificate
 
@@ -120,11 +121,15 @@ def generate_approval_certificate(
         )
 
     verification_url = build_verification_url(consultant)
+    signature_image = get_board_signature(actor) if actor else None
     pdf_stream = render_certificate_pdf(
         consultant,
         issued_at=timezone.localdate(),
         verification_url=verification_url,
         generated_by=generated_by,
+        signature_image=signature_image,
+        signing_datetime=issued_at,
+        request=request,
     )
 
     filename = f"approval-certificate-{consultant.pk}.pdf"
