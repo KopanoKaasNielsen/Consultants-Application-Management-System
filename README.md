@@ -72,6 +72,10 @@ identify which roles can access each endpoint:
 | `/api/staff/logs/` | `GET` | View application audit log entries. | Staff, Admin |
 | `/api/audit-logs/` | `GET` | Paginated security audit log entries with action metadata, client IP and context fields. | Admin |
 
+The dedicated audit log endpoint is restricted to administrators because it
+exposes potentially sensitive metadata such as the originating IP address and
+structured context for each security event.
+
 **Rate limits:** consultant tokens may perform up to 60 requests per minute, staff tokens are
 limited to 30 requests per minute, and board tokens to 15 requests per minute. Admin tokens are
 exempt from throttling.
