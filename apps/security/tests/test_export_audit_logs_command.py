@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from io import StringIO
 
+import pytest
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import TestCase
@@ -11,9 +13,13 @@ from django.utils import timezone
 from apps.security.models import AuditLog
 
 
+pytestmark = pytest.mark.django_db
+
+
 class ExportAuditLogsCommandTests(TestCase):
     def setUp(self):
         super().setUp()
+        self.assertIn("rest_framework", settings.INSTALLED_APPS)
         self.user = get_user_model().objects.create_user(
             username="log-user",
             email="log-user@example.com",
