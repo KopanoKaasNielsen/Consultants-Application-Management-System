@@ -32,7 +32,7 @@ from apps.users.constants import (
     SENIOR_IMMIGRATION_GROUP_NAME,
     UserRole,
 )
-from apps.users.permissions import role_required, user_has_role
+from apps.users.permissions import role_required, user_has_any_role, user_has_role
 from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
 from tests.utils import create_consultant_instance
@@ -552,10 +552,12 @@ class RolePermissionTests(TestCase):
         board = self._create_user_with_groups(
             "board_member", [BOARD_COMMITTEE_GROUP_NAME]
         )
+        admin = self._create_user_with_groups("admin_user", [ADMINS_GROUP_NAME])
 
         self.assertTrue(user_has_role(consultant, UserRole.CONSULTANT))
         self.assertTrue(user_has_role(staff, UserRole.STAFF))
         self.assertTrue(user_has_role(board, UserRole.BOARD))
+        self.assertTrue(user_has_role(admin, UserRole.ADMIN))
 
     def test_user_has_role_rejects_unknown_membership(self):
         outsider = self._create_user_with_groups("outsider", [])
@@ -566,6 +568,13 @@ class RolePermissionTests(TestCase):
             username="super", email="super@example.com", password="password123"
         )
         self.assertTrue(user_has_role(superuser, UserRole.BOARD))
+
+    def test_user_has_any_role_accepts_admin_membership(self):
+        admin = self._create_user_with_groups("admin", [ADMINS_GROUP_NAME])
+
+        self.assertTrue(
+            user_has_any_role(admin, (UserRole.ADMIN, UserRole.STAFF))
+        )
 
     def test_role_required_allows_authorised_user(self):
         staff_user = self._create_user_with_groups(

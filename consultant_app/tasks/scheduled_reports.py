@@ -16,7 +16,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from apps.users.constants import ADMINS_GROUP_NAME, UserRole, groups_for_roles
+from apps.users.constants import UserRole, groups_for_roles
 from consultant_app.utils.report_exporter import (
     describe_filters,
     prepare_dashboard_rows,
@@ -84,7 +84,7 @@ def _resolve_recipients() -> list[str]:
         return [email for email in configured if email]
 
     UserModel = get_user_model()
-    admin_groups = groups_for_roles([UserRole.BOARD]) | {ADMINS_GROUP_NAME}
+    admin_groups = groups_for_roles([UserRole.BOARD, UserRole.ADMIN])
     candidates = (
         UserModel.objects.filter(is_active=True)
         .filter(Q(is_superuser=True) | Q(groups__name__in=admin_groups))
