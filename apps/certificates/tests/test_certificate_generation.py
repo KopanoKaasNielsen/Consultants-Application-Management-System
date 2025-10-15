@@ -83,7 +83,9 @@ class GenerateApprovalCertificateTests(TestCase):
 
         def fake_write_pdf(self, target=None, *args, **kwargs):
             if target is not None:
-                target.write(b"%PDF-1.4 stub\n%%EOF")
+                rendered = captured.get("rendered_html", "")
+                payload = rendered.encode("utf-8") if rendered else b""
+                target.write(b"%PDF-1.4\n" + payload + b"\n%%EOF")
             return None
 
         def fake_qr_code(data, *, box_size=8, border=2):  # noqa: ARG001 - signature defined by patch
@@ -135,6 +137,12 @@ class GenerateApprovalCertificateTests(TestCase):
         self.assertTrue(str(context["signature_image"]).startswith("data:image/png;base64"))
         self.assertIn(str(self.consultant.certificate_uuid), str(context["verification_url"]))
 
+        with pdf_file.open("rb") as handle:
+            pdf_bytes = handle.read()
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-1.4"))
+        self.assertIn(self.generated_by.encode("utf-8"), pdf_bytes)
+        self.assertIn(str(context["verification_url"]).encode("utf-8"), pdf_bytes)
+
         date_text = date_format(self.fixed_now, "j F Y")
         time_text = date_format(self.fixed_now, "H:i")
 
@@ -174,6 +182,12 @@ class GenerateApprovalCertificateTests(TestCase):
         self.assertIsNone(context["signature_image"])
         self.assertIn(str(self.consultant.certificate_uuid), str(context["verification_url"]))
 
+        with pdf_file.open("rb") as handle:
+            pdf_bytes = handle.read()
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-1.4"))
+        self.assertIn(self.generated_by.encode("utf-8"), pdf_bytes)
+        self.assertIn(str(context["verification_url"]).encode("utf-8"), pdf_bytes)
+
         date_text = date_format(self.fixed_now, "j F Y")
         time_text = date_format(self.fixed_now, "H:i")
         self.assertIn(f"Signed on {date_text} at {time_text}", rendered_html)
@@ -184,4 +198,35 @@ class GenerateApprovalCertificateTests(TestCase):
         ).latest("timestamp")
         self.assertNotIn("signature_asset", audit_log.context)
         self.assertNotIn("signed_at", audit_log.context)
+
+    def test_generate_certificate_without_board_profile_still_succeeds(self):
+        stack, captured = self._patched_context()
+        with stack, patch("apps.certificates.services.get_board_signature", return_value=None):
+            pdf_file = generate_approval_certificate(
+                self.consultant,
+                generated_by=self.generated_by,
+                actor=self.board_user,
+            )
+
+        self.assertIsNotNone(pdf_file)
+        self.consultant.refresh_from_db()
+        self.assertTrue(self.consultant.certificate_pdf.name.startswith("certificates/signed/"))
+
+        context = captured["context"]
+        self.assertEqual(context["signer_name"], self.generated_by)
+        self.assertIsNone(context["signature_image"])
+        self.assertIn(str(self.consultant.certificate_uuid), str(context["verification_url"]))
+
+        with pdf_file.open("rb") as handle:
+            pdf_bytes = handle.read()
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-1.4"))
+        self.assertIn(self.generated_by.encode("utf-8"), pdf_bytes)
+        self.assertIn(str(context["verification_url"]).encode("utf-8"), pdf_bytes)
+
+        audit_log = AuditLog.objects.filter(
+            action_code=AuditLog.ActionCode.CERTIFICATE_ISSUED
+        ).latest("timestamp")
+        self.assertNotIn("signature_asset", audit_log.context)
+        self.assertNotIn("signed_at", audit_log.context)
+        self.assertEqual(audit_log.context.get("signatory_user_id"), self.board_user.pk)
 
