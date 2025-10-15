@@ -137,4 +137,3 @@ def test_search_certificate_invalid_issue_date(client, certificate_records):
     assert response.context["form_errors"]["issue_date"] == (
         "Enter a valid date in YYYY-MM-DD format."
     )
-*** End of File

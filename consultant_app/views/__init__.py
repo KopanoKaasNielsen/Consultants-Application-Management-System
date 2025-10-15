@@ -154,7 +154,11 @@ def search_certificate(request):
     parsed_issue_date = None
     form_errors: Dict[str, str] = {}
     if issue_date_query:
-        parsed_issue_date = parse_date(issue_date_query)
+        try:
+            parsed_issue_date = parse_date(issue_date_query)
+        except ValueError:
+            parsed_issue_date = None
+
         if not parsed_issue_date:
             form_errors["issue_date"] = "Enter a valid date in YYYY-MM-DD format."
 
