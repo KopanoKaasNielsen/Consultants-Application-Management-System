@@ -83,7 +83,9 @@ def init_sentry() -> None:
 
 INSTALLED_APPS = [
     'channels',
+    'rest_framework',
     'consultant_app.apps.ConsultantAppConfig',
+    'apps.api',
     'apps.consultants',
     'apps.vetting',
     'apps.decisions',

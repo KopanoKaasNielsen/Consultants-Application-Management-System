@@ -19,16 +19,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from consultant_app.views import (
-    consultant_dashboard,
-    log_entries,
-    validate_consultant,
-    verify_certificate,
-)
-from consultant_app.views.reports import (
-    export_consultant_dashboard_csv,
-    export_consultant_dashboard_pdf,
-)
+from consultant_app.views import verify_certificate
 
 from .health import database_health_view, health_view
 
@@ -42,27 +33,7 @@ urlpatterns = [
     path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
     path('vetting/', include('apps.vetting.urls')),
     path('', include('consultant_app.urls')),
+    path('api/', include(('apps.api.urls', 'api'), namespace='api')),
     path('verify/<uuid:certificate_uuid>/', verify_certificate, name='consultant-certificate-verify'),
-    path('api/consultants/validate/', validate_consultant, name='consultant-validate'),
-    path(
-        'api/staff/consultants/',
-        consultant_dashboard,
-        name='consultant-dashboard',
-    ),
-    path(
-        'api/staff/consultants/export/pdf/',
-        export_consultant_dashboard_pdf,
-        name='consultant-dashboard-export-pdf',
-    ),
-    path(
-        'api/staff/consultants/export/csv/',
-        export_consultant_dashboard_csv,
-        name='consultant-dashboard-export-csv',
-    ),
-    path(
-        'api/staff/logs/',
-        log_entries,
-        name='consultant-log-entries',
-    ),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
