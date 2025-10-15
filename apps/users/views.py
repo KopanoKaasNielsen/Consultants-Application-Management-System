@@ -7,6 +7,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout, login as auth_login, get_user_model
 from django.contrib.auth.decorators import login_required
@@ -25,6 +26,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.dateparse import parse_date
 from django.urls import reverse, reverse_lazy
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 
@@ -957,6 +959,19 @@ def admin_dashboard(request):
             "users": active_users,
             "filters": filter_params,
         },
+    )
+
+
+@role_required(Roles.ADMIN)
+@never_cache
+def admin_service_health(request):
+    """Render the service health dashboard for privileged administrators."""
+
+    refresh_interval = getattr(settings, "ADMIN_SERVICE_HEALTH_REFRESH_INTERVAL", 60)
+    return render(
+        request,
+        "admin_health.html",
+        {"refresh_interval_seconds": int(refresh_interval)},
     )
 
 

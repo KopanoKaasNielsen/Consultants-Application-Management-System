@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Dict, List, Optional
 
 from django.conf import settings
 from django.db import connections
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.db.utils import OperationalError
 from django.http import HttpResponse
 from django.utils import timezone
@@ -14,7 +15,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.api.permissions import IsStaffUserRole
+from apps.api.permissions import IsAdminUserRole, IsStaffUserRole
 from apps.api.throttling import RoleBasedRateThrottle
 from apps.api.serializers import (
     ConsultantDashboardListSerializer,
@@ -44,6 +45,108 @@ from consultant_app.views.reports import _build_filename, _prepare_export_rows
 from consultant_app.models import LogEntry
 
 from apps.security.models import AuditLog
+
+try:  # pragma: no cover - Celery is optional in tests
+    from consultant_app.tasks import celery_app
+except Exception:  # pragma: no cover - fallback when Celery is not configured
+    celery_app = None
+
+
+def _collect_throttle_metrics() -> Dict[str, object]:
+    """Aggregate configured rate limits for the role-based throttle."""
+
+    throttle = RoleBasedRateThrottle()
+    role_rates = {role.value: rate for role, rate in throttle.role_rates.items()}
+
+    window_seconds: Optional[int] = None
+    per_role_limits: Dict[str, Dict[str, Optional[float]]] = {}
+    windows: List[int] = []
+
+    for role, rate in throttle.role_rates.items():
+        try:
+            num_requests, duration = throttle.parse_rate(rate)
+        except Exception:  # pragma: no cover - defensive branch
+            per_role_limits[role.value] = {"requests": None, "window_seconds": None}
+            continue
+
+        windows.append(duration)
+        per_role_limits[role.value] = {
+            "requests": float(num_requests),
+            "window_seconds": float(duration),
+        }
+
+    if windows:
+        window_seconds = max(windows)
+
+    return {
+        "scope": throttle.scope,
+        "role_rates": role_rates,
+        "per_role_limits": per_role_limits,
+        "max_window_seconds": window_seconds,
+    }
+
+
+def _collect_celery_metrics() -> Dict[str, object]:
+    """Return queue statistics gathered from the Celery control plane."""
+
+    if celery_app is None:
+        return {
+            "status": "unavailable",
+            "worker_count": 0,
+            "queue_length": None,
+            "active_tasks": 0,
+            "scheduled_tasks": 0,
+        }
+
+    try:
+        inspector = celery_app.control.inspect()  # type: ignore[union-attr]
+        active = inspector.active() or {}
+        reserved = inspector.reserved() or {}
+        scheduled = inspector.scheduled() or {}
+
+        active_count = sum(len(tasks or []) for tasks in active.values())
+        reserved_count = sum(len(tasks or []) for tasks in reserved.values())
+        scheduled_count = sum(len(tasks or []) for tasks in scheduled.values())
+
+        worker_names = {
+            *(active.keys()),
+            *(reserved.keys()),
+            *(scheduled.keys()),
+        }
+
+        queue_length = active_count + reserved_count + scheduled_count
+
+        status = "healthy" if worker_names else "idle"
+
+        return {
+            "status": status,
+            "worker_count": len(worker_names),
+            "queue_length": queue_length,
+            "active_tasks": active_count,
+            "scheduled_tasks": scheduled_count,
+        }
+    except Exception:  # pragma: no cover - Celery may not be configured
+        return {
+            "status": "unavailable",
+            "worker_count": 0,
+            "queue_length": None,
+            "active_tasks": 0,
+            "scheduled_tasks": 0,
+        }
+
+
+def _normalise_alert(alert: AuditLog) -> Dict[str, object]:
+    """Return a serialisable representation of an audit log alert."""
+
+    context = alert.context or {}
+    return {
+        "id": alert.id,
+        "action": alert.get_action_code_display(),
+        "endpoint": alert.endpoint or "—",
+        "timestamp": alert.timestamp.isoformat(),
+        "severity": str(context.get("severity", "unknown")),
+        "details": context,
+    }
 
 
 class HealthSummaryView(APIView):
@@ -228,6 +331,70 @@ class StaffLogEntryViewSet(viewsets.ViewSet):
         response_serializer = LogEntryListSerializer(data=payload)
         response_serializer.is_valid(raise_exception=True)
         return Response(response_serializer.data)
+
+
+class ServiceMetricsView(APIView):
+    """Provide aggregated service metrics for the admin health dashboard."""
+
+    permission_classes = [permissions.IsAuthenticated, IsAdminUserRole]
+    throttle_classes = [RoleBasedRateThrottle]
+
+    def get(self, request, *args, **kwargs):  # type: ignore[override]
+        now = timezone.now()
+        one_minute_ago = now - timedelta(minutes=1)
+        fifteen_minutes_ago = now - timedelta(minutes=15)
+        one_hour_ago = now - timedelta(hours=1)
+
+        throughput = AuditLog.objects.filter(timestamp__gte=one_minute_ago).count()
+
+        recent_logs = AuditLog.objects.filter(timestamp__gte=fifteen_minutes_ago)
+        response_samples: List[float] = []
+        for context in recent_logs.values_list("context", flat=True):
+            if isinstance(context, dict):
+                response_time = context.get("response_time_ms") or context.get("response_ms")
+                if isinstance(response_time, (int, float)):
+                    response_samples.append(float(response_time))
+
+        average_response = sum(response_samples) / len(response_samples) if response_samples else 0.0
+
+        error_filter = Q(context__severity__in=["critical", "high", "error"]) | Q(
+            action_code=AuditLog.ActionCode.LOGIN_FAILURE
+        )
+        recent_errors = recent_logs.filter(error_filter).count()
+
+        top_endpoints = (
+            AuditLog.objects.filter(timestamp__gte=one_hour_ago)
+            .exclude(endpoint="")
+            .values("endpoint")
+            .annotate(total=Count("id"))
+            .order_by("-total")[:5]
+        )
+        endpoint_stats = [
+            {"endpoint": item["endpoint"], "count": int(item["total"])} for item in top_endpoints
+        ]
+
+        alert_candidates = (
+            AuditLog.objects.filter(timestamp__gte=one_hour_ago)
+            .filter(Q(context__severity__in=["critical", "high"]) | Q(context__alert_active=True))
+            .order_by("-timestamp")[:5]
+        )
+        active_alerts = [_normalise_alert(alert) for alert in alert_candidates]
+
+        throttle_metrics = _collect_throttle_metrics()
+        celery_metrics = _collect_celery_metrics()
+
+        payload = {
+            "timestamp": now.isoformat(),
+            "request_throughput_per_minute": throughput,
+            "average_response_time_ms": round(average_response, 2),
+            "recent_errors": recent_errors,
+            "top_endpoints": endpoint_stats,
+            "active_alerts": active_alerts,
+            "throttle": throttle_metrics,
+            "celery": celery_metrics,
+        }
+
+        return Response(payload)
 
 
 class ConsultantDashboardPDFExportView(APIView):

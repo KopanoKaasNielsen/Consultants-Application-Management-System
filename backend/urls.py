@@ -20,10 +20,12 @@ from django.contrib import admin
 from django.urls import include, path
 
 from consultant_app.views import search_certificate, verify_certificate
+from apps.users.views import admin_service_health
 
 from .health import database_health_view, health_view
 
 urlpatterns = [
+    path('admin/health/', admin_service_health, name='admin_service_health'),
     path('admin/', admin.site.urls),
     path('health/', health_view, name='health'),
     path('health/database/', database_health_view, name='health-database'),

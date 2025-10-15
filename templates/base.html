@@ -17,6 +17,7 @@
         {% if user.is_authenticated %}
             {% if has_admin_role %}
                 <a class="nav-link" href="{% url 'admin_dashboard' %}">Admin dashboard</a>
+                <a class="nav-link" href="{% url 'admin_service_health' %}">Service health</a>
                 <a class="nav-link" href="{% url 'impersonation_dashboard' %}">Impersonation</a>
             {% endif %}
             {% if has_staff_role %}
