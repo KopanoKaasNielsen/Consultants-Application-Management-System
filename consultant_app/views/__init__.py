@@ -74,11 +74,13 @@ def build_dashboard_queryset(
     if category:
         queryset = queryset.filter(consultant_type__iexact=category)
 
-    date_from = parse_date(params.get("date_from"))
+    raw_date_from = params.get("date_from")
+    date_from = parse_date(raw_date_from) if isinstance(raw_date_from, str) else None
     if date_from:
         queryset = queryset.filter(submitted_at__date__gte=date_from)
 
-    date_to = parse_date(params.get("date_to"))
+    raw_date_to = params.get("date_to")
+    date_to = parse_date(raw_date_to) if isinstance(raw_date_to, str) else None
     if date_to:
         queryset = queryset.filter(submitted_at__date__lte=date_to)
 

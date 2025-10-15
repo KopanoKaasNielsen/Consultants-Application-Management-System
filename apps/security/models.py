@@ -20,6 +20,8 @@ class AuditLog(models.Model):
         CERTIFICATE_REVOKED = "certificate_revoked", "Revoked consultant certificate"
         LOGIN_SUCCESS = "login_success", "Successful login"
         LOGIN_FAILURE = "login_failure", "Failed login"
+        UPLOAD_DOCUMENT = "upload_document", "Uploaded supporting document"
+        DELETE_DOCUMENT = "delete_document", "Deleted supporting document"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

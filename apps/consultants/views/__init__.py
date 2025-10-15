@@ -5,19 +5,28 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
-from django.urls import reverse
 
-from .tasks import send_submission_confirmation_email_task
-from .forms import ConsultantForm
-from .models import Consultant, Notification
 from apps.users.constants import UserRole as Roles
 from apps.users.permissions import role_required
 
+from ..forms import ConsultantForm
+from ..models import Consultant, Notification
+from ..tasks import send_submission_confirmation_email_task
+
 
 logger = logging.getLogger(__name__)
+
+# Re-export upload management views for convenient import paths.
+from .uploads import (  # noqa: F401
+    delete_document,
+    download_document,
+    preview_document,
+    upload_document,
+)
 
 
 AUTO_SAVE_FIELDS = [

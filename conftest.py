@@ -13,7 +13,11 @@ django.setup()
 from django.contrib.auth import get_user_model  # noqa: E402
 from django.contrib.auth.models import Group  # noqa: E402
 
-from apps.users.constants import ROLE_GROUP_MAP, UserRole as Roles  # noqa: E402
+from apps.users.constants import (  # noqa: E402
+    ADMINS_GROUP_NAME,
+    ROLE_GROUP_MAP,
+    UserRole as Roles,
+)
 
 
 User = get_user_model()
@@ -25,6 +29,8 @@ def user_factory(db):
         user = User.objects.create_user(username=username, password="password123")
 
         for group_name in ROLE_GROUP_MAP.get(role, set()):
+            if role == Roles.STAFF and group_name == ADMINS_GROUP_NAME:
+                continue
             group, _ = Group.objects.get_or_create(name=group_name)
             user.groups.add(group)
 

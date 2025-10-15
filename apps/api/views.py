@@ -252,7 +252,7 @@ class ConsultantDashboardPDFExportView(APIView):
 
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = (
-            f'attachment; filename="{_build_filename("consultant-dashboard", "pdf")}"'
+            f"attachment; filename={_build_filename('consultant-dashboard', 'pdf')}"
         )
         return response
 
@@ -269,6 +269,6 @@ class ConsultantDashboardCSVExportView(APIView):
 
         response = HttpResponse(csv_bytes, content_type="text/csv")
         response["Content-Disposition"] = (
-            f'attachment; filename="{_build_filename("consultant-dashboard", "csv")}"'
+            f"attachment; filename={_build_filename('consultant-dashboard', 'csv')}"
         )
         return response

@@ -51,9 +51,8 @@ def export_consultant_dashboard_pdf(request):
     )
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
-    response["Content-Disposition"] = (
-        f'attachment; filename="{_build_filename("consultant-dashboard", "pdf")}"'
-    )
+    filename_pdf = _build_filename("consultant-dashboard", "pdf")
+    response["Content-Disposition"] = f"attachment; filename={filename_pdf}"
     return response
 
 
@@ -67,7 +66,6 @@ def export_consultant_dashboard_csv(request):
     csv_bytes = build_dashboard_csv(rows)
 
     response = HttpResponse(csv_bytes, content_type="text/csv")
-    response["Content-Disposition"] = (
-        f'attachment; filename="{_build_filename("consultant-dashboard", "csv")}"'
-    )
+    filename_csv = _build_filename("consultant-dashboard", "csv")
+    response["Content-Disposition"] = f"attachment; filename={filename_csv}"
     return response
