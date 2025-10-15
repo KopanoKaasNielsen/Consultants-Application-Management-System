@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import textwrap
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Iterable, Optional
 
@@ -15,7 +15,7 @@ from apps.consultants.models import Consultant
 from apps.certificates.models import CertificateRenewal
 from apps.security.models import AuditLog
 from apps.security.utils import log_audit_event
-from apps.users.models import get_board_signature
+from apps.users.models import BoardMemberProfile, get_board_signature
 from consultant_app.certificates import build_verification_url, render_certificate_pdf
 from consultant_app.models import Certificate
 
@@ -121,14 +121,37 @@ def generate_approval_certificate(
         )
 
     verification_url = build_verification_url(consultant)
-    signature_image = get_board_signature(actor) if actor else None
+    signature_image = None
+    signature_asset: Optional[str] = None
+    signed_at: Optional[datetime] = None
+
+    if actor:
+        signature_profile = None
+        try:
+            signature_profile = actor.board_profile  # type: ignore[attr-defined]
+        except (AttributeError, BoardMemberProfile.DoesNotExist):  # pragma: no cover - graceful fallback
+            signature_profile = None
+
+        if signature_profile and getattr(signature_profile, "signature_image", None):
+            signature_image = signature_profile.signature_image
+        else:
+            signature_image = get_board_signature(actor)
+
+        if signature_image:
+            signature_asset = (
+                getattr(signature_image, "name", None)
+                or getattr(signature_image, "path", None)
+                or getattr(signature_image, "url", None)
+            )
+            signed_at = issued_at
+
     pdf_stream = render_certificate_pdf(
         consultant,
         issued_at=timezone.localdate(),
         verification_url=verification_url,
         generated_by=generated_by,
         signature_image=signature_image,
-        signing_datetime=issued_at,
+        signing_datetime=signed_at or issued_at,
         request=request,
     )
 
@@ -168,6 +191,12 @@ def generate_approval_certificate(
         if consultant.certificate_expires_at
         else None,
     }
+    if actor:
+        audit_context["signatory_user_id"] = actor.pk
+    if signed_at:
+        audit_context["signed_at"] = signed_at.isoformat()
+    if signature_asset:
+        audit_context["signature_asset"] = signature_asset
     log_audit_event(
         action_code=AuditLog.ActionCode.CERTIFICATE_ISSUED,
         request=request,
