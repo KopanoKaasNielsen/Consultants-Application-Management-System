@@ -12,10 +12,12 @@ from apps.api.views import (
     StaffConsultantViewSet,
     StaffLogEntryViewSet,
 )
+from apps.security.views import AuditLogViewSet
 
 router = DefaultRouter()
 router.register('staff/consultants', StaffConsultantViewSet, basename='staff-consultants')
 router.register('staff/logs', StaffLogEntryViewSet, basename='staff-logs')
+router.register('audit-logs', AuditLogViewSet, basename='audit-logs')
 
 app_name = 'api'
 

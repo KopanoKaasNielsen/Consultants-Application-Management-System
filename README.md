@@ -70,6 +70,7 @@ identify which roles can access each endpoint:
 | `/api/staff/consultants/export/pdf/` | `GET` | Download the consultant dashboard as a PDF export. | Staff, Admin |
 | `/api/staff/consultants/export/csv/` | `GET` | Download the consultant dashboard as a CSV export. | Staff, Admin |
 | `/api/staff/logs/` | `GET` | View application audit log entries. | Staff, Admin |
+| `/api/audit-logs/` | `GET` | Paginated security audit log entries with action metadata, client IP and context fields. | Admin |
 
 **Rate limits:** consultant tokens may perform up to 60 requests per minute, staff tokens are
 limited to 30 requests per minute, and board tokens to 15 requests per minute. Admin tokens are
