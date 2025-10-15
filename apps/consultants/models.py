@@ -1,10 +1,8 @@
 import uuid
 
-from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
-
-User = get_user_model()
 
 class Consultant(models.Model):
     GENDER_CHOICES = [
@@ -23,7 +21,11 @@ class Consultant(models.Model):
     ]
 
     # Link to the User (consultant account)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='applications')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='applications',
+    )
 
     # Personal Information
     full_name = models.CharField(max_length=255)
@@ -97,7 +99,7 @@ class Notification(models.Model):
         COMMENT = "comment", "New staff comment"
 
     recipient = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="notifications",
     )
@@ -141,7 +143,7 @@ class LogEntry(models.Model):
     level = models.CharField(max_length=16, choices=LEVEL_CHOICES)
     message = models.TextField()
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
