@@ -5,3 +5,8 @@ class SecurityConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.security"
     verbose_name = "Security"
+
+    def ready(self) -> None:  # pragma: no cover - import side-effect
+        from . import signals  # noqa: F401
+
+        return super().ready()
