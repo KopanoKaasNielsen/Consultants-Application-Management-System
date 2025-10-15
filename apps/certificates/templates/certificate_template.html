@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Consultant Approval Certificate</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+            color: #222222;
+        }
+        .certificate {
+            padding: 48px 72px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        header h1 {
+            font-size: 28px;
+            margin: 0;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        section {
+            margin-bottom: 32px;
+        }
+        .consultant-details p,
+        .verification-details p,
+        .signature-details p {
+            margin: 4px 0;
+            font-size: 14px;
+        }
+        .signature-block {
+            display: flex;
+            align-items: flex-end;
+            gap: 24px;
+            margin-top: 48px;
+        }
+        .signature-block img {
+            max-height: 120px;
+        }
+        .signature-meta {
+            border-top: 1px solid #333;
+            padding-top: 8px;
+            min-width: 220px;
+        }
+        .qr-section {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            margin-top: 40px;
+        }
+        .qr-section img {
+            width: 140px;
+            height: 140px;
+        }
+        .qr-link {
+            font-size: 13px;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+<div class="certificate">
+    <header>
+        <h1>Consultant Approval Certificate</h1>
+        <p>This document confirms the consultant's registration status.</p>
+    </header>
+
+    <section class="consultant-details">
+        <h2>Consultant Information</h2>
+        <p><strong>Name:</strong> {{ consultant.full_name }}</p>
+        <p><strong>Registration Number:</strong> {{ consultant.registration_number|default:"N/A" }}</p>
+        <p><strong>Issued on:</strong> {{ issued_at|date:"j F Y" }}</p>
+        {% if consultant.certificate_expires_at %}
+        <p><strong>Valid until:</strong> {{ consultant.certificate_expires_at|date:"j F Y" }}</p>
+        {% endif %}
+    </section>
+
+    <section class="verification-details">
+        <h2>Verification</h2>
+        <div class="qr-section">
+            {% if qr_code_data_uri %}
+            <img src="{{ qr_code_data_uri }}" alt="Verification QR code">
+            {% endif %}
+            <div>
+                <p>Scan the QR code or use the link below to confirm this certificate.</p>
+                <p class="qr-link">{{ verification_url }}</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="signature-details">
+        <h2>Authorized Signatory</h2>
+        <div class="signature-block">
+            {% if signature_image %}
+            <img src="{{ signature_image }}" alt="Board signature">
+            {% endif %}
+            <div class="signature-meta">
+                <p><strong>{{ signer_name|default:"" }}</strong></p>
+                <p>Signed on {{ signing_datetime|date:"j F Y" }} at {{ signing_datetime|time:"H:i" }}</p>
+            </div>
+        </div>
+    </section>
+</div>
+</body>
+</html>
