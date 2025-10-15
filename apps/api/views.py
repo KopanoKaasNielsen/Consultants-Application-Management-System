@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.api.permissions import IsStaffUserRole
+from apps.api.throttling import RoleBasedRateThrottle
 from apps.api.serializers import (
     ConsultantDashboardListSerializer,
     ConsultantValidationErrorSerializer,
@@ -41,6 +42,7 @@ class ConsultantValidationView(APIView):
     """Validate consultant identifiers for uniqueness conflicts."""
 
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [RoleBasedRateThrottle]
 
     def post(self, request, *args, **kwargs):  # type: ignore[override]
         serializer = ConsultantValidationSerializer(request.data)
@@ -59,6 +61,7 @@ class StaffConsultantViewSet(viewsets.ViewSet):
     """Provide staff access to consultant dashboard data."""
 
     permission_classes = [permissions.IsAuthenticated, IsStaffUserRole]
+    throttle_classes = [RoleBasedRateThrottle]
 
     def list(self, request):  # type: ignore[override]
         queryset, filters = build_dashboard_queryset(request.query_params)
@@ -109,6 +112,7 @@ class StaffLogEntryViewSet(viewsets.ViewSet):
     """Expose application log entries for staff dashboards."""
 
     permission_classes = [permissions.IsAuthenticated, IsStaffUserRole]
+    throttle_classes = [RoleBasedRateThrottle]
 
     def list(self, request):  # type: ignore[override]
         queryset = LogEntry.objects.select_related("user").all()
@@ -174,6 +178,7 @@ class ConsultantDashboardPDFExportView(APIView):
     """Generate the consultant dashboard export as a PDF document."""
 
     permission_classes = [permissions.IsAuthenticated, IsStaffUserRole]
+    throttle_classes = [RoleBasedRateThrottle]
 
     def get(self, request, *args, **kwargs):  # type: ignore[override]
         rows, filters = _prepare_export_rows(request)
@@ -200,6 +205,7 @@ class ConsultantDashboardCSVExportView(APIView):
     """Generate the consultant dashboard export as a CSV document."""
 
     permission_classes = [permissions.IsAuthenticated, IsStaffUserRole]
+    throttle_classes = [RoleBasedRateThrottle]
 
     def get(self, request, *args, **kwargs):  # type: ignore[override]
         rows, _filters = _prepare_export_rows(request)
