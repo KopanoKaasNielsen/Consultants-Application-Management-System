@@ -100,6 +100,20 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [
+        'apps.api.throttling.RoleBasedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'role': '60/min',
+    },
+    'ROLE_BASED_THROTTLE_RATES': {
+        'consultant': '60/min',
+        'staff': '30/min',
+        'board': '15/min',
+    },
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
