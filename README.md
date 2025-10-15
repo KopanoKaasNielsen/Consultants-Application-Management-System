@@ -79,3 +79,19 @@ structured context for each security event.
 **Rate limits:** consultant tokens may perform up to 60 requests per minute, staff tokens are
 limited to 30 requests per minute, and board tokens to 15 requests per minute. Admin tokens are
 exempt from throttling.
+
+## Sharing logs with ChatGPT Plus
+
+Security-sensitive investigations sometimes need lightweight context from the
+audit trail. The project now ships with a helper command that gathers recent
+events into a redacted export that can be safely pasted into ChatGPT Plus (or
+similar support channels) for debugging assistance without exposing client IP
+addresses or user contact information by default.
+
+```bash
+python manage.py export_audit_logs --limit 20  # Markdown table ready for pasting
+```
+
+Use the `--format json` switch if you prefer a machine-readable export, and add
+`--include-ip` or `--include-contact-details` if you explicitly need those
+fields in the shared transcript.
