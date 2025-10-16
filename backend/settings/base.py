@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Iterable, Sequence
 
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse_lazy
@@ -40,14 +41,54 @@ def get_secret_key(debug: bool) -> str:
         "DJANGO_SECRET_KEY must be set in production environments."
     )
 
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,consultant-app-156x.onrender.com,.onrender.com",
-).split(",")
-CSRF_TRUSTED_ORIGINS = os.getenv(
+DEFAULT_ALLOWED_HOSTS = (
+    "localhost",
+    "127.0.0.1",
+)
+
+
+def _normalise_list(values: Iterable[str]) -> list[str]:
+    """Return a list of unique, stripped values preserving order."""
+
+    normalised: list[str] = []
+    for value in values:
+        candidate = value.strip()
+        if not candidate or candidate in normalised:
+            continue
+        normalised.append(candidate)
+    return normalised
+
+
+def get_allowed_hosts(env_var: str, default: Iterable[str] | None = None) -> list[str]:
+    """Read a comma-separated list of hosts from an environment variable."""
+
+    raw_value = os.getenv(env_var)
+    if raw_value:
+        return _normalise_list(raw_value.split(","))
+    if default is None:
+        default = DEFAULT_ALLOWED_HOSTS
+    return list(default)
+
+
+def get_csrf_trusted_origins(
+    env_var: str,
+    default: Iterable[str] | None = None,
+) -> list[str]:
+    """Fetch trusted origins allowing override per environment."""
+
+    raw_value = os.getenv(env_var)
+    if raw_value:
+        return _normalise_list(raw_value.split(","))
+    if default is None:
+        return []
+    return list(default)
+
+
+ALLOWED_HOSTS = get_allowed_hosts("ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
     "CSRF_TRUSTED_ORIGINS",
-    "https://consultant-app-156x.onrender.com,https://*.onrender.com",
-).split(",")
+    default=("https://localhost", "https://127.0.0.1"),
+)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
@@ -195,8 +236,69 @@ def _build_channel_layers() -> dict[str, dict[str, object]]:
 
 CHANNEL_LAYERS = _build_channel_layers()
 
+def _build_test_settings(parsed: dict[str, str]) -> dict[str, str]:
+    """Translate a parsed database URL into a Django TEST settings block."""
+
+    keys = ("NAME", "USER", "PASSWORD", "HOST", "PORT", "ENGINE", "OPTIONS")
+    return {key: parsed[key] for key in keys if key in parsed}
+
+
+def build_database_config(
+    primary_env_var: str,
+    *,
+    fallback_env_vars: Sequence[str] | None = None,
+    default_url: str | None = None,
+    test_env_vars: Sequence[str] | None = None,
+    conn_max_age: int = 600,
+) -> dict[str, object]:
+    """Build a Django database configuration driven by environment variables."""
+
+    fallback_env_vars = fallback_env_vars or ()
+    test_env_vars = test_env_vars or ()
+
+    database_url = os.getenv(primary_env_var)
+    if not database_url:
+        for candidate_var in fallback_env_vars:
+            database_url = os.getenv(candidate_var)
+            if database_url:
+                break
+    if not database_url:
+        database_url = default_url
+    if not database_url:
+        raise ImproperlyConfigured(
+            "A database connection string is required."
+        )
+
+    use_test_database = bool(
+        os.getenv("PYTEST_CURRENT_TEST") or os.getenv("DJANGO_USE_TEST_DATABASE")
+    )
+
+    test_url: str | None = None
+    for candidate in test_env_vars:
+        test_url = os.getenv(candidate)
+        if test_url:
+            break
+
+    if use_test_database and test_url:
+        parsed = dj_database_url.parse(test_url, conn_max_age=0)
+        return parsed
+
+    parsed = dj_database_url.parse(database_url, conn_max_age=conn_max_age)
+    if test_url:
+        parsed["TEST"] = _build_test_settings(
+            dj_database_url.parse(test_url, conn_max_age=0)
+        )
+    return parsed
+
+
 DATABASES = {
-    'default': dj_database_url.config(default='sqlite:///db.sqlite3', conn_max_age=600)
+    'default': build_database_config(
+        'DATABASE_URL',
+        default_url='sqlite:///db.sqlite3',
+        test_env_vars=(
+            'TEST_DATABASE_URL',
+        ),
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
