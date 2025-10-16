@@ -8,8 +8,8 @@ import sys
 from .base import *  # noqa: F401,F403
 from .base import (
     BASE_DIR,
+    build_allowed_hosts,
     build_database_config,
-    get_allowed_hosts,
     get_csrf_trusted_origins,
     get_env_bool,
     get_secret_key,
@@ -34,8 +34,9 @@ SECRET_KEY = get_secret_key(DEBUG)
 
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
-ALLOWED_HOSTS = get_allowed_hosts(
+ALLOWED_HOSTS = build_allowed_hosts(
     "DEV_ALLOWED_HOSTS",
+    "ALLOWED_HOSTS",
     default=("localhost", "127.0.0.1"),
 )
 

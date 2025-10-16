@@ -21,7 +21,7 @@ services:
         fromDatabase:
           name: cams-dev-db
           property: connectionString
-      - key: DEV_ALLOWED_HOSTS
+      - key: ALLOWED_HOSTS
         value: cams-dev.onrender.com
       - key: DEV_CSRF_TRUSTED_ORIGINS
         value: https://cams-dev.onrender.com
@@ -54,7 +54,7 @@ services:
         fromDatabase:
           name: cams-staging-db
           property: connectionString
-      - key: STAGING_ALLOWED_HOSTS
+      - key: ALLOWED_HOSTS
         value: cams-staging.onrender.com
       - key: STAGING_CSRF_TRUSTED_ORIGINS
         value: https://cams-staging.onrender.com
@@ -87,10 +87,10 @@ services:
         fromDatabase:
           name: cams-prod-db
           property: connectionString
-      - key: PROD_ALLOWED_HOSTS
-        value: cams-prod.onrender.com
+      - key: ALLOWED_HOSTS
+        value: consultant-app-156x.onrender.com
       - key: PROD_CSRF_TRUSTED_ORIGINS
-        value: https://cams-prod.onrender.com
+        value: https://consultant-app-156x.onrender.com
       - key: SENTRY_DSN
         value: ""
       - key: SENTRY_TRACES_SAMPLE_RATE
