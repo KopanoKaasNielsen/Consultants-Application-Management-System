@@ -88,6 +88,8 @@ services:
           name: cams-prod-db
           property: connectionString
       - key: ALLOWED_HOSTS
+        value: .onrender.com
+      - key: PROD_ALLOWED_HOSTS
         value: consultant-app-156x.onrender.com
       - key: PROD_CSRF_TRUSTED_ORIGINS
         value: https://consultant-app-156x.onrender.com
