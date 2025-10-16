@@ -559,6 +559,23 @@ class RolePermissionTests(TestCase):
         self.assertTrue(user_has_role(board, UserRole.BOARD))
         self.assertTrue(user_has_role(admin, UserRole.ADMIN))
 
+    def test_user_has_role_includes_admin_membership(self):
+        admin = self._create_user_with_groups("admin", [ADMINS_GROUP_NAME])
+
+        self.assertTrue(user_has_role(admin, UserRole.ADMIN))
+        self.assertTrue(user_has_role(admin, UserRole.STAFF))
+
+    def test_user_has_any_role_supports_admin(self):
+        admin = self._create_user_with_groups("any-admin", [ADMINS_GROUP_NAME])
+        outsider = self._create_user_with_groups("any-outsider", [])
+
+        self.assertTrue(
+            user_has_any_role(admin, [UserRole.CONSULTANT, UserRole.ADMIN])
+        )
+        self.assertFalse(
+            user_has_any_role(outsider, [UserRole.ADMIN, UserRole.BOARD])
+        )
+
     def test_user_has_role_rejects_unknown_membership(self):
         outsider = self._create_user_with_groups("outsider", [])
         self.assertFalse(user_has_role(outsider, UserRole.STAFF))
