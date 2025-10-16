@@ -1,4 +1,4 @@
-"""Production settings for the backend project."""
+"""Staging settings for the backend project."""
 
 from __future__ import annotations
 
@@ -21,20 +21,20 @@ SECRET_KEY = get_secret_key(DEBUG)
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 ALLOWED_HOSTS = get_allowed_hosts(
-    "PROD_ALLOWED_HOSTS",
-    default=("cams-prod.onrender.com",),
+    "STAGING_ALLOWED_HOSTS",
+    default=("cams-staging.onrender.com",),
 )
 
 CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
-    "PROD_CSRF_TRUSTED_ORIGINS",
-    default=("https://cams-prod.onrender.com",),
+    "STAGING_CSRF_TRUSTED_ORIGINS",
+    default=("https://cams-staging.onrender.com",),
 )
 
 DATABASES["default"] = build_database_config(
-    "PROD_DATABASE_URL",
+    "STAGING_DATABASE_URL",
     fallback_env_vars=("DATABASE_URL",),
     default_url="sqlite:///db.sqlite3",
-    test_env_vars=("PROD_TEST_DATABASE_URL", "TEST_DATABASE_URL"),
+    test_env_vars=("STAGING_TEST_DATABASE_URL", "TEST_DATABASE_URL"),
     conn_max_age=600,
 )
 

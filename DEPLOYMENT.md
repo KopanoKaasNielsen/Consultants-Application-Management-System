@@ -1,5 +1,12 @@
 # Deployment & Monitoring Notes
 
+- **Render multi-environment architecture**
+  - Three Render web services are defined in `render.yaml`: `cams-dev`, `cams-staging`, and `cams-prod`. Each service tracks its own Git branch (`develop`, `staging`, and `main` respectively) and auto-deploys when commits land on the matching branch.
+  - Each service provisions an isolated PostgreSQL database (`cams-*-db`) whose connection string is exposed to Django through both the shared `DATABASE_URL` and an environment-specific variable (`DEV_DATABASE_URL`, `STAGING_DATABASE_URL`, `PROD_DATABASE_URL`).
+  - The Django settings modules (`backend.settings.dev`, `.staging`, `.prod`) read dedicated `*_ALLOWED_HOSTS` and `*_CSRF_TRUSTED_ORIGINS` variables, preventing development or staging URLs from leaking into production.
+  - When running tests (detected via `PYTEST_CURRENT_TEST` or by setting `DJANGO_USE_TEST_DATABASE`), the development and staging settings automatically switch to the corresponding `*_TEST_DATABASE_URL` whenever it is provided. Configure those variables in CI to ensure pytest never touches live data.
+  - Developers should branch from `develop`. Promotion follows Git Flow semantics: merge feature branches into `develop`, raise promotion PRs from `develop` → `staging` for UAT, and only promote into `main` once staging validation is complete. Each merge triggers the matching Render deployment without impacting the other environments.
+
 - The application exposes a lightweight health endpoint at `/health/` that returns a JSON payload containing the service status and database connectivity indicator.
 - Configure your hosting platform or uptime monitoring tool to poll this endpoint for availability checks.
 - Because the endpoint avoids opening new database connections, it remains responsive even when the database is under load or temporarily unavailable.
