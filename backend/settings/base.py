@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Iterable, Sequence
+from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse_lazy
@@ -59,15 +60,65 @@ def _normalise_list(values: Iterable[str]) -> list[str]:
     return normalised
 
 
+def _read_hosts_from_env(env_var: str) -> list[str]:
+    """Return a list of hosts defined in ``env_var``."""
+
+    raw_value = os.getenv(env_var)
+    if not raw_value:
+        return []
+    return _normalise_list(raw_value.split(","))
+
+
 def get_allowed_hosts(env_var: str, default: Iterable[str] | None = None) -> list[str]:
     """Read a comma-separated list of hosts from an environment variable."""
 
-    raw_value = os.getenv(env_var)
-    if raw_value:
-        return _normalise_list(raw_value.split(","))
+    hosts = _read_hosts_from_env(env_var)
+    if hosts:
+        return hosts
     if default is None:
         default = DEFAULT_ALLOWED_HOSTS
     return list(default)
+
+
+def _get_render_allowed_hosts() -> list[str]:
+    """Return hostnames automatically exposed by Render deployments."""
+
+    hosts: list[str] = []
+    render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+    if render_hostname:
+        hosts.append(render_hostname)
+
+    render_external_url = os.getenv("RENDER_EXTERNAL_URL")
+    if render_external_url:
+        parsed = urlsplit(render_external_url)
+        if parsed.hostname:
+            hosts.append(parsed.hostname)
+
+    hosts.append(".onrender.com")
+
+    return _normalise_list(hosts)
+
+
+def build_allowed_hosts(
+    *env_vars: str,
+    default: Iterable[str] | None = None,
+    include_render_hosts: bool = True,
+) -> list[str]:
+    """Aggregate allowed hosts from configuration and Render defaults."""
+
+    hosts: list[str] = []
+    for env_var in env_vars:
+        hosts.extend(_read_hosts_from_env(env_var))
+
+    if not hosts:
+        if default is None:
+            default = DEFAULT_ALLOWED_HOSTS
+        hosts.extend(default)
+
+    if include_render_hosts:
+        hosts.extend(_get_render_allowed_hosts())
+
+    return _normalise_list(hosts)
 
 
 def get_csrf_trusted_origins(
@@ -84,7 +135,7 @@ def get_csrf_trusted_origins(
     return list(default)
 
 
-ALLOWED_HOSTS = get_allowed_hosts("ALLOWED_HOSTS")
+ALLOWED_HOSTS = build_allowed_hosts("ALLOWED_HOSTS")
 CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
     "CSRF_TRUSTED_ORIGINS",
     default=("https://localhost", "https://127.0.0.1"),
