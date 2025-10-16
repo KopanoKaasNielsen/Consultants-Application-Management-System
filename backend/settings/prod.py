@@ -23,7 +23,7 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 ALLOWED_HOSTS = build_allowed_hosts(
     "PROD_ALLOWED_HOSTS",
     "ALLOWED_HOSTS",
-    default=(),
+    default=(".onrender.com",),
 )
 
 CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
