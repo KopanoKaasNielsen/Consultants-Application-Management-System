@@ -5,6 +5,7 @@
 #   codex lint
 #   codex review <PR_URL or PR_NUMBER>
 #   codex fix <PR_URL or PR_NUMBER>
+#   codex ci [PR_URL or PR_NUMBER]
 #   codex custom "<natural language instruction>"
 
 BASE_DIR="$HOME/CAMS/consultant_app"
@@ -75,6 +76,17 @@ case "$1" in
     $VENV "$BASE_DIR/codex_fix.py" "$pr_url"
     ;;
 
+  ci)
+    echo "🧠 Running Codex CI pipeline..."
+    if [ -z "$2" ]; then
+      echo "⚙️  Running local CI (tests + lint only)..."
+      "$BASE_DIR/codex_ci_tasks.sh"
+    else
+      echo "🚀 Running Codex CI for PR: $2"
+      "$BASE_DIR/codex_ci_tasks.sh" "$2"
+    fi
+    ;;
+
   custom)
     shift
     echo "🤖 Executing custom Codex instruction: $*"
@@ -82,6 +94,6 @@ case "$1" in
     ;;
 
   *)
-    echo "Usage: codex {test|lint|review|fix|custom}"
+    echo "Usage: codex {test|lint|review|fix|ci|custom}"
     ;;
 esac
