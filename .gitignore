@@ -23,3 +23,16 @@ staticfiles/
 .env
 fix_app_paths.patch
 Consultants-Application-Management-System/
+
+# === Codex AI Output ===
+reviews/
+results/
+
+# Optional: Windows mirrors
+/mnt/c/Users/kp/Documents/CAMS_results/
+
+# Python and environment files
+__pycache__/
+*.pyc
+venv/
+.env
