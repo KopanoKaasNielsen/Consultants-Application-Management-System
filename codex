@@ -93,6 +93,16 @@ case "$1" in
     $VENV "$BASE_DIR/codex_agent.py" "$*"
     ;;
 
+    evaluate)
+    echo "🧩 Running full source + repo evaluation..."
+    if [ -z "$2" ]; then
+      $VENV "$BASE_DIR/codex_evaluate.py"
+    else
+      $VENV "$BASE_DIR/codex_evaluate.py" "$2"
+    fi
+    ;;
+
+
   *)
     echo "Usage: codex {test|lint|review|fix|ci|custom}"
     ;;
