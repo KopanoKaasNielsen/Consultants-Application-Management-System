@@ -1,0 +1,52 @@
+# codex_tasks/audit_deploy_ready.yml
+name: audit_deploy_ready
+description: >
+  Perform a deployment-readiness audit for CAMS Django environments (dev, staging, prod),
+  checking CI/CD workflows, Render settings, and Django configuration safety.
+steps:
+  - name: 🧭 Identify environment and versions
+    run: |
+      source venv/bin/activate
+      echo "Python: $(python --version)"
+      echo "Django: $(django-admin version)"
+      echo "Branch: $(git branch --show-current)"
+      echo "Repo: $(basename `git rev-parse --show-toplevel`)"
+      echo ""
+
+  - name: ⚙️ Check Django configuration integrity
+    run: |
+      echo "=== Django Deployment Checks ==="
+      python manage.py check --deploy
+      echo ""
+      echo "=== Environment Variables ==="
+      env | grep -E 'ALLOWED_HOSTS|DATABASE_URL|CSRF_TRUSTED_ORIGINS' || echo "No env vars found"
+      echo ""
+      echo "=== Static/Media settings ==="
+      grep -E 'STATIC|MEDIA' backend/settings/*.py | grep -v '#'
+
+  - name: 🧪 Verify CI/CD workflow syntax
+    run: |
+      echo "=== GitHub Workflows ==="
+      yamllint .github/workflows/*.yml || echo "Yamllint not installed"
+      grep -R "Render" .github/workflows/ | head -n 15 || echo "No Render mentions"
+      echo ""
+      echo "=== Deployment Triggers ==="
+      grep -R "on:" .github/workflows/deploy.yml
+
+  - name: 🚀 Dry-run migration check
+    run: |
+      python manage.py makemigrations --check
+      python manage.py showmigrations | tail -n 10
+      echo "Migration check complete."
+
+  - name: 🔐 Security & Secret sanity
+    run: |
+      echo "=== Security review ==="
+      grep -R "SECRET_KEY" backend/settings/*.py
+      grep -R "DEBUG" backend/settings/*.py
+      echo ""
+      echo "Ensure DEBUG=False in production and secrets loaded from environment."
+
+  - name: ✅ Summary
+    run: |
+      echo "✅ Deployment audit completed. Review above sections for warnings or missing env vars."
