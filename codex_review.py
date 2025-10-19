@@ -45,3 +45,5 @@ with open(outfile, "w") as f:
     f.write(review or "⚠️ No review text returned.")
 
 print(f"✅ Review complete — saved to {outfile}")
+os.system(f"code {outfile}")
+

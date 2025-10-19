@@ -15,6 +15,43 @@ TASK_FILE = os.path.join(BASE_DIR, "codex_ci_tasks.yml")
 LOG_DIR = os.path.join(BASE_DIR, "results", "tasks")
 os.makedirs(LOG_DIR, exist_ok=True)
 
+def create_task(args):
+    """
+    Create a new Codex task entry dynamically and save to codex_ci_tasks.yml
+    """
+    if not os.path.exists(TASK_FILE):
+        with open(TASK_FILE, "w") as f:
+            f.write("tasks:\n")
+
+    name = args.get("--name")
+    desc = args.get("--description", "")
+    goal = args.get("--goal", "")
+    criteria = args.get("--acceptance-criteria", "")
+    component = args.get("--component", "")
+    task_type = args.get("--type", "review")
+    fix = args.get("--fix", "manual")
+
+    if not name:
+        log("❗Missing required parameter: --name")
+        sys.exit(1)
+
+    with open(TASK_FILE, "a") as f:
+        f.write(f"""
+  {name}:
+    description: "{desc}"
+    command: |
+      codex custom "You are GPT-5 Codex. Task type: {task_type}.
+      Goal: {goal}.
+      Acceptance criteria: {criteria}.
+      Component: {component}.
+      Fix strategy: {fix}.
+      Perform the requested review or fix and output result."
+""")
+
+    log(f"✅ Task '{name}' created and saved to codex_ci_tasks.yml.")
+
+
+
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
@@ -80,3 +117,37 @@ if __name__ == "__main__":
         log("✅ All Codex tasks completed successfully.")
     else:
         run_task(arg)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        log("❗Usage: codex task <task-name> | codex task all | codex task create ...")
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == "create":
+        # Convert args like --name "x" into a dictionary
+        arg_pairs = {}
+        key = None
+        for item in sys.argv[2:]:
+            if item.startswith("--"):
+                key = item
+                arg_pairs[key] = ""
+            else:
+                if key:
+                    if arg_pairs[key]:
+                        arg_pairs[key] += " " + item
+                    else:
+                        arg_pairs[key] = item
+        create_task(arg_pairs)
+
+    elif cmd == "all":
+        tasks = load_tasks()
+        log("🧠 Running all Codex tasks sequentially...")
+        for name in tasks.keys():
+            log(f"\n--- 🧩 Starting task: {name} ---")
+            run_task(name)
+        log("✅ All Codex tasks completed successfully.")
+
+    else:
+        run_task(cmd)

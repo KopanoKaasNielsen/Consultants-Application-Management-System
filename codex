@@ -110,6 +110,19 @@ case "$1" in
     echo "🧠 Running Codex task: $2"
     $VENV "$BASE_DIR/codex_tasks.py" "$2"
     ;;
+     task)
+    if [ "$2" = "create" ]; then
+      shift
+      echo "🧠 Creating new Codex task..."
+      $VENV "$BASE_DIR/codex_tasks.py" create "$@"
+    elif [ -z "$2" ]; then
+      echo "❗Usage: codex task <task-name> | codex task create ..."
+      exit 1
+    else
+      echo "🧠 Running Codex task: $2"
+      $VENV "$BASE_DIR/codex_tasks.py" "$2"
+    fi
+    ;;
      
 
 
