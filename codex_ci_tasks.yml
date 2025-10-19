@@ -1,0 +1,74 @@
+tasks:
+
+  security-fix-tokens:
+    description: "Remove insecure PAT storage; use gh auth login and .env secrets."
+    command: |
+      codex custom "Refactor refresh_github_token.py to use the GitHub CLI (gh auth login) and OS keyring instead of writing plaintext tokens to disk. Ensure compatibility with Linux keyrings."
+
+  cleanup-structure:
+    description: "Remove nested Consultants-Application-Management-System folder and reorganize scripts."
+    command: |
+      codex custom "Delete consultant_app/Consultants-Application-Management-System directory. Move all codex_*.py and bootstrap/check scripts to /scripts/. Update imports accordingly."
+
+  expand-tests:
+    description: "Add pytest coverage for RBAC, DRF APIs, and certificate generation."
+    command: |
+      codex custom "Write new pytest cases for role-based access to restricted views, DRF pagination/filtering, and certificate generation workflows using Django test client."
+
+  setup-ci:
+    description: "Create GitHub Actions pipeline for lint, type check, and coverage."
+    command: |
+      codex custom "Add .github/workflows/test.yml that runs ruff, black, mypy, pytest --cov and uploads coverage report. Require pass for merge to main."
+
+  fix-dependencies:
+    description: "Replace runtime pip installers with pinned requirements.txt."
+    command: |
+      codex custom "Generate a requirements.txt with pinned versions including pillow, pytest, pytest-django, pytest-asyncio, channels-redis, ruff, black, isort, mypy, bandit."
+
+  harden-codex-tools:
+    description: "Add allowlist and confirmation for Codex automation scripts."
+    command: |
+      codex custom "Add an allowlist of safe shell commands in codex_agent.py, log every command to results/command_log.txt, and prompt for confirmation before execution."
+
+  improve-docs:
+    description: "Enhance README for setup, environment, and deployment."
+    command: |
+      codex custom "Add sections to README.md: Environment Setup, Redis/Channels configuration, Celery integration, Sentry monitoring, and secure deployment checklist."
+
+
+  # -------------------------------
+  # 🔧 CI and Test Suite Group
+  # -------------------------------
+  ci-suite:
+    description: "Run all continuous integration steps (lint, tests, CI setup, Codex hardening)."
+    command: |
+      codex task setup-ci
+      codex task expand-tests
+      codex task harden-codex-tools
+
+  # -------------------------------
+  # 🔒 Security and Dependency Group
+  # -------------------------------
+  security-suite:
+    description: "Run all security and dependency-related tasks."
+    command: |
+      codex task security-fix-tokens
+      codex task fix-dependencies
+
+  # -------------------------------
+  # 🧹 Maintenance Group
+  # -------------------------------
+  maintenance-suite:
+    description: "Run cleanup, docs, and repo-structure tasks."
+    command: |
+      codex task cleanup-structure
+      codex task improve-docs
+
+#########################
+# master Aliase
+  full-suite:
+    description: "Run all Codex tasks in correct order for a complete CI+Security+Maintenance run."
+    command: |
+      codex task security-suite
+      codex task ci-suite
+      codex task maintenance-suite

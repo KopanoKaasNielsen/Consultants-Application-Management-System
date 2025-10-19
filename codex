@@ -93,6 +93,40 @@ case "$1" in
     $VENV "$BASE_DIR/codex_agent.py" "$*"
     ;;
 
+    evaluate)
+    echo "🧩 Running full source + repo evaluation..."
+    if [ -z "$2" ]; then
+      $VENV "$BASE_DIR/codex_evaluate.py"
+    else
+      $VENV "$BASE_DIR/codex_evaluate.py" "$2"
+    fi
+    ;;
+
+    task)
+    if [ -z "$2" ]; then
+      echo "❗Usage: codex task <task-name>"
+      exit 1
+    fi
+    echo "🧠 Running Codex task: $2"
+    $VENV "$BASE_DIR/codex_tasks.py" "$2"
+    ;;
+     task)
+    if [ "$2" = "create" ]; then
+      shift
+      echo "🧠 Creating new Codex task..."
+      $VENV "$BASE_DIR/codex_tasks.py" create "$@"
+    elif [ -z "$2" ]; then
+      echo "❗Usage: codex task <task-name> | codex task create ..."
+      exit 1
+    else
+      echo "🧠 Running Codex task: $2"
+      $VENV "$BASE_DIR/codex_tasks.py" "$2"
+    fi
+    ;;
+     
+
+
+
   *)
     echo "Usage: codex {test|lint|review|fix|ci|custom}"
     ;;
