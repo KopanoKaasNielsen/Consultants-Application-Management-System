@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Admin dashboard{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="flash-messages">
+    {% for message in messages %}
+    <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}" role="status">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<section class="page-header">
+    <div class="page-header__intro">
+        <h1>Admin dashboard</h1>
+        <p class="text-muted">Operational analytics and audit insights for platform administrators.</p>
+    </div>
+    {% if can_send_manual_report %}
+    <form method="post" action="{% url 'admin_dashboard_send_report' %}" class="page-header__action">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">Send analytics report now</button>
+    </form>
+    {% endif %}
+</section>
+
+<section class="analytics-panel" aria-label="Application analytics overview">
+    <div
+        id="admin-dashboard-root"
+        class="admin-dashboard-app"
+        data-endpoint="{{ stats_endpoint }}"
+        data-initial='{{ stats_json|escapejs }}'
+    ></div>
+    <noscript>
+        <div class="data-card">
+            <h2>Analytics overview</h2>
+            <p class="text-muted">JavaScript is disabled, showing aggregated metrics without charts.</p>
+            <dl class="metric-list">
+                <div>
+                    <dt>Total applications</dt>
+                    <dd>{{ stats.total_applications }}</dd>
+                </div>
+                <div>
+                    <dt>Approved</dt>
+                    <dd>{{ stats.status_breakdown.approved }}</dd>
+                </div>
+                <div>
+                    <dt>Pending</dt>
+                    <dd>{{ stats.status_breakdown.pending }}</dd>
+                </div>
+                <div>
+                    <dt>Rejected</dt>
+                    <dd>{{ stats.status_breakdown.rejected }}</dd>
+                </div>
+                <div>
+                    <dt>Revoked certificates</dt>
+                    <dd>{{ stats.status_breakdown.revoked }}</dd>
+                </div>
+            </dl>
+        </div>
+    </noscript>
+</section>
+
+<section class="panel">
+    <header class="panel__header">
+        <h2>Audit log</h2>
+        <p class="text-muted">Filter and review privileged activity across the platform.</p>
+    </header>
+    <form method="get" class="filter-form" aria-label="Audit log filters">
+        <div class="filter-grid">
+            <label>
+                <span>Action</span>
+                <select name="action_type">
+                    <option value="">All actions</option>
+                    {% for value, label in action_choices %}
+                    <option value="{{ value }}" {% if filters.action_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>User</span>
+                <select name="user">
+                    <option value="">All users</option>
+                    {% for candidate in users %}
+                    <option value="{{ candidate.id }}" {% if filters.user == candidate.id|stringformat:"s" %}selected{% endif %}>
+                        {{ candidate.get_full_name|default:candidate.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>From</span>
+                <input type="date" name="start" value="{{ filters.start }}">
+            </label>
+            <label>
+                <span>To</span>
+                <input type="date" name="end" value="{{ filters.end }}">
+            </label>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Apply filters</button>
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">Reset</a>
+        </div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table audit-table">
+            <thead>
+                <tr>
+                    <th scope="col">Timestamp</th>
+                    <th scope="col">User</th>
+                    <th scope="col">Role</th>
+                    <th scope="col">Action</th>
+                    <th scope="col">Endpoint</th>
+                    <th scope="col">Client IP</th>
+                    <th scope="col">Target</th>
+                    <th scope="col">Context</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if logs %}
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.timestamp }}</td>
+                    <td>
+                        {% if log.user %}
+                        {{ log.user.get_full_name|default:log.user.username }}
+                        {% else %}
+                        <span class="text-muted">Anonymous</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.resolved_role|default:"—" }}</td>
+                    <td>{{ log.get_action_code_display }}</td>
+                    <td>{{ log.endpoint|default:"—" }}</td>
+                    <td>{{ log.client_ip|default:"—" }}</td>
+                    <td>{{ log.target|default:"—" }}</td>
+                    <td>
+                        {% if log.context_pretty %}
+                        <pre class="metadata">{{ log.context_pretty }}</pre>
+                        {% else %}
+                        <span class="text-muted">No metadata</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-muted">No audit log entries match the selected filters.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pagination">
+        {% if page_obj.has_previous %}
+        <a class="pagination__link" href="?{% if filters.action_type %}action_type={{ filters.action_type }}&amp;{% endif %}{% if filters.user %}user={{ filters.user }}&amp;{% endif %}{% if filters.start %}start={{ filters.start }}&amp;{% endif %}{% if filters.end %}end={{ filters.end }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+        <span class="pagination__status">Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+        <a class="pagination__link" href="?{% if filters.action_type %}action_type={{ filters.action_type }}&amp;{% endif %}{% if filters.user %}user={{ filters.user }}&amp;{% endif %}{% if filters.start %}start={{ filters.start }}&amp;{% endif %}{% if filters.end %}end={{ filters.end }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/recharts/umd/Recharts.min.js" crossorigin="anonymous"></script>
+<script src="{% static 'js/admin-dashboard.js' %}"></script>
+{% endblock %}

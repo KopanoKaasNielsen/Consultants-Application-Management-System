@@ -86,3 +86,28 @@ class ConsultantValidationSuccessSerializer(serializers.Serializer):
 
 class ConsultantValidationErrorSerializer(serializers.Serializer):
     errors = serializers.DictField(child=serializers.CharField())
+
+
+class AdminStatusBreakdownSerializer(serializers.Serializer):
+    approved = serializers.IntegerField(min_value=0)
+    pending = serializers.IntegerField(min_value=0)
+    rejected = serializers.IntegerField(min_value=0)
+    revoked = serializers.IntegerField(min_value=0)
+
+
+class AdminMonthlyTrendSerializer(serializers.Serializer):
+    month = serializers.CharField()
+    total = serializers.IntegerField(min_value=0)
+
+
+class AdminCertificateStatusSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    label = serializers.CharField()
+    count = serializers.IntegerField(min_value=0)
+
+
+class AdminStatsSerializer(serializers.Serializer):
+    total_applications = serializers.IntegerField(min_value=0)
+    status_breakdown = AdminStatusBreakdownSerializer()
+    monthly_trends = AdminMonthlyTrendSerializer(many=True)
+    certificate_statuses = AdminCertificateStatusSerializer(many=True)

@@ -6,6 +6,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.api.views import (
+    AdminStatsView,
     ConsultantDashboardCSVExportView,
     ConsultantDashboardPDFExportView,
     ConsultantValidationView,
@@ -28,6 +29,7 @@ urlpatterns = [
     path('health/', HealthSummaryView.as_view(), name='health-summary'),
     path('metrics/', ServiceMetricsView.as_view(), name='service-metrics'),
     path('consultants/validate/', ConsultantValidationView.as_view(), name='consultant-validate'),
+    path('admin/stats/', AdminStatsView.as_view(), name='admin-stats'),
     path(
         'staff/consultants/export/pdf/',
         ConsultantDashboardPDFExportView.as_view(),

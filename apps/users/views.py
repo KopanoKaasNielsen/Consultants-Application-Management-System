@@ -1,5 +1,4 @@
 import csv
-import json
 import logging
 import mimetypes
 from datetime import date
@@ -44,6 +43,7 @@ from apps.security.models import AuditLog
 from apps.security.utils import log_audit_event
 from apps.users.reports import build_report_context, generate_analytics_report
 from consultant_app.tasks.scheduled_reports import send_admin_report
+from consultant_app.views.admin_dashboard import AdminDashboardView
 
 
 logger = logging.getLogger(__name__)
@@ -974,62 +974,7 @@ def staff_consultant_bulk_pdf(request):
     return response
 
 
-@role_required(Roles.ADMIN)
-def admin_dashboard(request):
-
-    logs = AuditLog.objects.select_related("user")
-
-    action_code = request.GET.get("action_type", "").strip()
-    user_filter = request.GET.get("user", "").strip()
-    start_date = request.GET.get("start", "").strip()
-    end_date = request.GET.get("end", "").strip()
-    page_number = request.GET.get("page")
-
-    if action_code:
-        logs = logs.filter(action_code=action_code)
-    if user_filter:
-        logs = logs.filter(user_id=user_filter)
-
-    if start_date:
-        parsed_start = parse_date(start_date)
-        if parsed_start:
-            logs = logs.filter(timestamp__date__gte=parsed_start)
-    if end_date:
-        parsed_end = parse_date(end_date)
-        if parsed_end:
-            logs = logs.filter(timestamp__date__lte=parsed_end)
-
-    paginator = Paginator(logs, 25)
-    page_obj = paginator.get_page(page_number)
-
-    for entry in page_obj.object_list:
-        try:
-            entry.context_pretty = json.dumps(entry.context, indent=2, sort_keys=True)
-        except TypeError:
-            entry.context_pretty = str(entry.context)
-
-    user_model = get_user_model()
-    active_users = user_model.objects.filter(is_active=True).order_by("username")
-
-    filter_params = {
-        "action_type": action_code,
-        "user": user_filter,
-        "start": start_date,
-        "end": end_date,
-    }
-
-    return render(
-        request,
-        "admin_dashboard.html",
-        {
-            "page_obj": page_obj,
-            "paginator": paginator,
-            "logs": page_obj.object_list,
-            "action_choices": AuditLog.ActionCode.choices,
-            "users": active_users,
-            "filters": filter_params,
-        },
-    )
+admin_dashboard = AdminDashboardView.as_view()
 
 
 @role_required(Roles.ADMIN)

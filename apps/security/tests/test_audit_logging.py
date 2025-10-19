@@ -156,7 +156,7 @@ class AdminAuditDashboardTests(TestCase):
         self.assertContains(response, "Client IP")
         self.assertContains(response, "Consultant:1")
 
-    def test_non_superuser_cannot_view_audit_dashboard(self):
+    def test_non_staff_user_redirected_from_audit_dashboard(self):
         staff_user = self.user_model.objects.create_user(
             username="regular-staff",
             password=self.password,
@@ -170,6 +170,30 @@ class AdminAuditDashboardTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.url.startswith(reverse("forbidden")))
+
+    def test_staff_member_with_flag_can_view_dashboard(self):
+        staff_user = self.user_model.objects.create_user(
+            username="staff-dashboard", password=self.password, email="staff-dashboard@example.com"
+        )
+        staff_user.groups.add(self.staff_group)
+        staff_user.is_staff = True
+        staff_user.save(update_fields=["is_staff"])
+
+        AuditLog.objects.create(
+            user=staff_user,
+            resolved_role="staff",
+            action_code=AuditLog.ActionCode.LOGIN_SUCCESS,
+            target="dashboard",
+            endpoint="/staff-dashboard/",
+            client_ip="127.0.0.1",
+            context={"detail": "staff login"},
+        )
+
+        self.client.login(username=staff_user.username, password=self.password)
+        response = self.client.get(reverse("admin_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Analytics overview")
 
     @override_settings(ADMIN_REPORT_RECIPIENTS=("board@example.com",))
     def test_manual_report_send_creates_audit_log_and_email(self):
