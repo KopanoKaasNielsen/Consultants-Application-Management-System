@@ -102,6 +102,17 @@ case "$1" in
     fi
     ;;
 
+    task)
+    if [ -z "$2" ]; then
+      echo "❗Usage: codex task <task-name>"
+      exit 1
+    fi
+    echo "🧠 Running Codex task: $2"
+    $VENV "$BASE_DIR/codex_tasks.py" "$2"
+    ;;
+     
+
+
 
   *)
     echo "Usage: codex {test|lint|review|fix|ci|custom}"

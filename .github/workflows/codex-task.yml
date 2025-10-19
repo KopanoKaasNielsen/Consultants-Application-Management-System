@@ -1,0 +1,21 @@
+# .github/workflows/codex-tasks.yml
+name: Codex Automated Tasks
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  codex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install openai pytest flake8
+      - env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          chmod +x codex
+          ./codex ci

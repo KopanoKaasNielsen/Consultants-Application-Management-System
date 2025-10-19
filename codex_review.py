@@ -1,85 +1,47 @@
 #!/usr/bin/env python3
-"""
-codex_review.py — use GPT-5 to review Django code or GitHub PRs.
-
-Usage examples:
-    python codex_review.py apps/consultants/views.py
-    python codex_review.py https://github.com/KopanoKaasNielsen/Consultants-Application-Management-System/pull/51
-"""
-
-import sys
-import requests
+import sys, os
+from datetime import datetime
 from openai import OpenAI
 
 client = OpenAI()
 
-def review_text(content: str) -> str:
-    """Send text or diff to GPT-5 for analysis."""
-    response = client.responses.create(
-        model="gpt-5",
-        input=f"You are a senior Django code reviewer. Provide a clear, structured review with improvement suggestions:\n\n{content}"
-    )
-    # Works across SDK 2.5–2.7+
-    try:
-        return response.output[0].content[0].text
-    except Exception:
-        return getattr(response, "output_text", str(response))
+if len(sys.argv) < 2:
+    print("❗Usage: codex_review.py <PR_URL>")
+    sys.exit(1)
 
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python codex_review.py <PR_URL or file path>")
-        sys.exit(1)
-
-    target = sys.argv[1]
-
-    # Determine if reviewing a GitHub PR or a local file
-    if target.startswith("http"):
-        print("🔍 Fetching PR diff from GitHub...")
-        pr_api = (
-            target.replace("github.com", "api.github.com/repos")
-            .replace("/pull/", "/pulls/")
-        )
-        diff = requests.get(
-            pr_api, headers={"Accept": "application/vnd.github.v3.diff"}
-        ).text
-        print("✅ PR diff fetched, sending to GPT-5...\n")
-        review = review_text(diff)
-    else:
-        print(f"🔍 Reading local file: {target}")
-        with open(target, "r") as f:
-            content = f.read()
-        review = review_text(content)
-
-    print("\n🧠 GPT-5 Review Output:\n")
-    print(review)
-# --- Save GPT-5 review output ---
-from datetime import datetime
-import os, shutil
-
-output_dir = os.path.join(os.path.dirname(__file__), "reviews")
-os.makedirs(output_dir, exist_ok=True)
-
+pr_url = sys.argv[1]
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-filename = f"review-{timestamp}.md"
-filepath = os.path.join(output_dir, filename)
+outdir = os.path.expanduser("~/CAMS/consultant_app/reviews")
+os.makedirs(outdir, exist_ok=True)
+outfile = os.path.join(outdir, f"review-{timestamp}.md")
 
-with open(filepath, "w") as f:
-    f.write(review)
+prompt = f"""
+You are GPT-5 Codex, a senior Django reviewer.
+Analyze this pull request and summarize its quality, logic, and potential issues.
 
-print(f"✅ Review saved to: {filepath}")
+PR: {pr_url}
 
-# --- Optional: also copy to Windows Documents mirror ---
-win_docs = "/mnt/c/Users/kp/Documents/CAMS_results"
-if os.path.exists("/mnt/c/Users/kp/Documents"):
-    try:
-        os.makedirs(win_docs, exist_ok=True)
-        win_copy = os.path.join(win_docs, os.path.basename(filepath))
-        shutil.copy(filepath, win_copy)
-        print(f"💾 Exported to Windows: {win_copy}")
-    except Exception as e:
-        print(f"⚠️  Could not export to Windows: {e}")
+Provide:
+1. Overall purpose and scope
+2. Security or logic flaws
+3. Code style or redundancy
+4. Readiness for merge
+"""
 
+print(f"🧠 Reviewing PR: {pr_url}")
 
-if __name__ == "__main__":
-    main()
+try:
+    response = client.responses.create(model="gpt-5", input=prompt)
+    review = getattr(response, "output_text", None)
+    if not review:
+        try:
+            review = response.output[0].content[0].text
+        except Exception:
+            review = str(response)
+except Exception as e:
+    review = f"⚠️ GPT-5 review failed: {e}"
+
+with open(outfile, "w") as f:
+    f.write(review or "⚠️ No review text returned.")
+
+print(f"✅ Review complete — saved to {outfile}")
