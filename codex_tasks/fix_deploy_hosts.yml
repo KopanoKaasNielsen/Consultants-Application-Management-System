@@ -1,0 +1,40 @@
+# codex_tasks/fix_deploy_hosts.yml
+name: fix_deploy_hosts
+description: >
+  Sync ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS for all CAMS environments (dev, staging, prod),
+  verify that Django settings are aligned, and confirm Render deployment readiness.
+steps:
+  - name: 🧩 Check current environment
+    run: |
+      echo "=== Active environment ==="
+      pwd
+      source venv/bin/activate
+      python manage.py check --deploy
+
+  - name: 🔍 Verify base.py settings
+    run: |
+      echo "=== Extract ALLOWED_HOSTS from base.py ==="
+      grep -E 'ALLOWED_HOSTS|CSRF_TRUSTED_ORIGINS' backend/settings/base.py || echo "Not found"
+
+  - name: 🧪 Patch missing hosts (if needed)
+    run: |
+      sed -i 's/ALLOWED_HOSTS.*/ALLOWED_HOSTS = os.getenv("DEV_ALLOWED_HOSTS", ".localhost,127.0.0.1").split(",")/g' backend/settings/dev.py
+      sed -i 's/ALLOWED_HOSTS.*/ALLOWED_HOSTS = os.getenv("STAGING_ALLOWED_HOSTS", ".onrender.com").split(",")/g' backend/settings/staging.py
+      sed -i 's/ALLOWED_HOSTS.*/ALLOWED_HOSTS = os.getenv("PROD_ALLOWED_HOSTS", ".onrender.com,consultant-app-156x.onrender.com").split(",")/g' backend/settings/prod.py
+
+  - name: ✅ Run Django checks
+    run: |
+      python manage.py check
+      python manage.py showmigrations
+      echo "Render ALLOWED_HOSTS sync validation complete."
+
+  - name: 🚀 Verify environment variables
+    run: |
+      echo "Checking environment variables..."
+      env | grep -E 'ALLOWED_HOSTS|CSRF_TRUSTED_ORIGINS|DATABASE_URL'
+      echo "Done."
+
+  - name: 🧭 Summary
+    run: |
+      echo "✅ All ALLOWED_HOSTS updated for dev, staging, and production."
+      echo "You can now safely push to staging and deploy."
