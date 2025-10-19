@@ -34,3 +34,41 @@ tasks:
     description: "Enhance README for setup, environment, and deployment."
     command: |
       codex custom "Add sections to README.md: Environment Setup, Redis/Channels configuration, Celery integration, Sentry monitoring, and secure deployment checklist."
+
+
+  # -------------------------------
+  # 🔧 CI and Test Suite Group
+  # -------------------------------
+  ci-suite:
+    description: "Run all continuous integration steps (lint, tests, CI setup, Codex hardening)."
+    command: |
+      codex task setup-ci
+      codex task expand-tests
+      codex task harden-codex-tools
+
+  # -------------------------------
+  # 🔒 Security and Dependency Group
+  # -------------------------------
+  security-suite:
+    description: "Run all security and dependency-related tasks."
+    command: |
+      codex task security-fix-tokens
+      codex task fix-dependencies
+
+  # -------------------------------
+  # 🧹 Maintenance Group
+  # -------------------------------
+  maintenance-suite:
+    description: "Run cleanup, docs, and repo-structure tasks."
+    command: |
+      codex task cleanup-structure
+      codex task improve-docs
+
+#########################
+# master Aliase
+  full-suite:
+    description: "Run all Codex tasks in correct order for a complete CI+Security+Maintenance run."
+    command: |
+      codex task security-suite
+      codex task ci-suite
+      codex task maintenance-suite
