@@ -20,13 +20,33 @@ from consultant_app import settings as consultant_celery_settings
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
+def _get_env(name: str) -> str | None:
+    """Return the raw value for ``name`` if it exists."""
+
+    return os.getenv(name)
+
+
 def get_env_bool(name: str, default: bool = False) -> bool:
     """Return a boolean for an environment variable."""
 
-    value = os.getenv(name)
+    value = _get_env(name)
     if value is None:
         return default
     return value.lower() in {"true", "1", "yes"}
+
+
+def get_env_int(name: str, default: int) -> int:
+    """Return an integer for ``name`` or ``default`` if unset."""
+
+    value = _get_env(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:  # pragma: no cover - defensive path
+        raise ImproperlyConfigured(
+            f"Environment variable {name} must be an integer."
+        ) from exc
 
 
 def get_secret_key(debug: bool) -> str:
@@ -45,6 +65,13 @@ def get_secret_key(debug: bool) -> str:
 DEFAULT_ALLOWED_HOSTS = (
     "localhost",
     "127.0.0.1",
+)
+
+
+_SETTINGS_MODULE = os.getenv("DJANGO_SETTINGS_MODULE", "")
+_IS_LOCAL_SETTINGS = _SETTINGS_MODULE.endswith(".dev")
+_DEFAULT_DEBUG_STATE = get_env_bool(
+    "DJANGO_DEBUG", default=_IS_LOCAL_SETTINGS
 )
 
 
@@ -141,6 +168,41 @@ CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
     default=("https://localhost", "https://127.0.0.1"),
 )
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+SECURE_SSL_REDIRECT = get_env_bool(
+    "DJANGO_SECURE_SSL_REDIRECT", default=not _DEFAULT_DEBUG_STATE
+)
+SESSION_COOKIE_SECURE = get_env_bool(
+    "DJANGO_SESSION_COOKIE_SECURE", default=not _DEFAULT_DEBUG_STATE
+)
+SESSION_COOKIE_HTTPONLY = get_env_bool(
+    "DJANGO_SESSION_COOKIE_HTTPONLY", default=True
+)
+SESSION_COOKIE_SAMESITE = os.getenv("DJANGO_SESSION_COOKIE_SAMESITE", "Lax")
+CSRF_COOKIE_SECURE = get_env_bool(
+    "DJANGO_CSRF_COOKIE_SECURE", default=not _DEFAULT_DEBUG_STATE
+)
+CSRF_COOKIE_HTTPONLY = get_env_bool(
+    "DJANGO_CSRF_COOKIE_HTTPONLY", default=False
+)
+CSRF_COOKIE_SAMESITE = os.getenv("DJANGO_CSRF_COOKIE_SAMESITE", "Lax")
+SECURE_CONTENT_TYPE_NOSNIFF = get_env_bool(
+    "DJANGO_SECURE_CONTENT_TYPE_NOSNIFF", default=True
+)
+SECURE_REFERRER_POLICY = os.getenv("DJANGO_SECURE_REFERRER_POLICY", "same-origin")
+
+_default_hsts_seconds = 0
+SECURE_HSTS_SECONDS = get_env_int(
+    "DJANGO_SECURE_HSTS_SECONDS", default=_default_hsts_seconds
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = get_env_bool(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=SECURE_HSTS_SECONDS > 0,
+)
+SECURE_HSTS_PRELOAD = get_env_bool(
+    "DJANGO_SECURE_HSTS_PRELOAD", default=False
+)
+X_FRAME_OPTIONS = os.getenv("DJANGO_X_FRAME_OPTIONS", "DENY")
 
 
 def _get_sample_rate(name: str, default: float) -> float:
@@ -514,6 +576,12 @@ init_sentry()
 
 # JWT authentication configuration
 JWT_AUTH_SECRET = os.getenv("JWT_AUTH_SECRET")
+if not JWT_AUTH_SECRET:
+    fallback_secret = os.getenv("DJANGO_SECRET_KEY") or os.getenv("SECRET_KEY")
+    if fallback_secret:
+        JWT_AUTH_SECRET = fallback_secret
+    else:  # Default to the development key for local usage
+        JWT_AUTH_SECRET = get_secret_key(True)
 JWT_AUTH_ALGORITHM = os.getenv("JWT_AUTH_ALGORITHM", "HS256")
 _jwt_algorithms_env = os.getenv("JWT_AUTH_ALGORITHMS")
 JWT_AUTH_ALGORITHMS = (
