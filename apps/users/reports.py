@@ -20,7 +20,7 @@ from apps.users.analytics import (
     _serialise_monthly_trends,
     _serialise_type_breakdown,
 )
-from apps.users.constants import ADMINS_GROUP_NAME, UserRole, groups_for_roles
+from apps.users.constants import UserRole, groups_for_roles
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ def generate_analytics_report(
 def _collect_recipient_emails() -> List[str]:
     """Return the set of active staff and admin email addresses."""
 
-    staff_groups = groups_for_roles([UserRole.STAFF]) | {ADMINS_GROUP_NAME}
+    staff_groups = groups_for_roles([UserRole.STAFF, UserRole.ADMIN])
     user_model = get_user_model()
 
     queryset = user_model.objects.filter(is_active=True).filter(

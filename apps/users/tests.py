@@ -2,6 +2,7 @@ import os
 from datetime import date, datetime, timedelta
 import csv
 from io import BytesIO
+from urllib.parse import urlencode
 from unittest.mock import MagicMock, patch
 
 from django.conf import settings
@@ -31,7 +32,7 @@ from apps.users.constants import (
     SENIOR_IMMIGRATION_GROUP_NAME,
     UserRole,
 )
-from apps.users.permissions import role_required, user_has_role
+from apps.users.permissions import role_required, user_has_any_role, user_has_role
 from backend.settings import base as settings_base
 from apps.users.management.commands.seed_test_users import GROUPS as TEST_USER_GROUPS, PASSWORD as TEST_USER_PASSWORD
 from tests.utils import create_consultant_instance
@@ -41,6 +42,18 @@ from apps.users.views import (
     IMPERSONATOR_ID_SESSION_KEY,
     IMPERSONATOR_USERNAME_SESSION_KEY,
 )
+
+
+def assert_forbidden_redirect(testcase, response, next_path):
+    """Assert that ``response`` redirects to the shared forbidden page."""
+
+    forbidden_url = reverse("forbidden")
+    expected_url = forbidden_url
+    if next_path:
+        expected_url = f"{forbidden_url}?{urlencode({'next': next_path})}"
+
+    testcase.assertEqual(response.status_code, 302)
+    testcase.assertEqual(response.url, expected_url)
 
 
 class RegistrationTests(TestCase):
@@ -193,12 +206,13 @@ class ImpersonationViewTests(TestCase):
         )
 
         self.client.login(username="regular", password=self.password)
+        url = reverse("start_impersonation")
         response = self.client.post(
-            reverse("start_impersonation"),
+            url,
             {"user_id": self.target_user.pk},
         )
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
         session = self.client.session
         self.assertNotIn(IMPERSONATOR_ID_SESSION_KEY, session)
 
@@ -355,7 +369,7 @@ class StaffConsultantDetailViewTests(TestCase):
 
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
     def test_staff_can_download_consultant_pdf(self):
         self.client.force_login(self.staff_user)
@@ -441,12 +455,13 @@ class StaffConsultantDetailViewTests(TestCase):
 
     def test_bulk_pdf_denies_non_staff(self):
         self.client.force_login(self.regular_user)
+        url = reverse("staff_consultant_bulk_pdf")
         response = self.client.post(
-            reverse("staff_consultant_bulk_pdf"),
+            url,
             {"selected_applications": [str(self.consultant.pk)]},
         )
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
 
 class ConsultantApplicationPdfTests(TestCase):
@@ -498,9 +513,10 @@ class ConsultantApplicationPdfTests(TestCase):
         )
 
         self.client.login(username=other_user.username, password=self.password)
-        response = self.client.get(reverse("consultant_application_pdf"))
+        url = reverse("consultant_application_pdf")
+        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
 class RolePermissionTests(TestCase):
     def setUp(self):
@@ -536,10 +552,12 @@ class RolePermissionTests(TestCase):
         board = self._create_user_with_groups(
             "board_member", [BOARD_COMMITTEE_GROUP_NAME]
         )
+        admin = self._create_user_with_groups("admin_user", [ADMINS_GROUP_NAME])
 
         self.assertTrue(user_has_role(consultant, UserRole.CONSULTANT))
         self.assertTrue(user_has_role(staff, UserRole.STAFF))
         self.assertTrue(user_has_role(board, UserRole.BOARD))
+        self.assertTrue(user_has_role(admin, UserRole.ADMIN))
 
     def test_user_has_role_rejects_unknown_membership(self):
         outsider = self._create_user_with_groups("outsider", [])
@@ -550,6 +568,13 @@ class RolePermissionTests(TestCase):
             username="super", email="super@example.com", password="password123"
         )
         self.assertTrue(user_has_role(superuser, UserRole.BOARD))
+
+    def test_user_has_any_role_accepts_admin_membership(self):
+        admin = self._create_user_with_groups("admin", [ADMINS_GROUP_NAME])
+
+        self.assertTrue(
+            user_has_any_role(admin, (UserRole.ADMIN, UserRole.STAFF))
+        )
 
     def test_role_required_allows_authorised_user(self):
         staff_user = self._create_user_with_groups(
@@ -972,9 +997,10 @@ class StaffDashboardExportTests(TestCase):
         self.client.logout()
         self.client.login(username=other_user.username, password="pass123456")
 
-        response = self.client.get(reverse("staff_dashboard_export"))
+        url = reverse("staff_dashboard_export")
+        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        assert_forbidden_redirect(self, response, url)
 
 
 class StaffAnalyticsTests(TestCase):
@@ -1120,17 +1146,21 @@ class StaffAnalyticsTests(TestCase):
         )
         self.client.force_login(other_user)
 
-        response = self.client.get(reverse("staff_analytics"))
-        self.assertEqual(response.status_code, 403)
+        analytics_url = reverse("staff_analytics")
+        response = self.client.get(analytics_url)
+        assert_forbidden_redirect(self, response, analytics_url)
 
-        api_response = self.client.get(reverse("staff_analytics_data"))
-        self.assertEqual(api_response.status_code, 403)
+        data_url = reverse("staff_analytics_data")
+        api_response = self.client.get(data_url)
+        assert_forbidden_redirect(self, api_response, data_url)
 
-        csv_export = self.client.get(reverse("staff_analytics_export_csv"))
-        self.assertEqual(csv_export.status_code, 403)
+        csv_url = reverse("staff_analytics_export_csv")
+        csv_export = self.client.get(csv_url)
+        assert_forbidden_redirect(self, csv_export, csv_url)
 
-        pdf_export = self.client.get(reverse("staff_analytics_export_pdf"))
-        self.assertEqual(pdf_export.status_code, 403)
+        pdf_url = reverse("staff_analytics_export_pdf")
+        pdf_export = self.client.get(pdf_url)
+        assert_forbidden_redirect(self, pdf_export, pdf_url)
 
 
 class WeeklyAnalyticsReportTests(TestCase):
@@ -1255,3 +1285,16 @@ class MonitoringInitTests(SimpleTestCase):
 
         with patch.dict(os.environ, {"SENTRY_DSN": ""}, clear=False):
             self.assertIsNone(settings_base.init_sentry())
+
+    @patch("backend.settings.base.sentry_sdk")
+    def test_init_sentry_sets_environment_tag(self, mock_sentry):
+        """Sentry initialisation includes environment metadata."""
+
+        env = {"SENTRY_DSN": "https://example.com/123", "SENTRY_ENVIRONMENT": "staging"}
+        with patch.dict(os.environ, env, clear=False):
+            settings_base.init_sentry()
+
+        self.assertTrue(mock_sentry.init.called)
+        init_kwargs = mock_sentry.init.call_args.kwargs
+        self.assertEqual(init_kwargs.get("environment"), "staging")
+        mock_sentry.set_tag.assert_called_with("environment", "staging")

@@ -1,0 +1,46 @@
+name: Sync to Public Mirror
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - staging
+
+jobs:
+  sync-mirror:
+    name: Mirror to Public Repo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧩 Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 30 # shallow clone for light history
+
+      - name: 🧹 Remove sensitive files
+        run: |
+          echo "Cleaning sensitive data..."
+          rm -f .env *.env *.pem *.key *.crt
+          rm -rf secrets/ tokens/ private_keys/
+          rm -f render.yaml
+          rm -rf .github/hooks/  # avoid recursive triggers
+
+      - name: ⚙️ Set up Git
+        run: |
+          git config user.name "CAMS Mirror Bot"
+          git config user.email "mirror-bot@users.noreply.github.com"
+
+      - name: 🚀 Push to mirror
+        env:
+          MIRROR_URL: https://github.com/KopanoKaasNielsen/Consultants-Application-Management-System-Mirror.git
+        run: |
+          echo "Pushing sanitized code to mirror..."
+          git init
+          git remote add mirror "$MIRROR_URL"
+          git add .
+          git commit -m "Mirror update from $GITHUB_REPOSITORY@$GITHUB_SHA"
+          git push mirror HEAD:main --force
+
+      - name: ✅ Done
+        run: echo "Public mirror successfully updated!"

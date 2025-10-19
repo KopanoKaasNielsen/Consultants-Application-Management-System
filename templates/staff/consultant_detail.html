@@ -85,6 +85,19 @@
     </div>
   </section>
 
+  {% include "consultants/documents/section.html" with
+    section_class="card mb-4"
+    content_class="card-body"
+    title="Supporting documents"
+    documents=supporting_documents
+    upload_form=document_upload_form
+    upload_url=document_upload_url
+    next_url=document_next_url
+    can_upload=can_manage_documents
+    can_delete=can_manage_documents
+    empty_message="No supporting documents uploaded yet."
+  %}
+
   {% if decision_documents %}
     <section class="card mb-4">
       <div class="card-body">

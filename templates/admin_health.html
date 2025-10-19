@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Service health{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="page-header__intro">
+        <h1>Service health overview</h1>
+        <p class="text-muted">Real-time metrics sourced from audit logs, throttling data, and background tasks.</p>
+    </div>
+    <div class="page-header__action">
+        <span class="badge badge-status" id="service-health-status">Loading…</span>
+        <small class="text-muted">Updated <time id="service-health-updated" datetime="">—</time></small>
+    </div>
+</section>
+
+<div class="metrics-grid">
+    <article class="metric-card">
+        <h2>Request throughput</h2>
+        <p class="metric-value" id="metric-throughput">—</p>
+        <p class="metric-caption">Requests processed per minute</p>
+    </article>
+    <article class="metric-card">
+        <h2>Average response</h2>
+        <p class="metric-value" id="metric-response">—</p>
+        <p class="metric-caption">Mean latency (ms) over the last 15 minutes</p>
+    </article>
+    <article class="metric-card">
+        <h2>Recent errors</h2>
+        <p class="metric-value" id="metric-errors">—</p>
+        <p class="metric-caption">Critical or high severity events detected</p>
+    </article>
+    <article class="metric-card">
+        <h2>Queue depth</h2>
+        <p class="metric-value" id="metric-queue">—</p>
+        <p class="metric-caption">Celery active + scheduled tasks</p>
+    </article>
+</div>
+
+<div class="dashboard-grid">
+    <section class="panel">
+        <header class="panel__header">
+            <h3>Throughput trend</h3>
+        </header>
+        <canvas id="throughput-chart" aria-label="Request throughput trend" role="img"></canvas>
+    </section>
+    <section class="panel">
+        <header class="panel__header">
+            <h3>Top endpoints (60 min)</h3>
+        </header>
+        <canvas id="endpoint-chart" aria-label="Top endpoints" role="img"></canvas>
+    </section>
+</div>
+
+<section class="panel">
+    <header class="panel__header">
+        <h3>Active alerts</h3>
+    </header>
+    <div id="alert-empty" class="text-muted">No active alerts in the last hour.</div>
+    <ul class="alert-list" id="alert-list" aria-live="polite"></ul>
+</section>
+
+<section class="panel">
+    <header class="panel__header">
+        <h3>Throttle configuration</h3>
+    </header>
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">Role</th>
+                <th scope="col">Rate</th>
+                <th scope="col">Window (s)</th>
+            </tr>
+        </thead>
+        <tbody id="throttle-table-body">
+            <tr>
+                <td colspan="3" class="text-muted">Loading role-based throttle limits…</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<p class="text-danger" id="service-health-error" hidden></p>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-0vT4a8SBJlFoTn2LzlYl7YWxNh7dIyQ8G21mCM1QA5VBIiCUq7MzHXVT+jSlzJeZ" crossorigin="anonymous"></script>
+<script src="{% static 'js/service-health-dashboard.js' %}"></script>
+<script>
+    window.SERVICE_HEALTH_DASHBOARD = window.SERVICE_HEALTH_DASHBOARD || {};
+    window.SERVICE_HEALTH_DASHBOARD.init?.({
+        endpoint: "{% url 'api:service-metrics' %}",
+        refreshInterval: {{ refresh_interval_seconds|default:60 }},
+    });
+</script>
+{% endblock %}

@@ -197,7 +197,9 @@ def renewal_requests(request):
                         from apps.decisions.tasks import generate_approval_certificate_task
 
                         generate_approval_certificate_task.delay(
-                            active_form_target.consultant.pk, actor_display
+                            active_form_target.consultant.pk,
+                            actor_display,
+                            request.user.pk,
                         )
 
                     transaction.on_commit(queue_generation)

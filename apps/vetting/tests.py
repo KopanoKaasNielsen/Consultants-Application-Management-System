@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+from urllib.parse import urlencode
+
 from django.test import TestCase, Client
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
@@ -7,6 +9,10 @@ from django.conf import settings
 from apps.consultants.models import Consultant
 from apps.decisions.models import ApplicationAction
 from apps.users.constants import COUNTERSTAFF_GROUP_NAME, BOARD_COMMITTEE_GROUP_NAME
+
+
+def _forbidden_target(path: str) -> str:
+    return f"{reverse('forbidden')}?{urlencode({'next': path})}"
 
 
 class VettingDashboardViewTests(TestCase):
@@ -54,8 +60,10 @@ class VettingDashboardViewTests(TestCase):
         other_user = User.objects.create_user(username='unauth', password='unauthpass')
         self.client.login(username='unauth', password='unauthpass')
 
-        response = self.client.get(reverse('vetting_dashboard'))
-        self.assertEqual(response.status_code, 403)
+        url = reverse('vetting_dashboard')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
     def test_board_member_receives_403(self):
         self.client.logout()
@@ -65,8 +73,10 @@ class VettingDashboardViewTests(TestCase):
 
         self.client.login(username='board', password='boardpass')
 
-        response = self.client.get(reverse('vetting_dashboard'))
-        self.assertEqual(response.status_code, 403)
+        url = reverse('vetting_dashboard')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(url))
 
     def test_anonymous_user_redirects_to_login(self):
         anonymous_client = Client()
@@ -104,7 +114,9 @@ class VettingDashboardViewTests(TestCase):
         self.assertEqual(action.actor, self.user)
 
         generated_by = self.user.get_full_name() or self.user.username
-        mock_rejection_delay.assert_called_once_with(self.consultant.id, generated_by)
+        mock_rejection_delay.assert_called_once_with(
+            self.consultant.id, generated_by, self.user.pk
+        )
         mock_approval_delay.assert_not_called()
         mock_on_commit.assert_called_once()
 

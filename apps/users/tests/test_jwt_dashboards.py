@@ -109,3 +109,16 @@ def test_staff_group_redirects_without_jwt(client, user_factory):
 
     assert response.status_code == 302
     assert response.url == reverse("vetting_dashboard")
+
+
+@pytest.mark.django_db
+def test_staff_group_access_allows_empty_bearer_header(client, user_factory):
+    user = user_factory(role=UserRole.STAFF)
+    client.force_login(user)
+
+    response = client.get(
+        reverse("vetting_dashboard"),
+        HTTP_AUTHORIZATION="Bearer",
+    )
+
+    assert response.status_code == 200

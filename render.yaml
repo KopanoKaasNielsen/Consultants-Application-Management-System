@@ -1,8 +1,75 @@
 services:
   - type: web
-    name: consultant-app
+    name: cams-dev
     env: python
     plan: free
+    branch: develop
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: backend.settings.dev
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cams-dev-db
+          property: connectionString
+      - key: DEV_DATABASE_URL
+        fromDatabase:
+          name: cams-dev-db
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        value: cams-dev.onrender.com
+      - key: DEV_CSRF_TRUSTED_ORIGINS
+        value: https://cams-dev.onrender.com
+      - key: SENTRY_DSN
+        value: ""
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.2"
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.0"
+
+  - type: web
+    name: cams-staging
+    env: python
+    plan: free
+    branch: staging
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: backend.settings.staging
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cams-staging-db
+          property: connectionString
+      - key: STAGING_DATABASE_URL
+        fromDatabase:
+          name: cams-staging-db
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        value: cams-staging.onrender.com
+      - key: STAGING_CSRF_TRUSTED_ORIGINS
+        value: https://cams-staging.onrender.com
+      - key: SENTRY_DSN
+        value: ""
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.2"
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.0"
+
+  - type: web
+    name: cams-prod
+    env: python
+    plan: free
+    branch: main
     buildCommand: "./build.sh"
     startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
     envVars:
@@ -14,8 +81,18 @@ services:
         value: false
       - key: DATABASE_URL
         fromDatabase:
-          name: consultant-db
+          name: cams-prod-db
           property: connectionString
+      - key: PROD_DATABASE_URL
+        fromDatabase:
+          name: cams-prod-db
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      - key: PROD_ALLOWED_HOSTS
+        value: consultant-app-156x.onrender.com
+      - key: PROD_CSRF_TRUSTED_ORIGINS
+        value: https://consultant-app-156x.onrender.com
       - key: SENTRY_DSN
         value: ""
       - key: SENTRY_TRACES_SAMPLE_RATE
@@ -24,5 +101,9 @@ services:
         value: "0.0"
 
 databases:
-  - name: consultant-db
+  - name: cams-dev-db
+    plan: free
+  - name: cams-staging-db
+    plan: free
+  - name: cams-prod-db
     plan: free

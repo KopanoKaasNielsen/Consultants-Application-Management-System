@@ -20,7 +20,13 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register, name='register'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('forbidden/', views.forbidden_view, name='forbidden'),
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    path(
+        'admin-dashboard/send-report/',
+        views.send_admin_report_now,
+        name='admin_dashboard_send_report',
+    ),
     path('staff-dashboard/', staff_dashboard, name='staff_dashboard'),
     path('staff-dashboard/export/', staff_dashboard_export_csv, name='staff_dashboard_export'),
     path('staff/analytics/', staff_analytics, name='staff_analytics'),

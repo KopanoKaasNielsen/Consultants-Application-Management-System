@@ -1,11 +1,12 @@
 import csv
-import json
+import logging
 import mimetypes
 from datetime import date
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout, login as auth_login, get_user_model
 from django.contrib.auth.decorators import login_required
@@ -23,7 +24,8 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.dateparse import parse_date
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 from urllib.parse import urlencode
 
@@ -31,16 +33,20 @@ from PyPDF2 import PdfReader, PdfWriter
 from weasyprint import HTML
 
 from apps.consultants.emails import send_status_update_email
+from apps.consultants.forms import DocumentUploadForm
 from apps.consultants.models import Consultant, Notification
-from apps.users.constants import (
-    CONSULTANTS_GROUP_NAME,
-    ADMINS_GROUP_NAME,
-    UserRole as Roles,
-)
+from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
+from apps.users.forms import BoardSignatureForm
+from apps.users.models import BoardMemberProfile
 from apps.users.permissions import role_required, user_has_role
-from apps.users.audit import log_audit_event
-from apps.users.models import AuditLog
+from apps.security.models import AuditLog
+from apps.security.utils import log_audit_event
 from apps.users.reports import build_report_context, generate_analytics_report
+from consultant_app.tasks.scheduled_reports import send_admin_report
+from consultant_app.views.admin_dashboard import AdminDashboardView
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_distinct_consultant_types() -> List[str]:
@@ -130,6 +136,29 @@ def _build_document_entry(file_field, label: str) -> Dict[str, object]:
     }
 
 
+def _build_uploaded_document_entry(document) -> Dict[str, object]:
+    uploader = document.uploaded_by.get_full_name() or document.uploaded_by.get_username()
+    download_url = reverse("consultant_document_download", args=[document.pk])
+    preview_url = (
+        reverse("consultant_document_preview", args=[document.pk])
+        if document.is_previewable
+        else None
+    )
+
+    return {
+        "id": str(document.pk),
+        "name": document.original_name or document.file.name.rsplit("/", 1)[-1],
+        "type": document.extension or "UNKNOWN",
+        "size": _format_file_size(document.size),
+        "uploaded_at": document.uploaded_at,
+        "uploaded_by": uploader,
+        "download_url": download_url,
+        "preview_url": preview_url,
+        "delete_url": reverse("consultant_document_delete", args=[document.pk]),
+        "is_previewable": document.is_previewable,
+    }
+
+
 def get_consultant_documents(consultant) -> Tuple[List[Dict[str, object]], List[Dict[str, object]]]:
     document_fields: List[Dict[str, object]] = []
     decision_documents: List[Dict[str, object]] = []
@@ -145,6 +174,13 @@ def get_consultant_documents(consultant) -> Tuple[List[Dict[str, object]], List[
             decision_documents.append(_build_document_entry(file_field, label))
 
     return document_fields, decision_documents
+
+
+def get_supporting_documents(consultant) -> List[Dict[str, object]]:
+    return [
+        _build_uploaded_document_entry(document)
+        for document in consultant.documents.select_related("uploaded_by")
+    ]
 
 
 def _render_consultant_pdf(request, consultant) -> Tuple[bytes, str]:
@@ -169,21 +205,8 @@ def _build_pdf_response(request, consultant) -> HttpResponse:
     pdf_bytes, filename = _render_consultant_pdf(request, consultant)
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
     return response
-
-
-def _user_is_admin(user):
-    return user.is_superuser or user.groups.filter(name=ADMINS_GROUP_NAME).exists()
-
-
-def _user_is_board_or_staff(user):
-    if not user.is_authenticated:
-        return False
-
-    return user.is_superuser or user.groups.filter(
-        name__in=['Board', 'Staff']
-    ).exists()
 
 
 def register(request):
@@ -209,10 +232,8 @@ def logout_view(request):
     return redirect('login')
 
 
-@login_required
+@role_required(Roles.ADMIN)
 def impersonation_dashboard(request):
-    if not _user_is_admin(request.user):
-        raise PermissionDenied
 
     query = request.GET.get('q', '').strip()
     user_model = get_user_model()
@@ -234,14 +255,11 @@ def impersonation_dashboard(request):
     )
 
 
-@login_required
+@role_required(Roles.ADMIN)
 @require_POST
 def start_impersonation(request):
     if IMPERSONATOR_ID_SESSION_KEY in request.session:
         return HttpResponseBadRequest('Already impersonating a user.')
-
-    if not _user_is_admin(request.user):
-        raise PermissionDenied
 
     user_id = request.POST.get('user_id')
     if not user_id:
@@ -292,22 +310,44 @@ def stop_impersonation(request):
     return redirect('impersonation_dashboard')
 
 
-@login_required
+@role_required(Roles.BOARD, Roles.STAFF)
 def board_dashboard(request):
-    if not _user_is_board_or_staff(request.user):
-        raise PermissionDenied
 
     consultants = (
-        Consultant.objects.filter(status='submitted')
-        .select_related('user')
-        .order_by('full_name')
+        Consultant.objects.filter(status="submitted")
+        .select_related("user")
+        .order_by("full_name")
     )
+
+    signature_form = None
+    board_profile = None
+
+    if user_has_role(request.user, Roles.BOARD):
+        board_profile, _ = BoardMemberProfile.objects.get_or_create(user=request.user)
+
+        if request.method == "POST":
+            signature_form = BoardSignatureForm(
+                request.POST,
+                request.FILES,
+                instance=board_profile,
+            )
+            if signature_form.is_valid():
+                signature_form.save()
+                messages.success(request, "Your signature has been updated.")
+                return redirect("board_dashboard")
+            messages.error(request, "Please correct the errors below.")
+        else:
+            signature_form = BoardSignatureForm(instance=board_profile)
+    elif request.method == "POST":
+        raise PermissionDenied("Only board members can update their signature.")
 
     return render(
         request,
-        'board_dashboard.html',
+        "board_dashboard.html",
         {
-            'consultants': consultants,
+            "consultants": consultants,
+            "signature_form": signature_form,
+            "board_profile": board_profile,
         },
     )
 
@@ -374,7 +414,7 @@ def staff_analytics_export_csv(request):
     filename = f"consultant-analytics-{generated_at.strftime('%Y%m%d%H%M%S')}.csv"
 
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     writer = csv.writer(response)
     writer.writerow(["Consultant analytics export"])
@@ -446,7 +486,7 @@ def staff_analytics_export_pdf(request):
 
     response = HttpResponse(report.pdf_bytes, content_type="application/pdf")
     filename = report.filename
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
@@ -573,18 +613,42 @@ def staff_dashboard(request):
             consultant.staff_comment = request.POST.get("comment", "").strip()
             consultant.save(update_fields=["status", "staff_comment"])
 
+            log_context = {
+                "action": f"staff_dashboard.{action}",
+                "consultant_id": consultant.pk,
+                "actor": {
+                    "id": request.user.pk,
+                    "email": request.user.email,
+                },
+                "previous_status": previous_status,
+                "new_status": consultant.status,
+                "comment_provided": bool(consultant.staff_comment),
+            }
+            logger.info(
+                "Staff user %s set consultant %s status to %s",
+                request.user.pk,
+                consultant.pk,
+                consultant.status,
+                extra={
+                    "user_id": request.user.pk,
+                    "consultant_id": consultant.pk,
+                    "context": log_context,
+                },
+            )
+
             if action == "approved":
-                action_type = AuditLog.ActionType.APPROVE_APPLICATION
+                action_code = AuditLog.ActionCode.APPROVE_APPLICATION
             elif action == "rejected":
-                action_type = AuditLog.ActionType.REJECT_APPLICATION
+                action_code = AuditLog.ActionCode.REJECT_APPLICATION
             else:
-                action_type = AuditLog.ActionType.REQUEST_INFO
+                action_code = AuditLog.ActionCode.REQUEST_INFO
 
             audit_log = log_audit_event(
-                request.user,
-                action_type,
-                target_object=f"Consultant:{consultant.pk}",
-                metadata={
+                action_code=action_code,
+                request=request,
+                user=request.user,
+                target=f"Consultant:{consultant.pk}",
+                context={
                     "consultant_id": consultant.pk,
                     "previous_status": previous_status,
                     "new_status": consultant.status,
@@ -610,6 +674,7 @@ def staff_dashboard(request):
                 else:
                     notification_message = "A staff member left a comment on your application."
 
+            notification = None
             if notification_type:
                 notification_kwargs = {
                     "recipient": consultant.user,
@@ -618,7 +683,25 @@ def staff_dashboard(request):
                 }
                 if audit_log is not None:
                     notification_kwargs["audit_log"] = audit_log
-                Notification.objects.create(**notification_kwargs)
+                notification = Notification.objects.create(**notification_kwargs)
+
+            if notification is not None:
+                logger.info(
+                    "Notification %s dispatched for consultant %s",
+                    notification.pk,
+                    consultant.pk,
+                    extra={
+                        "user_id": request.user.pk,
+                        "consultant_id": consultant.pk,
+                        "context": {
+                            "action": "notification.dispatch",
+                            "consultant_id": consultant.pk,
+                            "notification_id": notification.pk,
+                            "notification_type": notification.notification_type,
+                            "actor_id": request.user.pk,
+                        },
+                    },
+                )
 
             if action in {"approved", "rejected"}:
                 try:
@@ -741,7 +824,7 @@ def staff_dashboard_export_csv(request):
     filename = f"consultants_{active_status}_{timestamp}.csv"
 
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     writer = csv.writer(response)
     writer.writerow(["Consultant Name", "Business", "Status", "Submission Date"])
@@ -759,10 +842,11 @@ def staff_dashboard_export_csv(request):
         )
 
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.EXPORT_CSV,
-        target_object=f"Consultants:{active_status}",
-        metadata={
+        action_code=AuditLog.ActionCode.EXPORT_CSV,
+        request=request,
+        user=request.user,
+        target=f"Consultants:{active_status}",
+        context={
             "status": active_status,
             "search_query": search_query,
             "sort_field": sort_field,
@@ -781,16 +865,25 @@ def staff_consultant_detail(request, pk: int):
     )
 
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.VIEW_CONSULTANT,
-        target_object=f"Consultant:{consultant.pk}",
-        metadata={
+        action_code=AuditLog.ActionCode.VIEW_CONSULTANT,
+        request=request,
+        user=request.user,
+        target=f"Consultant:{consultant.pk}",
+        context={
             "consultant_id": consultant.pk,
             "status": consultant.status,
         },
     )
 
     document_fields, decision_documents = get_consultant_documents(consultant)
+    supporting_documents = get_supporting_documents(consultant)
+    can_manage_documents = user_has_role(request.user, Roles.STAFF)
+    document_upload_form = DocumentUploadForm() if can_manage_documents else None
+    document_upload_url = (
+        reverse("consultant_document_upload", args=[consultant.pk])
+        if can_manage_documents
+        else None
+    )
 
     return render(
         request,
@@ -799,6 +892,11 @@ def staff_consultant_detail(request, pk: int):
             "consultant": consultant,
             "document_fields": document_fields,
             "decision_documents": decision_documents,
+            "supporting_documents": supporting_documents,
+            "document_upload_form": document_upload_form,
+            "document_upload_url": document_upload_url,
+            "document_next_url": request.get_full_path(),
+            "can_manage_documents": can_manage_documents,
         },
     )
 
@@ -807,10 +905,11 @@ def staff_consultant_detail(request, pk: int):
 def staff_consultant_pdf(request, pk: int):
     consultant = get_object_or_404(Consultant, pk=pk)
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.EXPORT_PDF,
-        target_object=f"Consultant:{consultant.pk}",
-        metadata={"consultant_id": consultant.pk},
+        action_code=AuditLog.ActionCode.EXPORT_PDF,
+        request=request,
+        user=request.user,
+        target=f"Consultant:{consultant.pk}",
+        context={"consultant_id": consultant.pk},
     )
     return _build_pdf_response(request, consultant)
 
@@ -863,75 +962,83 @@ def staff_consultant_bulk_pdf(request):
     )
 
     response = HttpResponse(output.read(), content_type="application/pdf")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response["Content-Disposition"] = f"attachment; filename={filename}"
 
     log_audit_event(
-        request.user,
-        AuditLog.ActionType.EXPORT_BULK_PDF,
-        target_object="ConsultantBulk",
-        metadata={"consultant_ids": consultant_ids, "filename": filename},
+        action_code=AuditLog.ActionCode.EXPORT_BULK_PDF,
+        request=request,
+        user=request.user,
+        target="ConsultantBulk",
+        context={"consultant_ids": consultant_ids, "filename": filename},
     )
     return response
 
 
-@login_required
-def admin_dashboard(request):
-    if not request.user.is_superuser:
-        raise PermissionDenied
+admin_dashboard = AdminDashboardView.as_view()
 
-    logs = AuditLog.objects.select_related("user")
 
-    action_type = request.GET.get("action_type", "").strip()
-    user_filter = request.GET.get("user", "").strip()
-    start_date = request.GET.get("start", "").strip()
-    end_date = request.GET.get("end", "").strip()
-    page_number = request.GET.get("page")
+@role_required(Roles.ADMIN)
+@never_cache
+def admin_service_health(request):
+    """Render the service health dashboard for privileged administrators."""
 
-    if action_type:
-        logs = logs.filter(action_type=action_type)
-    if user_filter:
-        logs = logs.filter(user_id=user_filter)
-
-    if start_date:
-        parsed_start = parse_date(start_date)
-        if parsed_start:
-            logs = logs.filter(timestamp__date__gte=parsed_start)
-    if end_date:
-        parsed_end = parse_date(end_date)
-        if parsed_end:
-            logs = logs.filter(timestamp__date__lte=parsed_end)
-
-    paginator = Paginator(logs, 25)
-    page_obj = paginator.get_page(page_number)
-
-    for entry in page_obj.object_list:
-        try:
-            entry.metadata_pretty = json.dumps(entry.metadata, indent=2, sort_keys=True)
-        except TypeError:
-            entry.metadata_pretty = str(entry.metadata)
-
-    user_model = get_user_model()
-    active_users = user_model.objects.filter(is_active=True).order_by("username")
-
-    filter_params = {
-        "action_type": action_type,
-        "user": user_filter,
-        "start": start_date,
-        "end": end_date,
-    }
-
+    refresh_interval = getattr(settings, "ADMIN_SERVICE_HEALTH_REFRESH_INTERVAL", 60)
     return render(
         request,
-        "admin_dashboard.html",
-        {
-            "page_obj": page_obj,
-            "paginator": paginator,
-            "logs": page_obj.object_list,
-            "action_choices": AuditLog.ActionType.choices,
-            "users": active_users,
-            "filters": filter_params,
-        },
+        "admin_health.html",
+        {"refresh_interval_seconds": int(refresh_interval)},
     )
+
+
+@role_required(Roles.ADMIN)
+@require_POST
+def send_admin_report_now(request):
+
+    result = send_admin_report("manual", actor=request.user)
+    generated_at = result.get("generated_at")
+    metadata = {
+        "status": result.get("status"),
+        "report_type": result.get("frequency"),
+        "recipient_count": len(result.get("recipients", [])),
+    }
+    if generated_at:
+        metadata["generated_at"] = timezone.localtime(generated_at).isoformat()
+    if result.get("attachment_name"):
+        metadata["attachment"] = result["attachment_name"]
+
+    log_audit_event(
+        action_code=AuditLog.ActionCode.SEND_ANALYTICS_REPORT,
+        request=request,
+        user=request.user,
+        target="AdminReport",
+        context=metadata,
+    )
+
+    if result.get("status") == "sent":
+        messages.success(
+            request,
+            "Consultant analytics report sent to "
+            f"{metadata['recipient_count']} recipient(s).",
+        )
+        logger.info(
+            "Manual analytics report dispatched by admin.",
+            extra={
+                "user_id": request.user.pk,
+                "recipient_count": metadata["recipient_count"],
+                "report_type": result.get("frequency"),
+            },
+        )
+    else:
+        messages.warning(
+            request,
+            "Consultant analytics report could not be sent because no recipients are configured.",
+        )
+        logger.info(
+            "Manual analytics report dispatch skipped due to missing recipients.",
+            extra={"user_id": request.user.pk},
+        )
+
+    return redirect("admin_dashboard")
 
 
 @login_required
@@ -946,6 +1053,9 @@ def dashboard(request):
             return True
         return user_has_role(user, role)
 
+    if has_role(Roles.ADMIN):
+        return redirect('admin_dashboard')
+
     if has_role(Roles.BOARD):
         return redirect('decisions_dashboard')
 
@@ -959,15 +1069,28 @@ def dashboard(request):
 
     document_fields = []
     decision_documents = []
+    supporting_documents: List[Dict[str, object]] = []
+    document_upload_form: Optional[DocumentUploadForm] = None
+    document_upload_url: Optional[str] = None
 
     if application:
         document_fields, decision_documents = get_consultant_documents(application)
+        supporting_documents = get_supporting_documents(application)
+        document_upload_form = DocumentUploadForm()
+        document_upload_url = reverse(
+            "consultant_document_upload", args=[application.pk]
+        )
 
     return render(request, 'dashboard.html', {
         'application': application,
         'is_reviewer': False,
         'document_fields': document_fields,
         'decision_documents': decision_documents,
+        'supporting_documents': supporting_documents,
+        'document_upload_form': document_upload_form,
+        'document_upload_url': document_upload_url,
+        'document_next_url': request.get_full_path(),
+        'can_manage_documents': application is not None,
     })
 
 
@@ -982,12 +1105,55 @@ def home_view(request):
     return render(request, 'home.html')
 
 
+def forbidden_view(request):
+    """Render a dedicated forbidden page for unauthorized access attempts."""
+
+    requested_path = request.GET.get("next") or request.META.get("HTTP_REFERER")
+    response = render(
+        request,
+        "forbidden.html",
+        {"requested_path": requested_path},
+        status=403,
+    )
+    response.rendered_forbidden_page = True
+    return response
+
+
 class RoleBasedLoginView(LoginView):
     """Login view that redirects users to dashboards based on their role."""
 
-    admin_dashboard_url = '/admin-dashboard/'
-    staff_dashboard_url = '/staff-dashboard/'
-    applicant_dashboard_url = '/applicant-dashboard/'
+    admin_dashboard_url = reverse_lazy("admin_dashboard")
+    staff_dashboard_url = reverse_lazy("staff_dashboard")
+    applicant_dashboard_url = reverse_lazy("dashboard")
+    board_dashboard_url = reverse_lazy("decisions_dashboard")
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        log_audit_event(
+            action_code=AuditLog.ActionCode.LOGIN_SUCCESS,
+            request=self.request,
+            user=self.request.user,
+            context={"username": self.request.user.get_username()},
+        )
+        return response
+
+    def form_invalid(self, form):
+        field_name = getattr(form.username_field, "name", form.username_field)
+        submitted_username = self.request.POST.get(field_name, "")
+        if isinstance(submitted_username, (list, tuple)):
+            submitted_username = submitted_username[0]
+        error_data = form.errors.get_json_data()
+        if "__all__" in error_data and "non_field_errors" not in error_data:
+            error_data["non_field_errors"] = error_data["__all__"]
+        log_audit_event(
+            action_code=AuditLog.ActionCode.LOGIN_FAILURE,
+            request=self.request,
+            context={
+                "username": submitted_username,
+                "errors": error_data,
+            },
+        )
+        return super().form_invalid(form)
 
     def get_success_url(self):
         redirect_url = self.get_redirect_url()
@@ -997,12 +1163,18 @@ class RoleBasedLoginView(LoginView):
         user = self.request.user
 
         if user.is_superuser:
-            return self.admin_dashboard_url
+            return str(self.admin_dashboard_url)
 
-        if user.groups.filter(name='Staff').exists():
-            return self.staff_dashboard_url
+        if user_has_role(user, Roles.ADMIN):
+            return str(self.admin_dashboard_url)
 
-        if user.groups.filter(name='Applicant').exists():
-            return self.applicant_dashboard_url
+        if user_has_role(user, Roles.BOARD):
+            return str(self.board_dashboard_url)
+
+        if user_has_role(user, Roles.STAFF):
+            return str(self.staff_dashboard_url)
+
+        if user_has_role(user, Roles.CONSULTANT):
+            return str(self.applicant_dashboard_url)
 
         return super().get_success_url()

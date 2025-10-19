@@ -2,15 +2,25 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 
+from apps.users.constants import (
+    ADMINS_GROUP_NAME,
+    BACKOFFICE_GROUP_NAME,
+    BOARD_COMMITTEE_GROUP_NAME,
+    CONSULTANTS_GROUP_NAME,
+    COUNTERSTAFF_GROUP_NAME,
+    DISAGENTS_GROUP_NAME,
+    SENIOR_IMMIGRATION_GROUP_NAME,
+)
+
 
 GROUPS = {
-    'Consultants': [],
-    'CounterStaff': [],
-    'BackOffice': [],
-    'DISAgents': [],
-    'BoardCommittee': [],
-    'SeniorImmigration': [],
-    'Admins': [],
+    CONSULTANTS_GROUP_NAME: [],
+    COUNTERSTAFF_GROUP_NAME: [],
+    BACKOFFICE_GROUP_NAME: [],
+    DISAGENTS_GROUP_NAME: [],
+    BOARD_COMMITTEE_GROUP_NAME: [],
+    SENIOR_IMMIGRATION_GROUP_NAME: [],
+    ADMINS_GROUP_NAME: [],
 }
 
 

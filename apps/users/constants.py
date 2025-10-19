@@ -13,25 +13,33 @@ ADMINS_GROUP_NAME = "Admins"
 CONSULTANTS_GROUP_NAME = "Consultants"
 
 
+CONSULTANT_GROUP_NAMES: Set[str] = {CONSULTANTS_GROUP_NAME, "Applicant"}
+STAFF_GROUP_NAMES: Set[str] = {
+    COUNTERSTAFF_GROUP_NAME,
+    BACKOFFICE_GROUP_NAME,
+    DISAGENTS_GROUP_NAME,
+    SENIOR_IMMIGRATION_GROUP_NAME,
+    ADMINS_GROUP_NAME,
+    "Staff",
+}
+BOARD_GROUP_NAMES: Set[str] = {BOARD_COMMITTEE_GROUP_NAME}
+ADMIN_GROUP_NAMES: Set[str] = {ADMINS_GROUP_NAME}
+
+
 class UserRole(str, Enum):
     """High-level roles recognised by the application."""
 
     CONSULTANT = "consultant"
     STAFF = "staff"
     BOARD = "board"
+    ADMIN = "admin"
 
 
 ROLE_GROUP_MAP: Dict[UserRole, Set[str]] = {
-    UserRole.CONSULTANT: {CONSULTANTS_GROUP_NAME},
-    UserRole.STAFF: {
-        COUNTERSTAFF_GROUP_NAME,
-        BACKOFFICE_GROUP_NAME,
-        DISAGENTS_GROUP_NAME,
-        SENIOR_IMMIGRATION_GROUP_NAME,
-        ADMINS_GROUP_NAME,
-        "Staff",
-    },
-    UserRole.BOARD: {BOARD_COMMITTEE_GROUP_NAME},
+    UserRole.CONSULTANT: CONSULTANT_GROUP_NAMES,
+    UserRole.STAFF: STAFF_GROUP_NAMES,
+    UserRole.BOARD: BOARD_GROUP_NAMES,
+    UserRole.ADMIN: ADMIN_GROUP_NAMES,
 }
 
 

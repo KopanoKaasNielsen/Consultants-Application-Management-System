@@ -19,9 +19,13 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from consultant_app.views import search_certificate, verify_certificate
+from apps.users.views import admin_service_health
+
 from .health import database_health_view, health_view
 
 urlpatterns = [
+    path('admin/health/', admin_service_health, name='admin_service_health'),
     path('admin/', admin.site.urls),
     path('health/', health_view, name='health'),
     path('health/database/', database_health_view, name='health-database'),
@@ -30,5 +34,8 @@ urlpatterns = [
     path('certificates/', include(('apps.certificates.urls', 'certificates'), namespace='certificates')),
     path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
     path('vetting/', include('apps.vetting.urls')),
+    path('search-certificate/', search_certificate, name='certificate-search'),
+    path('api/', include(('apps.api.urls', 'api'), namespace='api')),
+    path('verify/<uuid:certificate_uuid>/', verify_certificate, name='consultant-certificate-verify'),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

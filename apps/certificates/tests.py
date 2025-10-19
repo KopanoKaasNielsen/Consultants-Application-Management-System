@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -10,10 +11,15 @@ from django.utils import timezone
 
 from apps.consultants.models import Consultant
 from apps.certificates.models import CertificateRenewal
+from consultant_app.models import Certificate
 from apps.users.constants import (
     BACKOFFICE_GROUP_NAME,
     CONSULTANTS_GROUP_NAME,
 )
+
+
+def _forbidden_target(path: str) -> str:
+    return f"{reverse('forbidden')}?{urlencode({'next': path})}"
 
 
 class CertificatesDashboardViewTests(TestCase):
@@ -57,6 +63,13 @@ class CertificatesDashboardViewTests(TestCase):
                 "certificate_expires_at",
                 "certificate_pdf",
             ]
+        )
+        Certificate.objects.create(
+            consultant=consultant,
+            status=Certificate.Status.VALID,
+            issued_at=issued_at,
+            status_set_at=issued_at,
+            valid_at=issued_at,
         )
         consultant.refresh_from_db()
         return consultant
@@ -203,4 +216,5 @@ class CertificatesDashboardViewTests(TestCase):
         self.client.force_login(staff_user)
 
         response = self.client.get(self.dashboard_url)
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, _forbidden_target(self.dashboard_url))

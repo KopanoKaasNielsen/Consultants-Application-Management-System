@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Set
 
 from apps.users.constants import UserRole
-from apps.users.jwt_utils import JWTValidationError, roles_from_authorization_header
+from apps.users.jwt_utils import (
+    JWTValidationError,
+    decode_roles,
+    extract_bearer_token,
+)
 from apps.users.permissions import user_has_role
 
 
@@ -24,10 +28,13 @@ class JWTAuthenticationMiddleware:
     def _resolve_roles(self, request) -> tuple[Set[UserRole], bool]:
         auth_header = request.META.get("HTTP_AUTHORIZATION")
         if auth_header:
+            token = extract_bearer_token(auth_header)
+            if not token:
+                return set(), False
             try:
-                return roles_from_authorization_header(auth_header), True
+                return decode_roles(token), True
             except JWTValidationError:
-                return set(), True
+                return set(), False
 
         user = getattr(request, "user", None)
         if getattr(user, "is_authenticated", False):

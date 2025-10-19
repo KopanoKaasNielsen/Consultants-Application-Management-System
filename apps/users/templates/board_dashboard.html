@@ -5,6 +5,41 @@
 {% block content %}
 <section class="page-section">
     <h1>Submitted Consultant Applications</h1>
+    {% if has_board_role and signature_form %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h5">Board member signature</h2>
+            <p class="text-muted">Upload your digital signature for use on generated certificates.</p>
+            <form method="post" enctype="multipart/form-data" class="d-flex flex-column gap-3">
+                {% csrf_token %}
+                {% if signature_form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">
+                    {% for error in signature_form.non_field_errors %}{{ error }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+                </div>
+                {% endif %}
+                <div>
+                    {{ signature_form.signature_image.label_tag }}
+                    {{ signature_form.signature_image }}
+                    {% if signature_form.signature_image.help_text %}
+                    <small class="form-text text-muted">{{ signature_form.signature_image.help_text }}</small>
+                    {% endif %}
+                    {% for error in signature_form.signature_image.errors %}
+                    <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                {% if board_profile and board_profile.signature_image %}
+                <div>
+                    <p class="mb-2">Current signature:</p>
+                    <img src="{{ board_profile.signature_image.url }}" alt="Current signature" class="img-fluid" style="max-height: 120px;">
+                </div>
+                {% endif %}
+                <div>
+                    <button type="submit" class="btn btn-primary">Save signature</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
     {% if consultants %}
     <div class="table-responsive">
         <table class="data-table">

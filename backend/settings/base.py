@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Iterable, Sequence
+from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse_lazy
@@ -12,17 +14,39 @@ import dj_database_url
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
+from consultant_app import settings as consultant_celery_settings
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def _get_env(name: str) -> str | None:
+    """Return the raw value for ``name`` if it exists."""
+
+    return os.getenv(name)
 
 
 def get_env_bool(name: str, default: bool = False) -> bool:
     """Return a boolean for an environment variable."""
 
-    value = os.getenv(name)
+    value = _get_env(name)
     if value is None:
         return default
     return value.lower() in {"true", "1", "yes"}
+
+
+def get_env_int(name: str, default: int) -> int:
+    """Return an integer for ``name`` or ``default`` if unset."""
+
+    value = _get_env(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:  # pragma: no cover - defensive path
+        raise ImproperlyConfigured(
+            f"Environment variable {name} must be an integer."
+        ) from exc
 
 
 def get_secret_key(debug: bool) -> str:
@@ -38,15 +62,147 @@ def get_secret_key(debug: bool) -> str:
         "DJANGO_SECRET_KEY must be set in production environments."
     )
 
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,consultant-app-156x.onrender.com,.onrender.com",
-).split(",")
-CSRF_TRUSTED_ORIGINS = os.getenv(
+DEFAULT_ALLOWED_HOSTS = (
+    "localhost",
+    "127.0.0.1",
+)
+
+
+_SETTINGS_MODULE = os.getenv("DJANGO_SETTINGS_MODULE", "")
+_IS_LOCAL_SETTINGS = _SETTINGS_MODULE.endswith(".dev")
+_DEFAULT_DEBUG_STATE = get_env_bool(
+    "DJANGO_DEBUG", default=_IS_LOCAL_SETTINGS
+)
+
+
+def _normalise_list(values: Iterable[str]) -> list[str]:
+    """Return a list of unique, stripped values preserving order."""
+
+    normalised: list[str] = []
+    for value in values:
+        candidate = value.strip()
+        if not candidate or candidate in normalised:
+            continue
+        normalised.append(candidate)
+    return normalised
+
+
+def _read_hosts_from_env(env_var: str) -> list[str]:
+    """Return a list of hosts defined in ``env_var``."""
+
+    raw_value = os.getenv(env_var)
+    if not raw_value:
+        return []
+    return _normalise_list(raw_value.split(","))
+
+
+def get_allowed_hosts(env_var: str, default: Iterable[str] | None = None) -> list[str]:
+    """Read a comma-separated list of hosts from an environment variable."""
+
+    hosts = _read_hosts_from_env(env_var)
+    if hosts:
+        return hosts
+    if default is None:
+        default = DEFAULT_ALLOWED_HOSTS
+    return list(default)
+
+
+def _get_render_allowed_hosts() -> list[str]:
+    """Return hostnames automatically exposed by Render deployments."""
+
+    hosts: list[str] = []
+    render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+    if render_hostname:
+        hosts.append(render_hostname)
+
+    render_external_url = os.getenv("RENDER_EXTERNAL_URL")
+    if render_external_url:
+        parsed = urlsplit(render_external_url)
+        if parsed.hostname:
+            hosts.append(parsed.hostname)
+
+    hosts.append(".onrender.com")
+
+    return _normalise_list(hosts)
+
+
+def build_allowed_hosts(
+    *env_vars: str,
+    default: Iterable[str] | None = None,
+    include_render_hosts: bool = True,
+) -> list[str]:
+    """Aggregate allowed hosts from configuration and Render defaults."""
+
+    hosts: list[str] = []
+    for env_var in env_vars:
+        hosts.extend(_read_hosts_from_env(env_var))
+
+    if not hosts:
+        if default is None:
+            default = DEFAULT_ALLOWED_HOSTS
+        hosts.extend(default)
+
+    if include_render_hosts:
+        hosts.extend(_get_render_allowed_hosts())
+
+    return _normalise_list(hosts)
+
+
+def get_csrf_trusted_origins(
+    env_var: str,
+    default: Iterable[str] | None = None,
+) -> list[str]:
+    """Fetch trusted origins allowing override per environment."""
+
+    raw_value = os.getenv(env_var)
+    if raw_value:
+        return _normalise_list(raw_value.split(","))
+    if default is None:
+        return []
+    return list(default)
+
+
+ALLOWED_HOSTS = build_allowed_hosts("ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
     "CSRF_TRUSTED_ORIGINS",
-    "https://consultant-app-156x.onrender.com,https://*.onrender.com",
-).split(",")
+    default=("https://localhost", "https://127.0.0.1"),
+)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+SECURE_SSL_REDIRECT = get_env_bool(
+    "DJANGO_SECURE_SSL_REDIRECT", default=not _DEFAULT_DEBUG_STATE
+)
+SESSION_COOKIE_SECURE = get_env_bool(
+    "DJANGO_SESSION_COOKIE_SECURE", default=not _DEFAULT_DEBUG_STATE
+)
+SESSION_COOKIE_HTTPONLY = get_env_bool(
+    "DJANGO_SESSION_COOKIE_HTTPONLY", default=True
+)
+SESSION_COOKIE_SAMESITE = os.getenv("DJANGO_SESSION_COOKIE_SAMESITE", "Lax")
+CSRF_COOKIE_SECURE = get_env_bool(
+    "DJANGO_CSRF_COOKIE_SECURE", default=not _DEFAULT_DEBUG_STATE
+)
+CSRF_COOKIE_HTTPONLY = get_env_bool(
+    "DJANGO_CSRF_COOKIE_HTTPONLY", default=False
+)
+CSRF_COOKIE_SAMESITE = os.getenv("DJANGO_CSRF_COOKIE_SAMESITE", "Lax")
+SECURE_CONTENT_TYPE_NOSNIFF = get_env_bool(
+    "DJANGO_SECURE_CONTENT_TYPE_NOSNIFF", default=True
+)
+SECURE_REFERRER_POLICY = os.getenv("DJANGO_SECURE_REFERRER_POLICY", "same-origin")
+
+_default_hsts_seconds = 0
+SECURE_HSTS_SECONDS = get_env_int(
+    "DJANGO_SECURE_HSTS_SECONDS", default=_default_hsts_seconds
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = get_env_bool(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=SECURE_HSTS_SECONDS > 0,
+)
+SECURE_HSTS_PRELOAD = get_env_bool(
+    "DJANGO_SECURE_HSTS_PRELOAD", default=False
+)
+X_FRAME_OPTIONS = os.getenv("DJANGO_X_FRAME_OPTIONS", "DENY")
 
 
 def _get_sample_rate(name: str, default: float) -> float:
@@ -62,6 +218,13 @@ def _get_sample_rate(name: str, default: float) -> float:
         return default
 
 
+def _split_env_set(name: str) -> set[str]:
+    """Return a set of comma separated values for an environment variable."""
+
+    raw_value = os.getenv(name, "")
+    return {item.strip() for item in raw_value.split(",") if item.strip()}
+
+
 def init_sentry() -> None:
     """Configure Sentry monitoring when a DSN is available."""
 
@@ -69,22 +232,34 @@ def init_sentry() -> None:
     if not dsn:
         return None
 
+    environment = (
+        os.getenv("SENTRY_ENVIRONMENT")
+        or os.getenv("DJANGO_ENV")
+        or os.getenv("ENVIRONMENT")
+        or ("development" if get_env_bool("DJANGO_DEBUG", True) else "production")
+    )
+
     sentry_sdk.init(
         dsn=dsn,
         integrations=[DjangoIntegration()],
+        environment=environment,
         send_default_pii=False,
         traces_sample_rate=_get_sample_rate("SENTRY_TRACES_SAMPLE_RATE", 0.2),
         profiles_sample_rate=_get_sample_rate("SENTRY_PROFILES_SAMPLE_RATE", 0.0),
     )
+    sentry_sdk.set_tag("environment", environment)
     return None
 
 
 INSTALLED_APPS = [
     'channels',
+    'consultant_app.apps.ConsultantAppConfig',
+    'apps.api',
     'apps.consultants',
     'apps.vetting',
     'apps.decisions',
     'apps.certificates',
+    'apps.security',
     'apps.users',
     'django_crontab',
     'django.contrib.admin',
@@ -95,6 +270,25 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 ]
 
+# Ensure Django REST framework is always available for tests and runtime features
+REST_FRAMEWORK_APP = 'rest_framework'
+if REST_FRAMEWORK_APP not in INSTALLED_APPS:
+    INSTALLED_APPS.insert(1, REST_FRAMEWORK_APP)
+
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [
+        'apps.api.throttling.RoleBasedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'role': '60/min',
+    },
+    'ROLE_BASED_THROTTLE_RATES': {
+        'consultant': '60/min',
+        'staff': '30/min',
+        'board': '15/min',
+    },
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -102,6 +296,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'apps.users.middleware.JWTAuthenticationMiddleware',
+    'middleware.role_access.RoleAccessMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -120,8 +315,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'apps.users.context_processors.user_is_admin',
-                'apps.users.context_processors.user_is_board_or_staff',
+                'apps.users.context_processors.role_flags',
                 'apps.consultants.context_processors.consultant_notifications',
             ],
         },
@@ -155,8 +349,69 @@ def _build_channel_layers() -> dict[str, dict[str, object]]:
 
 CHANNEL_LAYERS = _build_channel_layers()
 
+def _build_test_settings(parsed: dict[str, str]) -> dict[str, str]:
+    """Translate a parsed database URL into a Django TEST settings block."""
+
+    keys = ("NAME", "USER", "PASSWORD", "HOST", "PORT", "ENGINE", "OPTIONS")
+    return {key: parsed[key] for key in keys if key in parsed}
+
+
+def build_database_config(
+    primary_env_var: str,
+    *,
+    fallback_env_vars: Sequence[str] | None = None,
+    default_url: str | None = None,
+    test_env_vars: Sequence[str] | None = None,
+    conn_max_age: int = 600,
+) -> dict[str, object]:
+    """Build a Django database configuration driven by environment variables."""
+
+    fallback_env_vars = fallback_env_vars or ()
+    test_env_vars = test_env_vars or ()
+
+    database_url = os.getenv(primary_env_var)
+    if not database_url:
+        for candidate_var in fallback_env_vars:
+            database_url = os.getenv(candidate_var)
+            if database_url:
+                break
+    if not database_url:
+        database_url = default_url
+    if not database_url:
+        raise ImproperlyConfigured(
+            "A database connection string is required."
+        )
+
+    use_test_database = bool(
+        os.getenv("PYTEST_CURRENT_TEST") or os.getenv("DJANGO_USE_TEST_DATABASE")
+    )
+
+    test_url: str | None = None
+    for candidate in test_env_vars:
+        test_url = os.getenv(candidate)
+        if test_url:
+            break
+
+    if use_test_database and test_url:
+        parsed = dj_database_url.parse(test_url, conn_max_age=0)
+        return parsed
+
+    parsed = dj_database_url.parse(database_url, conn_max_age=conn_max_age)
+    if test_url:
+        parsed["TEST"] = _build_test_settings(
+            dj_database_url.parse(test_url, conn_max_age=0)
+        )
+    return parsed
+
+
 DATABASES = {
-    'default': dj_database_url.config(default='sqlite:///db.sqlite3', conn_max_age=600)
+    'default': build_database_config(
+        'DATABASE_URL',
+        default_url='sqlite:///db.sqlite3',
+        test_env_vars=(
+            'TEST_DATABASE_URL',
+        ),
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -187,7 +442,56 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+CERTIFICATE_VERIFY_BASE_URL = os.getenv("CERTIFICATE_VERIFY_BASE_URL", "")
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Structured logging configuration persisting key workflow actions.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '%(levelname)s %(name)s %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'database': {
+            'level': 'INFO',
+            'class': 'apps.consultants.logging.DatabaseLogHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'apps.consultants': {
+            'handlers': ['console', 'database'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'apps.users': {
+            'handlers': ['console', 'database'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'consultant_app': {
+            'handlers': ['console', 'database'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+}
 
 
 # Email configuration sourced from environment variables for secure delivery.
@@ -203,6 +507,57 @@ EMAIL_USE_SSL = get_env_bool("EMAIL_USE_SSL", False)
 DEFAULT_FROM_EMAIL = os.getenv(
     "DEFAULT_FROM_EMAIL", "no-reply@consultant-management.local"
 )
+
+SECURITY_ALERT_EMAIL_RECIPIENTS = tuple(
+    _split_env_set("SECURITY_ALERT_EMAIL_RECIPIENTS")
+)
+SECURITY_ALERT_EMAIL_SENDER = os.getenv(
+    "SECURITY_ALERT_EMAIL_SENDER",
+    DEFAULT_FROM_EMAIL,
+)
+SECURITY_ALERT_EMAIL_SUBJECT_PREFIX = os.getenv(
+    "SECURITY_ALERT_EMAIL_SUBJECT_PREFIX",
+    "Security",
+)
+SECURITY_ALERT_SLACK_WEBHOOK = os.getenv("SECURITY_ALERT_SLACK_WEBHOOK", "")
+SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD = int(
+    os.getenv("SECURITY_ALERT_LOGIN_FAILURE_THRESHOLD", "5")
+)
+_critical_action_env = _split_env_set("SECURITY_ALERT_CRITICAL_ACTIONS")
+DEFAULT_SECURITY_CRITICAL_ACTIONS = {
+    "certificate_revoked",
+}
+SECURITY_ALERT_CRITICAL_ACTIONS = (
+    _critical_action_env if _critical_action_env else DEFAULT_SECURITY_CRITICAL_ACTIONS
+)
+
+
+# Celery configuration shared with the worker process.
+CELERY_BROKER_URL = consultant_celery_settings.CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = consultant_celery_settings.CELERY_RESULT_BACKEND
+CELERY_TASK_DEFAULT_QUEUE = consultant_celery_settings.CELERY_TASK_DEFAULT_QUEUE
+CELERY_TASK_DEFAULT_EXCHANGE = consultant_celery_settings.CELERY_TASK_DEFAULT_EXCHANGE
+CELERY_TASK_DEFAULT_ROUTING_KEY = (
+    consultant_celery_settings.CELERY_TASK_DEFAULT_ROUTING_KEY
+)
+CELERY_TASK_ALWAYS_EAGER = consultant_celery_settings.CELERY_TASK_ALWAYS_EAGER
+CELERY_TASK_EAGER_PROPAGATES = (
+    consultant_celery_settings.CELERY_TASK_EAGER_PROPAGATES
+)
+CELERY_TASK_ACKS_LATE = consultant_celery_settings.CELERY_TASK_ACKS_LATE
+CELERY_TASK_SOFT_TIME_LIMIT = (
+    consultant_celery_settings.CELERY_TASK_SOFT_TIME_LIMIT
+)
+CELERY_TASK_TIME_LIMIT = consultant_celery_settings.CELERY_TASK_TIME_LIMIT
+CELERY_BEAT_SCHEDULE = consultant_celery_settings.CELERY_BEAT_SCHEDULE
+
+ADMIN_REPORT_RECIPIENTS = consultant_celery_settings.ADMIN_REPORT_RECIPIENTS
+ADMIN_REPORT_FROM_EMAIL = consultant_celery_settings.ADMIN_REPORT_FROM_EMAIL
+ADMIN_REPORT_BASE_URL = consultant_celery_settings.ADMIN_REPORT_BASE_URL
+ADMIN_REPORT_ATTACHMENT_PREFIX = (
+    consultant_celery_settings.ADMIN_REPORT_ATTACHMENT_PREFIX
+)
+ADMIN_REPORT_SUBJECTS = consultant_celery_settings.ADMIN_REPORT_SUBJECTS
 
 
 # Weekly analytics email scheduling (every Monday at 08:00 UTC).
@@ -221,6 +576,12 @@ init_sentry()
 
 # JWT authentication configuration
 JWT_AUTH_SECRET = os.getenv("JWT_AUTH_SECRET")
+if not JWT_AUTH_SECRET:
+    fallback_secret = os.getenv("DJANGO_SECRET_KEY") or os.getenv("SECRET_KEY")
+    if fallback_secret:
+        JWT_AUTH_SECRET = fallback_secret
+    else:  # Default to the development key for local usage
+        JWT_AUTH_SECRET = get_secret_key(True)
 JWT_AUTH_ALGORITHM = os.getenv("JWT_AUTH_ALGORITHM", "HS256")
 _jwt_algorithms_env = os.getenv("JWT_AUTH_ALGORITHMS")
 JWT_AUTH_ALGORITHMS = (

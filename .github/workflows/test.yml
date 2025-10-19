@@ -1,0 +1,37 @@
+name: Targeted Django Tests
+
+on:
+  push:
+    paths:
+      - 'apps/security/**'
+      - 'backend/settings/**'
+      - 'requirements.txt'
+      - 'pytest.ini'
+      - '.github/workflows/test.yml'
+  pull_request:
+    paths:
+      - 'apps/security/**'
+      - 'backend/settings/**'
+      - 'requirements.txt'
+      - 'pytest.ini'
+      - '.github/workflows/test.yml'
+  workflow_dispatch:
+
+jobs:
+  audit-log-tests:
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: backend.settings.dev
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run export audit log tests
+        run: pytest apps/security/tests/test_export_audit_logs_command.py -q

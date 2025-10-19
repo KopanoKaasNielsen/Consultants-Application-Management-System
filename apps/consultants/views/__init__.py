@@ -1,19 +1,32 @@
 import json
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
-from django.urls import reverse
 
-from .emails import send_submission_confirmation_email
-from .forms import ConsultantForm
-from .models import Consultant, Notification
 from apps.users.constants import UserRole as Roles
 from apps.users.permissions import role_required
+
+from ..forms import ConsultantForm
+from ..models import Consultant, Notification
+from ..tasks import send_submission_confirmation_email_task
+
+
+logger = logging.getLogger(__name__)
+
+# Re-export upload management views for convenient import paths.
+from .uploads import (  # noqa: F401
+    delete_document,
+    download_document,
+    preview_document,
+    upload_document,
+)
 
 
 AUTO_SAVE_FIELDS = [
@@ -67,9 +80,29 @@ def submit_application(request):
 
             consultant.save()
 
+            log_context = {
+                "action": "submit_application" if is_submission else "save_draft",
+                "consultant_id": consultant.pk,
+                "status": consultant.status,
+                "actor": {
+                    "id": request.user.pk,
+                    "email": request.user.email,
+                },
+            }
+            logger.info(
+                "Consultant %s %s their application",
+                consultant.pk,
+                "submitted" if is_submission else "saved",
+                extra={
+                    "user_id": request.user.pk,
+                    "consultant_id": consultant.pk,
+                    "context": log_context,
+                },
+            )
+
             if is_submission:
                 try:
-                    send_submission_confirmation_email(consultant)
+                    send_submission_confirmation_email_task.delay(consultant.pk)
                 except Exception:
                     messages.warning(
                         request,
@@ -211,7 +244,8 @@ def mark_notification_read(request, notification_id: int):
 
     if not notification.is_read:
         notification.is_read = True
-        notification.save(update_fields=["is_read"])
+        notification.read_at = timezone.now()
+        notification.save(update_fields=["is_read", "read_at"])
 
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or reverse("dashboard")
     return redirect(next_url)
