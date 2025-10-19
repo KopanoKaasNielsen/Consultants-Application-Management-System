@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# codex – unified CLI for Codex automations
+# Usage:
+#   codex test
+#   codex lint
+#   codex review <PR_URL>
+#   codex custom "<natural language instruction>"
+
+BASE_DIR="$HOME/CAMS/consultant_app"
+VENV="$BASE_DIR/venv/bin/python"
+
+case "$1" in
+  test)
+    echo "🧪 Running tests via Codex agent..."
+    $VENV "$BASE_DIR/codex_agent.py" "Run pytest in this project and summarize failing tests."
+    ;;
+  lint)
+    echo "🧹 Linting project via Codex agent..."
+    $VENV "$BASE_DIR/codex_agent.py" "Run flake8 on the apps directory and summarize any warnings."
+    ;;
+  review)
+    if [ -z "$2" ]; then
+      echo "❗Usage: codex review <PR_URL or PR_NUMBER>"
+      exit 1
+    fi
+
+    arg="$2"
+    # Detect current repo's GitHub remote URL
+    remote_url=$(git config --get remote.origin.url 2>/dev/null)
+
+    if [[ "$arg" =~ ^[0-9]+$ ]]; then
+      # PR number only
+      if [[ "$remote_url" =~ github.com[:/](.*)/(.*).git ]]; then
+        owner="${BASH_REMATCH[1]}"
+        repo="${BASH_REMATCH[2]}"
+        pr_url="https://github.com/${owner}/${repo}/pull/${arg}"
+      else
+        echo "⚠️  Not in a GitHub repository — please provide full URL."
+        exit 1
+      fi
+    else
+      # Full URL provided
+      pr_url="$arg"
+    fi
+
+    echo "🧠 Reviewing PR: $pr_url"
+    $VENV "$BASE_DIR/codex_review.py" "$pr_url"
+    ;;
+esac
