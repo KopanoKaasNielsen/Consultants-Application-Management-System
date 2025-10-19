@@ -12,6 +12,7 @@ from .base import (
     build_database_config,
     get_csrf_trusted_origins,
     get_env_bool,
+    get_env_int,
     get_secret_key,
 )
 
@@ -54,3 +55,20 @@ DATABASES["default"] = build_database_config(
 
 DATABASES["default"].setdefault("TEST", {})
 DATABASES["default"]["TEST"].setdefault("SERIALIZE", False)
+
+SECURE_SSL_REDIRECT = get_env_bool(
+    "DJANGO_SECURE_SSL_REDIRECT", default=False
+)
+SESSION_COOKIE_SECURE = get_env_bool(
+    "DJANGO_SESSION_COOKIE_SECURE", default=False
+)
+CSRF_COOKIE_SECURE = get_env_bool(
+    "DJANGO_CSRF_COOKIE_SECURE", default=False
+)
+SECURE_HSTS_SECONDS = get_env_int("DJANGO_SECURE_HSTS_SECONDS", default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = get_env_bool(
+    "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False
+)
+SECURE_HSTS_PRELOAD = get_env_bool(
+    "DJANGO_SECURE_HSTS_PRELOAD", default=False
+)
