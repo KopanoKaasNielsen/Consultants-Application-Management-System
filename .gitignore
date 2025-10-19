@@ -1,25 +1,44 @@
-# Python
-__pycache__/
-*.py[cod]
-*.sqlite3
+# === Codex AI Output (local only) ===
+reviews/
+results/
 
-# Virtual environments
-venv/
-
-# Django stuff
+# Logs and generated text files
 *.log
-*.pot
+*.txt
+*.out
+*.md.bak
+*.bak
+*.tmp
+
+# Optional: Windows mirror folders
+/mnt/c/Users/kp/Documents/CAMS_results/
+
+# === Python / Django artifacts ===
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.sqlite3
 db.sqlite3
 media/
 staticfiles/
 
-# VS Code
-.vscode/
-
-# Environment files
+# === Virtual environments ===
+venv/
 .env
-fix_app_paths.patch
-Consultants-Application-Management-System/
+.env.*
+.venv/
+
+# === IDE & Editor settings ===
+.vscode/
+.idea/
+*.swp
+
+# === System files ===
+.DS_Store
+Thumbs.db
+
+# === Build & cache ===
+*.egg-info/
+dist/
+build/
