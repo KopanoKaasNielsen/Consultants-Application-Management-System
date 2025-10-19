@@ -15,8 +15,10 @@
         <div class="brand">Consultant App</div>
         <nav class="site-nav">
         {% if user.is_authenticated %}
-            {% if has_admin_role %}
+            {% if has_admin_role or has_staff_role %}
                 <a class="nav-link" href="{% url 'admin_dashboard' %}">Admin dashboard</a>
+            {% endif %}
+            {% if has_admin_role %}
                 <a class="nav-link" href="{% url 'admin_service_health' %}">Service health</a>
                 <a class="nav-link" href="{% url 'impersonation_dashboard' %}">Impersonation</a>
             {% endif %}

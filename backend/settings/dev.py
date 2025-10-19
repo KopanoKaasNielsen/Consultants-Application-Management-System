@@ -51,3 +51,6 @@ DATABASES["default"] = build_database_config(
     default_url="sqlite:///db.sqlite3",
     test_env_vars=("DEV_TEST_DATABASE_URL", "TEST_DATABASE_URL"),
 )
+
+DATABASES["default"].setdefault("TEST", {})
+DATABASES["default"]["TEST"].setdefault("SERIALIZE", False)

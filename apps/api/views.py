@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 from apps.api.permissions import IsAdminUserRole, IsStaffUserRole
 from apps.api.throttling import RoleBasedRateThrottle
 from apps.api.serializers import (
+    AdminStatsSerializer,
     ConsultantDashboardListSerializer,
     ConsultantValidationErrorSerializer,
     ConsultantValidationSuccessSerializer,
@@ -28,6 +29,7 @@ from consultant_app.serializers import (
     ConsultantValidationSerializer,
     LogEntrySerializer as LegacyLogEntrySerializer,
 )
+from consultant_app.utils.admin_dashboard import compute_admin_dashboard_stats
 from consultant_app.utils.report_exporter import (
     build_dashboard_csv,
     describe_filters,
@@ -214,6 +216,19 @@ class ConsultantValidationView(APIView):
         error_serializer = ConsultantValidationErrorSerializer(data={"errors": errors})
         error_serializer.is_valid(raise_exception=True)
         return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminStatsView(APIView):
+    """Return aggregated analytics for the admin dashboard."""
+
+    permission_classes = [permissions.IsAdminUser]
+    throttle_classes = [RoleBasedRateThrottle]
+
+    def get(self, request, *args, **kwargs):  # type: ignore[override]
+        stats = compute_admin_dashboard_stats()
+        serializer = AdminStatsSerializer(data=stats)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data)
 
 
 class StaffConsultantViewSet(viewsets.ViewSet):

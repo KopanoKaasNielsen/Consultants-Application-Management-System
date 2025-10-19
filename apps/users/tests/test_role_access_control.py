@@ -25,15 +25,13 @@ def test_admin_role_can_access_admin_dashboard(client, user_factory):
 
 
 @pytest.mark.django_db
-def test_staff_role_cannot_access_admin_dashboard(client, user_factory):
+def test_staff_role_can_access_admin_dashboard(client, user_factory):
     staff_user = user_factory(username="role-staff", role=UserRole.STAFF)
     client.force_login(staff_user)
 
-    url = reverse("admin_dashboard")
-    response = client.get(url)
+    response = client.get(reverse("admin_dashboard"))
 
-    assert response.status_code == 302
-    assert response.url == _forbidden_target(url)
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db

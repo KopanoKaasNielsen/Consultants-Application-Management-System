@@ -34,6 +34,14 @@ def user_factory(db):
             group, _ = Group.objects.get_or_create(name=group_name)
             user.groups.add(group)
 
+        if role in {Roles.ADMIN, Roles.STAFF}:
+            user.is_staff = True
+        if role == Roles.ADMIN:
+            user.is_superuser = True
+
+        if user.is_staff or user.is_superuser:
+            user.save(update_fields=["is_staff", "is_superuser"])
+
         return user
 
     return create_user
