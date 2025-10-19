@@ -53,6 +53,32 @@ def main():
 
     print("\n🧠 GPT-5 Review Output:\n")
     print(review)
+# --- Save GPT-5 review output ---
+from datetime import datetime
+import os, shutil
+
+output_dir = os.path.join(os.path.dirname(__file__), "reviews")
+os.makedirs(output_dir, exist_ok=True)
+
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+filename = f"review-{timestamp}.md"
+filepath = os.path.join(output_dir, filename)
+
+with open(filepath, "w") as f:
+    f.write(review)
+
+print(f"✅ Review saved to: {filepath}")
+
+# --- Optional: also copy to Windows Documents mirror ---
+win_docs = "/mnt/c/Users/kp/Documents/CAMS_results"
+if os.path.exists("/mnt/c/Users/kp/Documents"):
+    try:
+        os.makedirs(win_docs, exist_ok=True)
+        win_copy = os.path.join(win_docs, os.path.basename(filepath))
+        shutil.copy(filepath, win_copy)
+        print(f"💾 Exported to Windows: {win_copy}")
+    except Exception as e:
+        print(f"⚠️  Could not export to Windows: {e}")
 
 
 if __name__ == "__main__":
