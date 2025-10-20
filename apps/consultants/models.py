@@ -75,9 +75,14 @@ class Consultant(models.Model):
     rejection_letter_generated_at = models.DateTimeField(blank=True, null=True)
 
     # Status and metadata
-    submitted_at = models.DateTimeField(blank=True, null=True)
+    submitted_at = models.DateTimeField(blank=True, null=True, db_index=True)
     is_seen_by_staff = models.BooleanField(default=False, db_index=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="draft",
+        db_index=True,
+    )
     staff_comment = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
