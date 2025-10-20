@@ -240,6 +240,10 @@ class StaffConsultantViewSet(viewsets.ViewSet):
     def list(self, request):  # type: ignore[override]
         queryset, filters = build_dashboard_queryset(request.query_params)
 
+        queryset = queryset.select_related("user").prefetch_related(
+            "certificate_records"
+        )
+
         page = _parse_int(request.query_params.get("page"), 1)
         page_size = min(
             _parse_int(request.query_params.get("page_size"), DEFAULT_PAGE_SIZE),
