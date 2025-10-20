@@ -9,8 +9,7 @@ from typing import Mapping, MutableMapping, Optional, Set
 from django.conf import settings
 from rest_framework.throttling import SimpleRateThrottle
 
-from apps.users.constants import UserRole
-from apps.users.permissions import user_has_role
+from apps.users.constants import ROLE_GROUP_MAP, UserRole
 
 
 @dataclass(frozen=True)
@@ -128,9 +127,17 @@ class RoleBasedRateThrottle(SimpleRateThrottle):
 
         user = getattr(request, "user", None)
         if getattr(user, "is_authenticated", False):
-            for role in self.role_rates.keys() | self.unlimited_roles:
-                if user_has_role(user, role):
-                    roles.add(role)
+            if getattr(user, "is_superuser", False):
+                roles.update(self.role_rates.keys() | self.unlimited_roles)
+                return roles
+
+            groups_manager = getattr(user, "groups", None)
+            if groups_manager is not None:
+                group_names = set(groups_manager.values_list("name", flat=True))
+                if group_names:
+                    for role, mapped_groups in ROLE_GROUP_MAP.items():
+                        if group_names & mapped_groups:
+                            roles.add(role)
 
         return roles
 
