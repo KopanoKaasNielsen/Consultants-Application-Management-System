@@ -1,0 +1,50 @@
+# codex_tasks/secure_prod_settings.yml
+name: secure_prod_settings
+description: >
+  Ensure Django production settings on Render are secure by enforcing HTTPS (HSTS)
+  and replacing weak SECRET_KEY with a strong random key loaded from environment variables.
+
+steps:
+  - name: 🧭 Verify current environment
+    run: |
+      cd /opt/render/project/src || cd .
+      source .venv/bin/activate
+      python --version
+      echo "Environment: $(hostname)"
+      echo "Checking Django deployment safety..."
+      python manage.py check --deploy || true
+
+  - name: 🔐 Patch production settings for HTTPS & secure cookies
+    run: |
+      echo "Updating backend/settings/prod.py ..."
+      sed -i '/^SECRET_KEY/d' backend/settings/prod.py || true
+      sed -i '/^SECURE_SSL_REDIRECT/d' backend/settings/prod.py || true
+      sed -i '/^SECURE_HSTS_SECONDS/d' backend/settings/prod.py || true
+      cat <<'PYAPPEND' >> backend/settings/prod.py
+
+# === Auto-applied by Codex secure_prod_settings.yml ===
+import os
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-placeholder")
+
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 15768000  # 6 months
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+# === End Codex auto-section ===
+PYAPPEND
+      echo "✅ backend/settings/prod.py patched."
+
+  - name: 🧮 Generate strong SECRET_KEY (for Render)
+    run: |
+      echo "Generating new random SECRET_KEY ..."
+      python -c "from django.core.management.utils import get_random_secret_key as k; print('SECRET_KEY=' + k())" > .secret_env
+      echo "✅ Strong SECRET_KEY generated and stored locally in .secret_env"
+      echo "Please copy it to your Render dashboard: Environment → Add Variable → SECRET_KEY"
+
+  - name: ✅ Verify deployment security
+    run: |
+      echo "Rechecking Django deploy readiness ..."
+      python manage.py check --deploy
+      echo "Done."
