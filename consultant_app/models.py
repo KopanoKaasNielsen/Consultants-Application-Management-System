@@ -47,6 +47,11 @@ class CertificateManager(models.Manager["Certificate"]):
     ) -> "Certificate | None":
         """Return the most recent certificate record for the consultant."""
 
+        prefetched = getattr(consultant, "_prefetched_objects_cache", None)
+        if prefetched and "certificate_records" in prefetched:
+            records = prefetched.get("certificate_records") or []
+            return records[0] if records else None
+
         return (
             self.get_queryset()
             .for_consultant(consultant)
