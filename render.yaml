@@ -96,6 +96,8 @@ services:
         fromDatabase:
           name: cams-prod-db
           property: connectionString
+      - key: PROD_DATABASE_HOST_SUFFIX
+        value: .oregon-postgres.render.com
       - key: ALLOWED_HOSTS
         value: .onrender.com
       - key: PROD_ALLOWED_HOSTS
@@ -140,6 +142,8 @@ services:
         fromDatabase:
           name: cams-prod-db
           property: connectionString
+      - key: PROD_DATABASE_HOST_SUFFIX
+        value: .oregon-postgres.render.com
       - key: PROD_ALLOWED_HOSTS
         value: consultant-app-156x.onrender.com,cams-websocket-worker.onrender.com
       - key: REDIS_URL
