@@ -123,7 +123,22 @@ class RoleBasedRateThrottle(SimpleRateThrottle):
         return _RateSelection(rate=best_rate, roles=best_roles)
 
     def _resolve_roles(self, request) -> Set[UserRole]:
-        roles: Set[UserRole] = set(getattr(request, "jwt_roles", set()) or set())
+        roles: Set[UserRole] = set()
+
+        token_roles = getattr(request, "jwt_roles", None)
+        if token_roles:
+            if isinstance(token_roles, (str, UserRole)):
+                token_iterable = [token_roles]
+            else:
+                token_iterable = token_roles
+            for token_role in token_iterable:
+                if isinstance(token_role, UserRole):
+                    roles.add(token_role)
+                    continue
+                try:
+                    roles.add(UserRole(str(token_role).lower()))
+                except ValueError:
+                    continue
 
         user = getattr(request, "user", None)
         if getattr(user, "is_authenticated", False):
