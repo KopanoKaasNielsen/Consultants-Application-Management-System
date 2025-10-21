@@ -6,17 +6,22 @@ import json
 from dataclasses import dataclass
 from typing import Dict
 
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.dateparse import parse_date
 from django.views.generic import TemplateView
 
 from apps.security.models import AuditLog
+from apps.security.utils import log_audit_event
 from apps.users.constants import UserRole
 from apps.users.permissions import user_has_role
+from apps.users.forms import AdminUserCreationForm
 from consultant_app.utils.admin_dashboard import compute_admin_dashboard_stats
 
 
@@ -103,6 +108,8 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         stats = compute_admin_dashboard_stats()
         stats_json = json.dumps(stats, default=str)
 
+        can_manage_users = user_has_role(self.request.user, UserRole.ADMIN)
+
         context.update(
             {
                 "page_obj": page_obj,
@@ -114,13 +121,49 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 "stats": stats,
                 "stats_json": stats_json,
                 "stats_endpoint": reverse("api:admin-stats"),
-                "can_send_manual_report": user_has_role(
-                    self.request.user, UserRole.ADMIN
-                ),
+                "can_send_manual_report": can_manage_users,
+                "can_manage_users": can_manage_users,
             }
         )
 
+        if can_manage_users:
+            context["user_creation_form"] = context.get(
+                "user_creation_form", AdminUserCreationForm()
+            )
+
         return context
+
+    def post(self, request, *args, **kwargs):
+        if request.POST.get("form") != "create_user":
+            return self.get(request, *args, **kwargs)
+
+        if not user_has_role(request.user, UserRole.ADMIN):
+            raise PermissionDenied("You do not have permission to create users.")
+
+        form = AdminUserCreationForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                new_user = form.save()
+
+            log_audit_event(
+                action_code=AuditLog.ActionCode.CREATE_USER,
+                request=request,
+                target=new_user.get_username(),
+                context={
+                    "user_id": new_user.pk,
+                    "roles": [role.value for role in form.selected_roles],
+                },
+            )
+
+            messages.success(
+                request,
+                f"Created user {new_user.get_username()} and assigned roles.",
+            )
+            return redirect("admin_dashboard")
+
+        messages.error(request, "Please correct the errors below to create the user.")
+        context = self.get_context_data(user_creation_form=form)
+        return self.render_to_response(context)
 
 
 __all__ = ["AdminDashboardView"]

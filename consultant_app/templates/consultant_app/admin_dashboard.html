@@ -62,6 +62,47 @@
     </noscript>
 </section>
 
+{% if can_manage_users %}
+<section class="panel" aria-label="User management">
+    <header class="panel__header">
+        <h2>Create users</h2>
+        <p class="text-muted">Provision new team members and assign their platform roles.</p>
+    </header>
+    <form method="post" action="{% url 'admin_dashboard' %}" class="user-management-form">
+        {% csrf_token %}
+        <input type="hidden" name="form" value="create_user">
+        {% if user_creation_form.non_field_errors %}
+        <div class="alert alert-danger" role="alert">
+            {% for error in user_creation_form.non_field_errors %}
+            <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <div class="form-grid">
+            {% for field in user_creation_form %}
+            <div class="form-field{% if field.errors %} has-error{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                <p class="text-muted">{{ field.help_text }}</p>
+                {% endif %}
+                {% if field.errors %}
+                <ul class="errorlist" aria-live="polite">
+                    {% for error in field.errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create user</button>
+        </div>
+    </form>
+</section>
+{% endif %}
+
 <section class="panel">
     <header class="panel__header">
         <h2>Audit log</h2>

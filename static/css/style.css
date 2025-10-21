@@ -508,6 +508,72 @@
     background-color: #ffffff;
 }
 
+.user-management-form .form-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    margin-bottom: 1rem;
+}
+
+.user-management-form .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.user-management-form label {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.user-management-form input[type="text"],
+.user-management-form input[type="email"],
+.user-management-form input[type="password"],
+.user-management-form select,
+.user-management-form textarea {
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.95rem;
+    background-color: #f8fafc;
+}
+
+.user-management-form input[type="text"]:focus,
+.user-management-form input[type="email"]:focus,
+.user-management-form input[type="password"]:focus,
+.user-management-form select:focus,
+.user-management-form textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+    background-color: #ffffff;
+}
+
+.user-management-form .errorlist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    color: #b91c1c;
+    font-size: 0.9rem;
+}
+
+.user-management-form .text-muted {
+    font-size: 0.9rem;
+}
+
+.user-management-form .form-field ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.user-management-form .form-field ul li {
+    margin-bottom: 0.3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .form-actions {
     display: flex;
     flex-wrap: wrap;
