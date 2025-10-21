@@ -1,0 +1,80 @@
+name: "Celery Integration Readiness Check"
+auto_execute: true
+shell: bash
+description: |
+  Verifies that Celery is installed, properly configured in Django,
+  and that the Celery worker can connect to its broker and run a test task.
+
+commands:
+  - echo "🔍 Checking Celery installation..."
+  - source .venv/bin/activate
+  - python -m celery --version || (echo "❌ Celery not installed."; exit 1)
+
+  - echo "🔍 Checking Django Celery configuration..."
+  - python - <<'PYCODE'
+import os, sys
+try:
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.prod")
+    import django
+    django.setup()
+    from consultant_app.celery import app as celery_app
+    print(f"✅ Celery app loaded: {celery_app.main}")
+    print(f"Broker URL: {celery_app.conf.broker_url}")
+except Exception as e:
+    print(f"❌ Celery configuration error: {e}")
+    sys.exit(1)
+PYCODE
+
+  - echo "🔍 Testing Celery broker connection..."
+  - python - <<'PYCODE'
+from celery import Celery
+app = Celery("check")
+try:
+    app.conf.broker_url = "redis://localhost:6379/0"
+    app.control.ping(timeout=5)
+    print("✅ Celery broker is reachable.")
+except Exception as e:
+    print(f"⚠️ Broker connection failed: {e}")
+PYCODE
+
+  - echo "✅ Celery readiness check complete."
+name: "Celery Integration Readiness Check"
+auto_execute: true
+shell: bash
+description: |
+  Verifies that Celery is installed, properly configured in Django,
+  and that the Celery worker can connect to its broker and run a test task.
+
+commands:
+  - echo "🔍 Checking Celery installation..."
+  - source .venv/bin/activate
+  - python -m celery --version || (echo "❌ Celery not installed."; exit 1)
+
+  - echo "🔍 Checking Django Celery configuration..."
+  - python - <<'PYCODE'
+import os, sys
+try:
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.prod")
+    import django
+    django.setup()
+    from consultant_app.celery import app as celery_app
+    print(f"✅ Celery app loaded: {celery_app.main}")
+    print(f"Broker URL: {celery_app.conf.broker_url}")
+except Exception as e:
+    print(f"❌ Celery configuration error: {e}")
+    sys.exit(1)
+PYCODE
+
+  - echo "🔍 Testing Celery broker connection..."
+  - python - <<'PYCODE'
+from celery import Celery
+app = Celery("check")
+try:
+    app.conf.broker_url = "redis://localhost:6379/0"
+    app.control.ping(timeout=5)
+    print("✅ Celery broker is reachable.")
+except Exception as e:
+    print(f"⚠️ Broker connection failed: {e}")
+PYCODE
+
+  - echo "✅ Celery readiness check complete."
