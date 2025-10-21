@@ -35,6 +35,11 @@ tasks:
     command: |
       codex custom "Add sections to README.md: Environment Setup, Redis/Channels configuration, Celery integration, Sentry monitoring, and secure deployment checklist."
 
+  check-render-api:
+    description: "Verify access to the Render Services API using the configured credentials."
+    command: |
+      codex task check_render_api
+
 
   # -------------------------------
   # 🔧 CI and Test Suite Group
