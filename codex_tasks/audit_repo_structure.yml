@@ -1,0 +1,5 @@
+name: "Audit Repo Hygiene"
+commands:
+  - echo "🔍 Checking for misplaced or duplicated files..."
+  - find . -type f -name 'Consultants-Application-Management-System*' -exec echo "⚠️ Duplicate:" {} \;
+  - echo "✅ Repository structure check complete."
