@@ -16,6 +16,7 @@ class AuditLog(models.Model):
         REJECT_APPLICATION = "reject_application", "Rejected application"
         REQUEST_INFO = "request_info", "Requested more information"
         SEND_ANALYTICS_REPORT = "send_analytics_report", "Sent analytics report"
+        CREATE_USER = "create_user", "Created user"
         CERTIFICATE_ISSUED = "certificate_issued", "Issued consultant certificate"
         CERTIFICATE_REVOKED = "certificate_revoked", "Revoked consultant certificate"
         LOGIN_SUCCESS = "login_success", "Successful login"
