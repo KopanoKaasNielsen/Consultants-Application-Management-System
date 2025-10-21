@@ -1,0 +1,4 @@
+name: "Security Scan"
+commands:
+  - bandit -r .
+  - safety check --full-report
