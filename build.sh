@@ -38,13 +38,10 @@ except ImportError:
     sys.exit(1)
 PY
 then
-  echo "⚙️ Running migrations..."
-  python manage.py migrate
-
   echo "🧺 Collecting static files..."
   python manage.py collectstatic --noinput
 else
-  echo "⚠️  Django is not available; skipping migrate/collectstatic steps."
+  echo "⚠️  Django is not available; skipping collectstatic step."
 fi
 
 echo "✅ Build sequence complete."
