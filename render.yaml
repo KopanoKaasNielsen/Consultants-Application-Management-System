@@ -100,6 +100,38 @@ services:
       - key: SENTRY_PROFILES_SAMPLE_RATE
         value: "0.0"
 
+  - type: redis
+    name: cams-prod-redis
+    plan: free
+
+  - type: worker
+    name: cams-websocket-worker
+    env: python
+    plan: free
+    branch: main
+    buildCommand: "./build.sh"
+    startCommand: "daphne backend.asgi:application --port 8001 --bind 0.0.0.0"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: backend.settings.prod
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cams-prod-db
+          property: connectionString
+      - key: PROD_DATABASE_URL
+        fromDatabase:
+          name: cams-prod-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: cams-prod-redis
+          type: redis
+          property: connectionString
+
 databases:
   - name: cams-dev-db
     plan: free
