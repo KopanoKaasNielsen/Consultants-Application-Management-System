@@ -109,13 +109,13 @@ services:
     name: cams-prod-redis
     plan: free
 
-  - type: worker
+  - type: web
     name: cams-websocket-worker
     env: python
     plan: free
     branch: main
     buildCommand: "./build.sh"
-    startCommand: "daphne backend.asgi:application --port 8001 --bind 0.0.0.0"
+    startCommand: "daphne backend.asgi:application --bind 0.0.0.0 --port $PORT"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: backend.settings.prod
@@ -131,6 +131,8 @@ services:
         fromDatabase:
           name: cams-prod-db
           property: connectionString
+      - key: PROD_ALLOWED_HOSTS
+        value: consultant-app-156x.onrender.com,cams-websocket-worker.onrender.com
       - key: REDIS_URL
         fromService:
           name: cams-prod-redis
