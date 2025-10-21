@@ -1,0 +1,7 @@
+# codex_tasks/deploy_ready.yml
+name: "Validate CI/CD Readiness"
+commands:
+  - echo "🏗️ Simulating CI/CD checks..."
+  - pytest --ds=backend.settings.test --disable-warnings -q
+  - python manage.py check --deploy
+  - echo "✅ All checks passed, ready for deploy."
