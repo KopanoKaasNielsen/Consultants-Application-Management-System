@@ -1,0 +1,16 @@
+# codex_tasks/check_deploy_ready.yml
+name: "Check Django Deployment Readiness"
+auto_execute: true
+shell: bash
+commands:
+  - source .venv/bin/activate
+  - python manage.py check --deploy
+  - echo "✅ Deployment check passed successfully."
+# codex_tasks/check_deploy_ready.yml
+name: "Check Django Deployment Readiness"
+auto_execute: true
+shell: bash
+commands:
+  - source .venv/bin/activate
+  - python manage.py check --deploy
+  - echo "✅ Deployment check passed successfully."
