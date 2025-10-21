@@ -1,3 +1,9 @@
+envVarGroups:
+  - name: django-shared-secret
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+
 services:
   - type: web
     name: cams-dev
@@ -72,11 +78,11 @@ services:
     branch: main
     buildCommand: "./build.sh"
     startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    envVarGroups:
+      - django-shared-secret
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: backend.settings.prod
-      - key: DJANGO_SECRET_KEY
-        generateValue: true
       - key: DJANGO_DEBUG
         value: false
       - key: DATABASE_URL
@@ -116,11 +122,11 @@ services:
     branch: main
     buildCommand: "./build.sh"
     startCommand: "daphne backend.asgi:application --bind 0.0.0.0 --port $PORT"
+    envVarGroups:
+      - django-shared-secret
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: backend.settings.prod
-      - key: DJANGO_SECRET_KEY
-        generateValue: true
       - key: DJANGO_DEBUG
         value: false
       - key: DATABASE_URL
