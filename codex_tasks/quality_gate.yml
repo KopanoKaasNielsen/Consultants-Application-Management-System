@@ -1,0 +1,7 @@
+name: "Run Tests, Lint, and Coverage"
+commands:
+  - echo "🧪 Running pytest with coverage..."
+  - pytest --ds=backend.settings.test --maxfail=1 --disable-warnings -q --cov=apps
+  - echo "🧹 Running Ruff lint..."
+  - ruff check .
+  - echo "✅ Code quality gate complete."
