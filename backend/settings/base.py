@@ -356,6 +356,31 @@ def _build_test_settings(parsed: dict[str, str]) -> dict[str, str]:
     return {key: parsed[key] for key in keys if key in parsed}
 
 
+def _first_env_value(names: Sequence[str]) -> str | None:
+    """Return the first populated environment variable from ``names``."""
+
+    for name in names:
+        if not name:
+            continue
+        value = os.getenv(name)
+        if value:
+            return value
+    return None
+
+
+def _apply_host_suffix(config: dict[str, object], host_suffix: str) -> None:
+    """Append ``host_suffix`` to any host fields missing a domain segment."""
+
+    host = config.get("HOST")
+    if isinstance(host, str) and host and "." not in host:
+        if not host.endswith(host_suffix):
+            config["HOST"] = f"{host}{host_suffix}"
+
+    test_settings = config.get("TEST")
+    if isinstance(test_settings, dict):
+        _apply_host_suffix(test_settings, host_suffix)
+
+
 def build_database_config(
     primary_env_var: str,
     *,
@@ -368,6 +393,12 @@ def build_database_config(
 
     fallback_env_vars = fallback_env_vars or ()
     test_env_vars = test_env_vars or ()
+
+    host_suffix_candidates = [
+        f"{primary_env_var}_HOST_SUFFIX",
+        *[f"{candidate}_HOST_SUFFIX" for candidate in fallback_env_vars],
+        "DATABASE_HOST_SUFFIX",
+    ]
 
     database_url = os.getenv(primary_env_var)
     if not database_url:
@@ -397,10 +428,15 @@ def build_database_config(
         return parsed
 
     parsed = dj_database_url.parse(database_url, conn_max_age=conn_max_age)
+    host_suffix = _first_env_value(host_suffix_candidates)
+    if host_suffix:
+        _apply_host_suffix(parsed, host_suffix)
     if test_url:
         parsed["TEST"] = _build_test_settings(
             dj_database_url.parse(test_url, conn_max_age=0)
         )
+        if host_suffix:
+            _apply_host_suffix(parsed["TEST"], host_suffix)
     return parsed
 
 
