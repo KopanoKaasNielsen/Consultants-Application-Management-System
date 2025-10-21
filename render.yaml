@@ -99,6 +99,11 @@ services:
         value: "0.2"
       - key: SENTRY_PROFILES_SAMPLE_RATE
         value: "0.0"
+      - key: REDIS_URL
+        fromService:
+          name: cams-prod-redis
+          type: redis
+          property: connectionString
 
   - type: redis
     name: cams-prod-redis
