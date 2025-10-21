@@ -1,0 +1,7 @@
+name: "Check Multi-Tier Environment Variables"
+commands:
+  - echo "🔍 Checking environment tiers..."
+  - echo "ENVIRONMENT: $RENDER_ENVIRONMENT"
+  - echo "DJANGO_SETTINGS_MODULE: $DJANGO_SETTINGS_MODULE"
+  - echo "DATABASE_URL: $DATABASE_URL"
+  - if [[ "$DJANGO_SETTINGS_MODULE" != *"prod"* ]]; then echo "⚠️ Not in production mode!"; else echo "✅ Production settings confirmed."; fi
