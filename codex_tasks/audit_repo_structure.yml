@@ -1,16 +1,9 @@
 name: "Audit Repository Hygiene"
-description: "Checks for misplaced or duplicated files, empty dirs, and non-standard file names in the CAMS repo."
+auto_execute: true
+shell: bash
 commands:
   - echo "🔍 Auditing repository structure..."
-  - find . -type f -name 'Consultants-Application-Management-System*' -exec echo "⚠️ Duplicate:" {} \;
+  - find . -type f -name 'Consultants-Application-Management-System*' -exec echo "⚠️ Duplicate file found:" {} \;
   - find . -type d -empty -exec echo "⚠️ Empty directory:" {} \;
-  - find . -type f -name "*.py" -exec grep -Hn "print(" {} \; | grep -v "manage.py" || echo "✅ No debug prints found."
-  - echo "✅ Repository structure audit complete."
-name: "Audit Repository Hygiene"
-description: "Checks for misplaced or duplicated files, empty dirs, and non-standard file names in the CAMS repo."
-commands:
-  - echo "🔍 Auditing repository structure..."
-  - find . -type f -name 'Consultants-Application-Management-System*' -exec echo "⚠️ Duplicate:" {} \;
-  - find . -type d -empty -exec echo "⚠️ Empty directory:" {} \;
-  - find . -type f -name "*.py" -exec grep -Hn "print(" {} \; | grep -v "manage.py" || echo "✅ No debug prints found."
+  - find . -type f -name "*.py" -exec grep -Hn "print(" {} \; | grep -v "manage.py" || echo "✅ No stray print statements found."
   - echo "✅ Repository structure audit complete."
