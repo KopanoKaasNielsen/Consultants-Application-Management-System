@@ -12,6 +12,7 @@ services:
     branch: develop
     buildCommand: "./build.sh"
     startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    postDeploy: "python manage.py migrate"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: backend.settings.dev
@@ -45,6 +46,7 @@ services:
     branch: staging
     buildCommand: "./build.sh"
     startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    postDeploy: "python manage.py migrate"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: backend.settings.staging
@@ -78,6 +80,7 @@ services:
     branch: main
     buildCommand: "./build.sh"
     startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    postDeploy: "python manage.py migrate"
     envVarGroups:
       - django-shared-secret
     envVars:
