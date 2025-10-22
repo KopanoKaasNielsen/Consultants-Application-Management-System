@@ -1,0 +1,89 @@
+name: "Check Render Services Environment Config"
+commands:
+  - echo "🔍 Validating Render service configuration..."
+  - python - <<'PY'
+from pathlib import Path
+
+try:
+    import yaml
+except ImportError as exc:  # pragma: no cover
+    print("❌ Missing dependency: PyYAML is required to parse render.yaml.")
+    raise SystemExit(1) from exc
+
+path = Path("render.yaml")
+if not path.exists():
+    print("❌ render.yaml not found in repository root.")
+    raise SystemExit(1)
+
+data = yaml.safe_load(path.read_text()) or {}
+services = {
+    service.get("name"): service
+    for service in data.get("services", [])
+    if isinstance(service, dict)
+}
+
+expected = {
+    "cams-dev": {
+        "settings_module": "backend.settings.dev",
+        "database": "cams-dev-db",
+    },
+    "cams-staging": {
+        "settings_module": "backend.settings.staging",
+        "database": "cams-staging-db",
+    },
+    "cams-prod": {
+        "settings_module": "backend.settings.prod",
+        "database": "cams-prod-db",
+    },
+}
+
+errors = []
+for name, requirements in expected.items():
+    service = services.get(name)
+    if not service:
+        errors.append(f"Service '{name}' is missing from render.yaml.")
+        continue
+
+    env_vars = {
+        env_var.get("key"): env_var
+        for env_var in service.get("envVars", [])
+        if isinstance(env_var, dict)
+    }
+
+    module_entry = env_vars.get("DJANGO_SETTINGS_MODULE")
+    module_value = module_entry.get("value") if module_entry else None
+    if module_value != requirements["settings_module"]:
+        errors.append(
+            f"Service '{name}' should set DJANGO_SETTINGS_MODULE="
+            f"'{requirements['settings_module']}', found '{module_value}'."
+        )
+
+    db_entry = env_vars.get("DATABASE_URL")
+    db_source = (db_entry or {}).get("fromDatabase") if isinstance(db_entry, dict) else None
+    db_name = (db_source or {}).get("name")
+    if db_name != requirements["database"]:
+        errors.append(
+            f"Service '{name}' should source DATABASE_URL from database "
+            f"'{requirements['database']}', found '{db_name}'."
+        )
+    elif (db_source or {}).get("property") != "connectionString":
+        errors.append(
+            f"Service '{name}' DATABASE_URL should read the 'connectionString' property."
+        )
+
+if errors:
+    print("❌ Configuration issues detected:")
+    for issue in errors:
+        print(f" - {issue}")
+    raise SystemExit(1)
+
+for service_name in expected:
+    print(
+        "✅ {name}: DJANGO_SETTINGS_MODULE and DATABASE_URL are correctly configured.".format(
+            name=service_name
+        )
+    )
+
+print("🎉 All Render services are correctly configured.")
+PY
+  - echo "✅ Render configuration validation completed."
