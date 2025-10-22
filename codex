@@ -1,133 +1,208 @@
-#!/usr/bin/env bash
-# codex – unified CLI for Codex automations
-# Usage:
-#   codex test
-#   codex lint
-#   codex review <PR_URL or PR_NUMBER>
-#   codex fix <PR_URL or PR_NUMBER>
-#   codex ci [PR_URL or PR_NUMBER]
-#   codex custom "<natural language instruction>"
+#!/usr/bin/env python3
+"""Codex automation CLI.
 
-BASE_DIR="$HOME/CAMS/consultant_app"
-VENV="$BASE_DIR/venv/bin/python"
+This lightweight CLI provides a local fallback implementation of the
+``codex review`` command so developers can run automated hygiene checks
+without relying on the upstream Codex service.  The goal is to emulate the
+``codex review --repo <path> --apply-fixes`` workflow that external tooling
+expects while remaining self-contained within this repository.
+"""
+from __future__ import annotations
 
-case "$1" in
-  test)
-    echo "🧪 Running tests via Codex agent..."
-    $VENV "$BASE_DIR/codex_agent.py" "Run pytest in this project and summarize failing tests."
-    ;;
+import argparse
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, List, Sequence
 
-  lint)
-    echo "🧹 Linting project via Codex agent..."
-    $VENV "$BASE_DIR/codex_agent.py" "Run flake8 on the apps directory and summarize any warnings."
-    ;;
+EXCLUDED_DIRS: Sequence[str] = (
+    ".git",
+    "venv",
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    "results",
+)
 
-  review)
-    if [ -z "$2" ]; then
-      echo "❗Usage: codex review <PR_URL or PR_NUMBER>"
-      exit 1
-    fi
-
-    arg="$2"
-    # Detect current repo's GitHub remote URL
-    remote_url=$(git config --get remote.origin.url 2>/dev/null)
-
-    if [[ "$arg" =~ ^[0-9]+$ ]]; then
-      # PR number only
-      if [[ "$remote_url" =~ github.com[:/](.*)/(.*).git ]]; then
-        owner="${BASH_REMATCH[1]}"
-        repo="${BASH_REMATCH[2]}"
-        pr_url="https://github.com/${owner}/${repo}/pull/${arg}"
-      else
-        echo "⚠️  Not in a GitHub repository — please provide full URL."
-        exit 1
-      fi
-    else
-      # Full URL provided
-      pr_url="$arg"
-    fi
-
-    echo "🧠 Reviewing PR: $pr_url"
-    $VENV "$BASE_DIR/codex_review.py" "$pr_url"
-    ;;
-
-  fix)
-    if [ -z "$2" ]; then
-      echo "❗Usage: codex fix <PR_URL or PR_NUMBER>"
-      exit 1
-    fi
-
-    arg="$2"
-    remote_url=$(git config --get remote.origin.url 2>/dev/null)
-    if [[ "$arg" =~ ^[0-9]+$ ]]; then
-      if [[ "$remote_url" =~ github.com[:/](.*)/(.*).git ]]; then
-        owner="${BASH_REMATCH[1]}"
-        repo="${BASH_REMATCH[2]}"
-        pr_url="https://github.com/${owner}/${repo}/pull/${arg}"
-      else
-        echo "⚠️  Not in a GitHub repo — please give full URL."
-        exit 1
-      fi
-    else
-      pr_url="$arg"
-    fi
-
-    echo "🧩 Applying GPT-5 Codex fixes for $pr_url ..."
-    $VENV "$BASE_DIR/codex_fix.py" "$pr_url"
-    ;;
-
-  ci)
-    echo "🧠 Running Codex CI pipeline..."
-    if [ -z "$2" ]; then
-      echo "⚙️  Running local CI (tests + lint only)..."
-      "$BASE_DIR/codex_ci_tasks.sh"
-    else
-      echo "🚀 Running Codex CI for PR: $2"
-      "$BASE_DIR/codex_ci_tasks.sh" "$2"
-    fi
-    ;;
-
-  custom)
-    shift
-    echo "🤖 Executing custom Codex instruction: $*"
-    $VENV "$BASE_DIR/codex_agent.py" "$*"
-    ;;
-
-    evaluate)
-    echo "🧩 Running full source + repo evaluation..."
-    if [ -z "$2" ]; then
-      $VENV "$BASE_DIR/codex_evaluate.py"
-    else
-      $VENV "$BASE_DIR/codex_evaluate.py" "$2"
-    fi
-    ;;
-
-    task)
-    if [ -z "$2" ]; then
-      echo "❗Usage: codex task <task-name>"
-      exit 1
-    fi
-    echo "🧠 Running Codex task: $2"
-    $VENV "$BASE_DIR/codex_tasks.py" "$2"
-    ;;
-     task)
-    if [ "$2" = "create" ]; then
-      shift
-      echo "🧠 Creating new Codex task..."
-      $VENV "$BASE_DIR/codex_tasks.py" create "$@"
-    elif [ -z "$2" ]; then
-      echo "❗Usage: codex task <task-name> | codex task create ..."
-      exit 1
-    else
-      echo "🧠 Running Codex task: $2"
-      $VENV "$BASE_DIR/codex_tasks.py" "$2"
-    fi
-    ;;
-     
+PYTHON_EXTENSIONS: Sequence[str] = (".py", ".pyi")
 
 
+@dataclass
+class ReviewResult:
+    repo: Path
+    applied_fixes: List[Path]
+    compile_success: bool
+    compile_output: str
+    python_file_count: int
+    total_python_lines: int
+    git_status: str
 
-  *)
-    echo "Usage: codex {test|lint|review|fix|ci|custom}"
-    ;;
-esac
+
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="codex")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Run local repository checks and optional auto-fixes.",
+    )
+    review_parser.add_argument(
+        "--repo",
+        default=Path.cwd(),
+        type=Path,
+        help="Path to the repository to review (defaults to current directory).",
+    )
+    review_parser.add_argument(
+        "--apply-fixes",
+        action="store_true",
+        help="Apply safe automated fixes (currently trims trailing whitespace).",
+    )
+    review_parser.add_argument(
+        "--no-compile",
+        action="store_true",
+        help="Skip the compileall check (useful for non-Python projects).",
+    )
+
+    return parser.parse_args(list(argv))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv or sys.argv[1:])
+
+    if args.command == "review":
+        result = run_review(args.repo, apply_fixes=args.apply_fixes, skip_compile=args.no_compile)
+        print_review(result)
+        return 0 if result.compile_success or args.no_compile else 1
+
+    print(f"Unknown command: {args.command}", file=sys.stderr)
+    return 2
+
+
+def run_review(repo_path: Path, *, apply_fixes: bool, skip_compile: bool) -> ReviewResult:
+    repo = repo_path.expanduser().resolve()
+    if not repo.exists() or not repo.is_dir():
+        raise SystemExit(f"❌ Repository path does not exist: {repo}")
+
+    python_files = list(iter_python_files(repo))
+    applied_fixes: List[Path] = []
+
+    if apply_fixes:
+        applied_fixes = apply_trailing_whitespace_fix(python_files)
+
+    compile_success = True
+    compile_output = ""
+    if not skip_compile and python_files:
+        compile_success, compile_output = run_compileall(repo)
+
+    total_lines = sum(count_lines(path) for path in python_files)
+    status_output = run_git_status(repo)
+
+    return ReviewResult(
+        repo=repo,
+        applied_fixes=applied_fixes,
+        compile_success=compile_success,
+        compile_output=compile_output,
+        python_file_count=len(python_files),
+        total_python_lines=total_lines,
+        git_status=status_output,
+    )
+
+
+def iter_python_files(repo: Path) -> Iterable[Path]:
+    for path in repo.rglob("*"):
+        if not path.is_file():
+            continue
+        if path.suffix not in PYTHON_EXTENSIONS:
+            continue
+        try:
+            relative_parts = path.relative_to(repo).parts
+        except ValueError:
+            relative_parts = path.parts
+        if any(part in EXCLUDED_DIRS for part in relative_parts):
+            continue
+        yield path
+
+
+def apply_trailing_whitespace_fix(files: Iterable[Path]) -> List[Path]:
+    changed_files: List[Path] = []
+    for path in files:
+        try:
+            original = path.read_text()
+        except UnicodeDecodeError:
+            # Skip binary or non-text files.
+            continue
+        stripped_lines = [line.rstrip() for line in original.splitlines()]
+        new_text = "\n".join(stripped_lines)
+        if stripped_lines:
+            new_text += "\n"
+        if new_text != original:
+            path.write_text(new_text)
+            changed_files.append(path)
+    return changed_files
+
+
+def run_compileall(repo: Path) -> tuple[bool, str]:
+    process = subprocess.run(
+        [sys.executable, "-m", "compileall", "-q", str(repo)],
+        capture_output=True,
+        text=True,
+    )
+    output = process.stdout + process.stderr
+    return process.returncode == 0, output.strip()
+
+
+def count_lines(path: Path) -> int:
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            return sum(1 for _ in fh)
+    except UnicodeDecodeError:
+        return 0
+
+
+def run_git_status(repo: Path) -> str:
+    try:
+        process = subprocess.run(
+            ["git", "-C", str(repo), "status", "--short"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return "git executable not available."
+    if process.returncode != 0:
+        return process.stderr.strip() or process.stdout.strip()
+    return process.stdout.strip() or "Working tree clean."
+
+
+def print_review(result: ReviewResult) -> None:
+    print("🧠 Codex Local Review")
+    print(f"📁 Repository: {result.repo}")
+    print(f"🐍 Python files: {result.python_file_count}")
+    print(f"✳️  Total Python lines: {result.total_python_lines}")
+
+    if result.applied_fixes:
+        print("🛠️  Applied trailing whitespace fixes to:")
+        for path in result.applied_fixes:
+            print(f"   • {path.relative_to(result.repo)}")
+    else:
+        print("🛠️  No fixes applied.")
+
+    if result.python_file_count == 0:
+        print("ℹ️  No Python files detected; compile step skipped.")
+    elif result.compile_output:
+        header = "✅ Python bytecode compilation succeeded" if result.compile_success else "❌ Python bytecode compilation failed"
+        print(header)
+        print(result.compile_output)
+    else:
+        if result.compile_success:
+            print("✅ Python bytecode compilation succeeded.")
+        else:
+            print("❌ Python bytecode compilation failed with no diagnostic output.")
+
+    print("📄 Git status:")
+    print(result.git_status or "Working tree clean.")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
