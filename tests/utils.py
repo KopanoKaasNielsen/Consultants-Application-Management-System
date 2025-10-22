@@ -1,5 +1,5 @@
 from datetime import date
-from io import BytesIO
+from io import BytesIO  # required for in-memory file fixtures
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
