@@ -7,6 +7,12 @@
   - When running tests (detected via `PYTEST_CURRENT_TEST` or by setting `DJANGO_USE_TEST_DATABASE`), the development and staging settings automatically switch to the corresponding `*_TEST_DATABASE_URL` whenever it is provided. Configure those variables in CI to ensure pytest never touches live data.
   - Developers should branch from `develop`. Promotion follows Git Flow semantics: merge feature branches into `develop`, raise promotion PRs from `develop` → `staging` for UAT, and only promote into `main` once staging validation is complete. Each merge triggers the matching Render deployment without impacting the other environments.
 
+- **Bootstrapping the staging environment**
+  1. Create the `staging` branch in Git if it does not already exist (`git checkout -b staging` followed by `git push origin staging`). The Render blueprint will not trigger a build for the staging service until the branch exists remotely.
+  2. Push at least one commit to `staging` so the first deployment can complete. Until that deployment finishes, requests to `https://cams-staging.onrender.com/` return Render's default "not found" response.
+  3. After the initial build succeeds, confirm the service is live by hitting `https://cams-staging.onrender.com/health/`. The JSON payload should report `{ "status": "ok" }` when the container is up.
+  4. Subsequent pushes to `staging` will redeploy automatically; the staging database (`cams-staging-db`) is preserved between deploys.
+
 - The application exposes a lightweight health endpoint at `/health/` that returns a JSON payload containing the service status and database connectivity indicator.
 - Configure your hosting platform or uptime monitoring tool to poll this endpoint for availability checks.
 - Because the endpoint avoids opening new database connections, it remains responsive even when the database is under load or temporarily unavailable.
