@@ -1,0 +1,15 @@
+tasks:
+  check_active_prs:
+    description: "Audit all open PRs in the GitHub repo for code quality and environment readiness."
+    command: |
+      echo "🔍 Checking open PRs in Consultants-Application-Management-System..."
+      gh pr list --state open --limit 5 > results/open_prs.txt
+      echo "✅ PR list saved to results/open_prs.txt"
+      echo "🧠 Running Codex review for each PR..."
+      while read -r line; do
+        pr_number=$(echo "$line" | awk '{print $1}')
+        echo "📄 Reviewing PR #$pr_number ..."
+        codex review "https://github.com/KopanoKaasNielsen/Consultants-Application-Management-System/pull/$pr_number"
+      done < <(tail -n +2 results/open_prs.txt)
+      echo "✅ All open PRs reviewed. Reports saved in ~/CAMS/consultant_app/reviews/"
+

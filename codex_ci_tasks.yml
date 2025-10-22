@@ -72,3 +72,26 @@ tasks:
       codex task security-suite
       codex task ci-suite
       codex task maintenance-suite
+###################################
+  github-suite:
+    description: "Run all GitHub-related tasks (check PRs, security fixes, docs)."
+    command: |
+      codex task check_active_prs
+      codex task improve-docs
+
+################################################
+  github-status:
+    description: "Show repository synchronization and CI status for the current branch."
+    command: |
+      echo "🧭 Checking GitHub repository status..."
+      echo "📂 Current branch:" $(git rev-parse --abbrev-ref HEAD)
+      echo "🔁 Fetching latest remote info..."
+      git fetch origin
+      echo "⬆️  Commits ahead of main:" $(git rev-list --count HEAD ^origin/main)
+      echo "⬇️  Commits behind main:" $(git rev-list --count origin/main ^HEAD)
+      echo "🧩 Open pull requests:"
+      gh pr list --state open --limit 5 || echo "No open PRs."
+      echo "🧠 Latest CI workflow runs:"
+      gh run list --limit 3 || echo "No recent GitHub Actions runs."
+      echo "✅ GitHub status check complete."
+
