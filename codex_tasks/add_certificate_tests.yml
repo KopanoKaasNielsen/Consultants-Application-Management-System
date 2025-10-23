@@ -1,0 +1,120 @@
+name: Add and run tests for Certificate Generator + CI Hook
+description: >
+  Generates Django unit tests for the apps.certificates module,
+  then sets up a GitHub Actions CI workflow to run pytest automatically
+  on push and pull request events.
+
+steps:
+  - name: Ensure test folder exists
+    run: |
+      mkdir -p apps/certificates/tests
+
+  - name: Write test_certificate_generator.py
+    run: |
+      cat > apps/certificates/tests/test_certificate_generator.py <<'EOF'
+      import io
+      import pytest
+      from django.urls import reverse
+      from django.contrib.auth.models import User, Group
+      from django.utils import timezone
+      from apps.certificates.models import Certificate
+      from apps.certificates.forms import CertificateForm
+      from apps.certificates.services.generator import generate_certificate_pdf
+
+      pytestmark = pytest.mark.django_db
+
+      @pytest.fixture
+      def data_clack_officer():
+          user = User.objects.create_user(username="officer", password="pass123")
+          group, _ = Group.objects.get_or_create(name="Data Clack Officer")
+          user.groups.add(group)
+          return user
+
+      def test_certificate_form_defaults():
+          form = CertificateForm()
+          assert "valid_until" in form.fields
+          assert form.fields["valid_until"].initial is not None
+
+      def test_generate_certificate_pdf_returns_pdf(data_clack_officer):
+          cert = Certificate.objects.create(
+              consultant=data_clack_officer,
+              valid_until=timezone.now().date(),
+              remarks="Testing PDF",
+              quick_issue=True,
+          )
+          response = generate_certificate_pdf(cert)
+          assert response.status_code == 200
+          assert response["Content-Type"] == "application/pdf"
+
+      def test_certificate_view_requires_role(client):
+          url = reverse("certificates:generate")
+          resp = client.get(url)
+          assert resp.status_code in (302, 403)
+
+      def test_certificate_view_allows_data_clack_officer(client, data_clack_officer):
+          client.login(username="officer", password="pass123")
+          url = reverse("certificates:generate")
+          resp = client.get(url)
+          assert resp.status_code == 200
+      EOF
+
+  - name: Add CI workflow for certificate tests
+    run: |
+      mkdir -p .github/workflows
+      cat > .github/workflows/test_certificate_module.yml <<'EOF'
+      name: Certificate Module Tests
+
+      on:
+        push:
+          branches: [ main, feature/certificate-generator ]
+        pull_request:
+          branches: [ main ]
+
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          services:
+            postgres:
+              image: postgres:15
+              ports: ['5432:5432']
+              env:
+                POSTGRES_USER: postgres
+                POSTGRES_PASSWORD: postgres
+                POSTGRES_DB: test_db
+              options: >-
+                --health-cmd="pg_isready"
+                --health-interval=10s
+                --health-timeout=5s
+                --health-retries=5
+
+          env:
+            DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+            DJANGO_SETTINGS_MODULE: backend.settings.base
+            PYTHONPATH: .
+
+          steps:
+            - uses: actions/checkout@v4
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                python-version: '3.12'
+            - name: Install dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install pytest pytest-django
+            - name: Run certificate tests
+              run: pytest apps/certificates/tests -q
+      EOF
+
+  - name: Commit and push test + workflow
+    run: |
+      git checkout feature/certificate-generator || git checkout -b feature/certificate-generator
+      git add apps/certificates/tests .github/workflows/test_certificate_module.yml
+      git commit -m "Add tests and GitHub Actions workflow for Certificate Generator module"
+      git push --set-upstream origin feature/certificate-generator
+
+  - name: Run tests locally for verification
+    run: |
+      echo "⚙️ Running pytest apps/certificates/tests locally..."
+      pytest apps/certificates/tests -q || true

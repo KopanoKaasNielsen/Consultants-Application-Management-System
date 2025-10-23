@@ -1,0 +1,34 @@
+tasks:
+  scaffold_certificate_generator:
+    description: "Create a Django app for generating consultant certificates automatically."
+    command: |
+      echo "🧠 Scaffolding Certificate Generator app..."
+      mkdir -p apps/certificates/templates/certificates
+      mkdir -p apps/certificates/static/certificates
+      touch apps/certificates/__init__.py
+      cat > apps/certificates/models.py <<'EOF'
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class Certificate(models.Model):
+    consultant = models.ForeignKey(User, on_delete=models.CASCADE)
+    certificate_number = models.CharField(max_length=50, unique=True)
+    issued_at = models.DateTimeField(auto_now_add=True)
+    file = models.FileField(upload_to='certificates/')
+    def __str__(self):
+        return f"Certificate #{self.certificate_number} for {self.consultant}"
+EOF
+
+      cat > apps/certificates/views.py <<'EOF'
+from django.shortcuts import render
+from django.http import FileResponse
+from .models import Certificate
+
+def certificate_list(request):
+    certificates = Certificate.objects.all()
+    return render(request, "certificates/list.html", {"certificates": certificates})
+EOF
+
+      echo "✅ Certificate Generator scaffolding complete!"
