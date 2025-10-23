@@ -1,0 +1,74 @@
+name: Evaluate Project Health & Generate ChatGPT Recommendations
+description: >
+  Analyzes the project (tests, structure, coverage, CI logs)
+  and sends a summarized snapshot to ChatGPT Plus for evaluation and recommendations.
+
+steps:
+  - name: Gather test results
+    run: |
+      echo "🧪 Collecting pytest results..."
+      pytest -q --tb=short --maxfail=3 > results/test_summary.txt || true
+      echo "✅ Saved pytest summary."
+
+  - name: Gather linting report
+    run: |
+      echo "🧹 Running flake8..."
+      flake8 apps/ --count --statistics > results/lint_summary.txt || true
+      echo "✅ Saved linting summary."
+
+  - name: Check project structure
+    run: |
+      echo "📦 Analyzing project structure..."
+      tree -I 'venv|__pycache__|migrations|.git|staticfiles' > results/project_structure.txt
+      echo "✅ Saved structure map."
+
+  - name: Gather coverage data
+    run: |
+      echo "📊 Running pytest with coverage..."
+      pytest --cov=apps --cov-report=term-missing > results/coverage_summary.txt || true
+      echo "✅ Saved coverage report."
+
+  - name: Collect Codex + CI status
+    run: |
+      echo "⚙️ Checking Codex & CI status..."
+      codex status > results/codex_status.txt || true
+      ls .github/workflows > results/ci_workflows.txt || true
+      echo "✅ Saved Codex and workflow info."
+
+  - name: Compile project snapshot
+    run: |
+      echo "🗂️ Compiling project snapshot..."
+      {
+        echo "# Project Evaluation Snapshot"
+        echo "Date: $(date)"
+        echo ""
+        echo "## 1️⃣ Project Structure"
+        cat results/project_structure.txt
+        echo ""
+        echo "## 2️⃣ Linting Summary"
+        cat results/lint_summary.txt
+        echo ""
+        echo "## 3️⃣ Test Summary"
+        cat results/test_summary.txt
+        echo ""
+        echo "## 4️⃣ Coverage Summary"
+        cat results/coverage_summary.txt
+        echo ""
+        echo "## 5️⃣ Codex & CI Status"
+        cat results/codex_status.txt
+        cat results/ci_workflows.txt
+      } > results/project_snapshot.md
+      echo "✅ Snapshot ready at results/project_snapshot.md"
+
+  - name: Send to ChatGPT Plus for evaluation
+    run: |
+      echo "🤖 Sending project snapshot to ChatGPT Plus..."
+      codex chat --file results/project_snapshot.md --prompt "Please evaluate this Django project. Provide key recommendations, improvements, and best practice guidance." > results/codex_recommendations.txt
+      echo "✅ Recommendations saved in results/codex_recommendations.txt"
+
+  - name: Commit recommendations to repo
+    run: |
+      git checkout -b report/project-evaluation || git checkout report/project-evaluation
+      git add results/project_snapshot.md results/codex_recommendations.txt
+      git commit -m "Add ChatGPT Plus evaluation and recommendations report"
+      git push --set-upstream origin report/project-evaluation
