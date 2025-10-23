@@ -1,16 +1,24 @@
 from datetime import timedelta
 
 from django.contrib import messages
+from django.contrib.auth.decorators import user_passes_test
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from apps.certificates.forms import CertificateForm
 from apps.certificates.models import CertificateRenewal
 from apps.consultants.models import Consultant
 from apps.users.constants import UserRole as Roles
 from apps.users.permissions import role_required
 
+from .services.generator import generate_certificate_pdf
+
 RENEWAL_REQUEST_WINDOW_DAYS = 90
+
+
+def is_data_clack_officer(user):
+    return user.groups.filter(name="Data Clack Officer").exists()
 
 
 @role_required(Roles.CONSULTANT)
@@ -95,3 +103,17 @@ def request_certificate_renewal(request):
         "Renewal request submitted. A reviewer will process it shortly.",
     )
     return redirect("certificates:certificates_dashboard")
+
+
+@user_passes_test(is_data_clack_officer)
+def generate_certificate(request):
+    if request.method == "POST":
+        form = CertificateForm(request.POST)
+        if form.is_valid():
+            certificate = form.save(commit=False)
+            certificate.quick_issue = True
+            certificate.save()
+            return generate_certificate_pdf(certificate)
+    else:
+        form = CertificateForm()
+    return render(request, "certificates/certificate_form.html", {"form": form})

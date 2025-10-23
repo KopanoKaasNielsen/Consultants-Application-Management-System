@@ -13,4 +13,5 @@ urlpatterns = [
         views.request_certificate_renewal,
         name="request_renewal",
     ),
+    path("generate/", views.generate_certificate, name="generate"),
 ]
