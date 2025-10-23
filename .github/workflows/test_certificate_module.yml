@@ -51,3 +51,13 @@ jobs:
         run: |
           echo "🧪 Running pytest with coverage..."
           pytest apps/certificates/tests --cov=apps/certificates --cov-report=term-missing -q
+
+      - name: Generate HTML coverage report
+        run: |
+          pytest apps/certificates/tests --cov=apps/certificates --cov-report=html
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/

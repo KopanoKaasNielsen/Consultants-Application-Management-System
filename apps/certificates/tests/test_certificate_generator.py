@@ -8,6 +8,7 @@ from apps.certificates.services.generator import generate_certificate_pdf
 
 pytestmark = pytest.mark.django_db
 
+
 @pytest.fixture
 def data_clack_officer():
     user = User.objects.create_user(username="officer", password="pass123")
@@ -15,10 +16,12 @@ def data_clack_officer():
     user.groups.add(group)
     return user
 
+
 def test_certificate_form_defaults():
     form = CertificateForm()
     assert "valid_until" in form.fields
     assert form.fields["valid_until"].initial is not None
+
 
 def test_generate_certificate_pdf_returns_pdf(data_clack_officer):
     cert = Certificate.objects.create(
@@ -31,10 +34,12 @@ def test_generate_certificate_pdf_returns_pdf(data_clack_officer):
     assert response.status_code == 200
     assert response["Content-Type"] == "application/pdf"
 
+
 def test_certificate_view_requires_role(client):
     url = reverse("certificates:generate")
     resp = client.get(url)
     assert resp.status_code in (302, 403)
+
 
 def test_certificate_view_allows_data_clack_officer(client, data_clack_officer):
     client.login(username="officer", password="pass123")
