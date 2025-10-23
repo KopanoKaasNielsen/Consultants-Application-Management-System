@@ -47,14 +47,13 @@ jobs:
           echo "🧹 Running flake8 lint..."
           flake8 apps/certificates --count --max-complexity=10 --max-line-length=120 --statistics
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage enforcement
         run: |
-          echo "🧪 Running pytest with coverage..."
-          pytest apps/certificates/tests --cov=apps/certificates --cov-report=term-missing -q
+          echo "🧪 Running pytest with coverage threshold..."
+          pytest apps/certificates/tests --cov=apps/certificates --cov-fail-under=85 --cov-report=term-missing -q
 
       - name: Generate HTML coverage report
-        run: |
-          pytest apps/certificates/tests --cov=apps/certificates --cov-report=html
+        run: pytest apps/certificates/tests --cov=apps/certificates --cov-report=html
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
