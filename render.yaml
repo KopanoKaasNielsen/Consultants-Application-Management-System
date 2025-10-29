@@ -75,18 +75,12 @@ services:
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: backend.settings.prod
-      - key: DJANGO_SECRET_KEY
-        generateValue: true
       - key: DJANGO_DEBUG
         value: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: cams-prod-db
-          property: connectionString
+        value: postgresql://neondb_owner:npg_oZL6Dp1TEWsS@ep-patient-rice-ad00fric-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
       - key: PROD_DATABASE_URL
-        fromDatabase:
-          name: cams-prod-db
-          property: connectionString
+        value: postgresql://neondb_owner:npg_oZL6Dp1TEWsS@ep-patient-rice-ad00fric-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
       - key: ALLOWED_HOSTS
         value: .onrender.com
       - key: PROD_ALLOWED_HOSTS
@@ -99,11 +93,16 @@ services:
         value: "0.2"
       - key: SENTRY_PROFILES_SAMPLE_RATE
         value: "0.0"
+      - key: REDIS_URL
+        fromService:
+          name: cams-prod-redis
+          type: redis
+          property: connectionString
 
-databases:
-  - name: cams-dev-db
-    plan: free
-  - name: cams-staging-db
-    plan: free
-  - name: cams-prod-db
-    plan: free
+# databases:
+#   - name: cams-dev-db
+#     plan: free
+#   - name: cams-staging-db
+#     plan: free
+#   - name: cams-prod-db
+#     plan: free
