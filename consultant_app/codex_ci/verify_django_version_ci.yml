@@ -1,0 +1,7 @@
+name: "CI: Verify Django version"
+description: "Logs the currently installed Django version for CI confirmation."
+steps:
+  - name: "Check Django version"
+    run: |
+      source venv/bin/activate
+      python -m django --version
