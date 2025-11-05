@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
-import os, sys, subprocess, tempfile, shutil, difflib
+"""Compare the local repository against a remote baseline using GPT assistance."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 from datetime import datetime
+from pathlib import Path
+from typing import Dict
+
 from openai import OpenAI
 
 client = OpenAI()
 
-BASE_DIR = os.path.expanduser("~/CAMS/consultant_app")
+BASE_DIR = Path(__file__).resolve().parent
 REMOTE_REPO = "https://github.com/KopanoKaasNielsen/Consultants-Application-Management-System"
 
 if len(sys.argv) > 1:
@@ -13,27 +24,36 @@ if len(sys.argv) > 1:
 
 print(f"📦 Comparing local source with remote repo: {REMOTE_REPO}")
 
-# --- Helper: Collect local .py files ---
-def collect_python_files(base_dir):
-    collected = {}
+
+def collect_python_files(base_dir: Path) -> Dict[str, str]:
+    collected: Dict[str, str] = {}
     for root, dirs, files in os.walk(base_dir):
-        dirs[:] = [d for d in dirs if d not in ("venv", "__pycache__", "results", "reviews", ".git")]
-        for f in files:
-            if f.endswith(".py"):
-                path = os.path.join(root, f)
-                rel = os.path.relpath(path, base_dir)
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in ("venv", "__pycache__", "results", "reviews", ".git")
+        ]
+        for filename in files:
+            if filename.endswith(".py"):
+                path = Path(root) / filename
+                rel = path.relative_to(base_dir)
                 try:
-                    with open(path, "r") as fp:
-                        collected[rel] = fp.read()
+                    collected[str(rel)] = path.read_text(encoding="utf-8")
                 except Exception:
                     pass
     return collected
 
-# --- Helper: Clone remote repo to temp dir ---
-def clone_remote_repo(repo_url):
-    tmp_dir = tempfile.mkdtemp(prefix="codex_remote_")
-    subprocess.run(["git", "clone", "--depth", "1", repo_url, tmp_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def clone_remote_repo(repo_url: str) -> Path:
+    tmp_dir = Path(tempfile.mkdtemp(prefix="codex_remote_"))
+    subprocess.run(
+        ["git", "clone", "--depth", "1", repo_url, str(tmp_dir)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
     return tmp_dir
+
 
 # --- Step 1: Gather local files ---
 local_files = collect_python_files(BASE_DIR)
@@ -73,7 +93,7 @@ summary_text = (
     f"- Modified files: {changed_files}\n\n"
 )
 
-diff_summary_text = "\n".join(diff_summary[:100])  # limit to 100 lines for brevity
+diff_summary_text = "\n".join(diff_summary[:100])
 
 # --- Step 4: Get git status info ---
 git_status = subprocess.getoutput(f"cd {BASE_DIR} && git status -sb")
@@ -119,13 +139,13 @@ except Exception:
     report = getattr(response, "output_text", str(response))
 
 # --- Step 6: Save evaluation report ---
-output_dir = os.path.join(BASE_DIR, "results", "evaluations")
-os.makedirs(output_dir, exist_ok=True)
-timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-filename = os.path.join(output_dir, f"codex_diff_eval_{timestamp}.md")
+output_dir = BASE_DIR / "results" / "evaluations"
+output_dir.mkdir(parents=True, exist_ok=True)
 
-with open(filename, "w") as f:
-    f.write(report)
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+filename = output_dir / f"codex_diff_eval_{timestamp}.md"
+
+filename.write_text(report, encoding="utf-8")
 
 print(f"✅ Evaluation complete.\n📄 Report saved to: {filename}")
 
