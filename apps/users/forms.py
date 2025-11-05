@@ -31,11 +31,17 @@ class BoardSignatureForm(forms.ModelForm):
 class AdminUserCreationForm(UserCreationForm):
     """Create new platform users with role assignments."""
 
+    _ASSIGNABLE_ROLES = tuple(
+        role for role in UserRole if role is not UserRole.CONSULTANT
+    )
+
     roles = forms.MultipleChoiceField(
-        choices=[(role.value, role.value.title()) for role in UserRole],
+        choices=[(role.value, role.value.title()) for role in _ASSIGNABLE_ROLES],
         widget=forms.CheckboxSelectMultiple,
         label="Roles",
-        help_text="Assign one or more roles to control the user's access.",
+        help_text=(
+            "Assign one or more non-consultant roles to control the user's access."
+        ),
     )
 
     class Meta(UserCreationForm.Meta):
@@ -58,6 +64,11 @@ class AdminUserCreationForm(UserCreationForm):
                 normalised_roles.append(UserRole(raw_role))
             except ValueError as exc:
                 raise forms.ValidationError("Unknown role selected.") from exc
+
+        if any(role is UserRole.CONSULTANT for role in normalised_roles):
+            raise forms.ValidationError(
+                "Admins cannot assign the consultant role."
+            )
 
         self._selected_roles = tuple(normalised_roles)
         return self._selected_roles

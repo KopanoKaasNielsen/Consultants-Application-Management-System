@@ -26,7 +26,7 @@ def test_admin_can_create_user_and_assign_roles(client, user_factory):
             "email": "newstaff@example.com",
             "password1": "ComplexPass123",
             "password2": "ComplexPass123",
-            "roles": [UserRole.STAFF.value, UserRole.CONSULTANT.value],
+            "roles": [UserRole.STAFF.value, UserRole.BOARD.value],
         },
     )
 
@@ -38,9 +38,9 @@ def test_admin_can_create_user_and_assign_roles(client, user_factory):
     assert created_user.is_superuser is False
 
     group_names = set(created_user.groups.values_list("name", flat=True))
-    expected_groups = groups_for_roles([UserRole.STAFF, UserRole.CONSULTANT])
+    expected_groups = groups_for_roles([UserRole.STAFF, UserRole.BOARD])
     expected_groups.discard(ADMINS_GROUP_NAME)
-    assert CONSULTANTS_GROUP_NAME in group_names
+    assert CONSULTANTS_GROUP_NAME not in group_names
     assert ADMINS_GROUP_NAME not in group_names
     assert expected_groups.issubset(group_names)
 
@@ -50,8 +50,35 @@ def test_admin_can_create_user_and_assign_roles(client, user_factory):
     assert audit_entry is not None
     assert set(audit_entry.context.get("roles", [])) == {
         UserRole.STAFF.value,
-        UserRole.CONSULTANT.value,
+        UserRole.BOARD.value,
     }
+
+
+@pytest.mark.django_db
+def test_admin_cannot_assign_consultant_role(client, user_factory):
+    admin = user_factory(username="role-admin-consultant", role=UserRole.ADMIN)
+    client.force_login(admin)
+
+    response = client.post(
+        reverse("admin_dashboard"),
+        {
+            "form": "create_user",
+            "username": "blocked-consultant",
+            "first_name": "Blocked",
+            "last_name": "Consultant",
+            "email": "blocked@example.com",
+            "password1": "ComplexPass123",
+            "password2": "ComplexPass123",
+            "roles": [UserRole.CONSULTANT.value],
+        },
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Admins cannot assign the consultant role." in content
+
+    user_model = get_user_model()
+    assert not user_model.objects.filter(username="blocked-consultant").exists()
 
 
 @pytest.mark.django_db
