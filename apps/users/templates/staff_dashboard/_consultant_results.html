@@ -2,13 +2,16 @@
   id="consultant-results"
   class="consultant-results"
   hx-indicator="#results-loading"
+  role="region"
+  aria-live="polite"
+  aria-labelledby="consultant-results-heading"
 >
-  <section class="card">
-    <div class="card-body">
-      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
-        <h2 class="h4 mb-0">{{ active_status_label }} Consultant Applications</h2>
+  <section class="staff-dashboard-section consultant-results__section card">
+    <div class="card-body consultant-results__body">
+      <div class="consultant-results__header d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+        <h2 id="consultant-results-heading" class="consultant-results__title h4 mb-0">{{ active_status_label }} Consultant Applications</h2>
         <a
-          class="btn btn-outline-primary"
+          class="btn btn-outline-primary consultant-results__export"
           href="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
           data-download-url="{% url 'staff_dashboard_export' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
           hx-get="{% url 'staff_dashboard' %}{% if base_querystring %}?{{ base_querystring }}{% endif %}"
@@ -23,15 +26,15 @@
       </div>
 
       {% if page_obj.object_list %}
-        <p class="text-muted">Select an action for each application and optionally leave an internal comment.</p>
+        <p class="consultant-results__instructions text-muted">Select an action for each application and optionally leave an internal comment.</p>
 
-        <div class="table-responsive">
+        <div class="consultant-results__table-wrapper table-responsive">
           {% include "staff_dashboard/_consultant_list.html" %}
         </div>
 
       {% if is_paginated %}
-        <nav aria-label="Consultant pagination">
-          <ul class="pagination">
+        <nav class="consultant-results__pagination" aria-label="Consultant pagination">
+          <ul class="consultant-results__pagination-list pagination">
             {% if page_obj.has_previous %}
               <li class="page-item">
                 <a

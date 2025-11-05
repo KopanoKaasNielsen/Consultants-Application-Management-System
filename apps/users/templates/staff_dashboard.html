@@ -3,77 +3,84 @@
 {% block title %}Staff Dashboard{% endblock %}
 
 {% block content %}
-  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-    <h2 class="mb-0">Staff Dashboard</h2>
+  <section
+    class="staff-dashboard-section staff-dashboard-section--controls"
+    aria-label="Filter and search consultant applications"
+  >
+    <div class="staff-dashboard-section__header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+      <h2 class="mb-0">Staff Dashboard</h2>
 
-    <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 w-100 w-lg-auto">
-      <form
-        id="status-filter-form"
-        method="get"
-        class="d-flex align-items-center gap-2"
-        hx-get="{% url 'staff_dashboard' %}"
-        hx-target="#consultant-results"
-        hx-swap="outerHTML"
-        hx-push-url="true"
-        hx-indicator="#results-loading"
-        hx-trigger="change from:#status-filter, submit"
-      >
-        <label for="status-filter" class="form-label mb-0">Filter by status</label>
-        <select
-          id="status-filter"
-          name="status"
-          class="form-select"
+      <div class="staff-dashboard-controls d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 w-100 w-lg-auto">
+        <form
+          id="status-filter-form"
+          method="get"
+          class="d-flex align-items-center gap-2 staff-dashboard-controls__form"
+          hx-get="{% url 'staff_dashboard' %}"
+          hx-target="#consultant-results"
+          hx-swap="outerHTML"
+          hx-push-url="true"
+          hx-indicator="#results-loading"
+          hx-trigger="change from:#status-filter, submit"
         >
-          {% for option in status_filters %}
-            <option value="{{ option.value }}"{% if option.is_active %} selected{% endif %}>
-              {{ option.label }}
-            </option>
-          {% endfor %}
-        </select>
-        <input type="hidden" name="q" value="{{ search_query }}">
-        <input type="hidden" name="sort" value="{{ sort_field }}">
-        <input type="hidden" name="direction" value="{{ sort_direction }}">
-        <noscript>
-          <button type="submit" class="btn btn-primary">Apply</button>
-        </noscript>
-      </form>
-
-      <form
-        method="get"
-        class="d-flex align-items-center gap-2 w-100 w-md-auto"
-        hx-get="{% url 'staff_dashboard' %}"
-        hx-target="#consultant-results"
-        hx-swap="outerHTML"
-        hx-push-url="true"
-        hx-indicator="#results-loading"
-      >
-        <input
-          type="search"
-          name="q"
-          value="{{ search_query }}"
-          class="form-control"
-          placeholder="Search name, business, or ID"
-        >
-        <input type="hidden" name="status" value="{{ active_status }}">
-        <input type="hidden" name="sort" value="{{ sort_field }}">
-        <input type="hidden" name="direction" value="{{ sort_direction }}">
-        <button type="submit" class="btn btn-primary">Search</button>
-        {% if search_query %}
-          <a
-            class="btn btn-outline-secondary"
-            href="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
-            hx-get="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
-            hx-target="#consultant-results"
-            hx-swap="outerHTML"
-            hx-push-url="true"
-            hx-indicator="#results-loading"
+          <label for="status-filter" class="form-label mb-0">Filter by status</label>
+          <select
+            id="status-filter"
+            name="status"
+            class="form-select"
           >
-            Clear
-          </a>
-        {% endif %}
-      </form>
+            {% for option in status_filters %}
+              <option value="{{ option.value }}"{% if option.is_active %} selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="q" value="{{ search_query }}">
+          <input type="hidden" name="sort" value="{{ sort_field }}">
+          <input type="hidden" name="direction" value="{{ sort_direction }}">
+          <noscript>
+            <button type="submit" class="btn btn-primary">Apply</button>
+          </noscript>
+        </form>
+
+        <form
+          method="get"
+          class="d-flex align-items-center gap-2 staff-dashboard-controls__form w-100 w-md-auto"
+          hx-get="{% url 'staff_dashboard' %}"
+          hx-target="#consultant-results"
+          hx-swap="outerHTML"
+          hx-push-url="true"
+          hx-indicator="#results-loading"
+        >
+          <label for="staff-dashboard-search" class="visually-hidden">Search consultant applications</label>
+          <input
+            id="staff-dashboard-search"
+            type="search"
+            name="q"
+            value="{{ search_query }}"
+            class="form-control"
+            placeholder="Search name, business, or ID"
+          >
+          <input type="hidden" name="status" value="{{ active_status }}">
+          <input type="hidden" name="sort" value="{{ sort_field }}">
+          <input type="hidden" name="direction" value="{{ sort_direction }}">
+          <button type="submit" class="btn btn-primary">Search</button>
+          {% if search_query %}
+            <a
+              class="btn btn-outline-secondary"
+              href="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
+              hx-get="{% url 'staff_dashboard' %}?status={{ active_status }}&sort={{ sort_field }}&direction={{ sort_direction }}"
+              hx-target="#consultant-results"
+              hx-swap="outerHTML"
+              hx-push-url="true"
+              hx-indicator="#results-loading"
+            >
+              Clear
+            </a>
+          {% endif %}
+        </form>
+      </div>
     </div>
-  </div>
+  </section>
 
   <div
     id="results-loading"
@@ -156,26 +163,32 @@
     </div>
   </section>
 
-  <section class="card mb-4">
-    <div class="card-body">
-      <h3 class="h5 mb-3">Recent Applications</h3>
+  <section
+    class="staff-dashboard-section recent-applications card mb-4"
+    aria-labelledby="recent-applications-heading"
+  >
+    <div class="card-body recent-applications__body">
+      <div class="recent-applications__header d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
+        <h3 id="recent-applications-heading" class="recent-applications__title h5 mb-0">Recent Applications</h3>
+        <p class="recent-applications__description text-muted mb-0">Latest submissions awaiting staff review.</p>
+      </div>
 
       <div id="recent-applications-wrapper">
         <div
           id="recent-applications-table-wrapper"
-          class="table-responsive{% if not recent_applications %} d-none{% endif %}"
+          class="recent-applications__table-wrapper table-responsive{% if not recent_applications %} d-none{% endif %}"
         >
-          <table class="table table-sm align-middle mb-0" aria-live="polite" aria-atomic="true">
+          <table class="table table-sm align-middle mb-0 recent-applications__table" aria-live="polite" aria-atomic="true">
             <thead>
               <tr>
-                <th scope="col">Full Name</th>
-                <th scope="col">Status</th>
-                <th scope="col">Submitted At</th>
-                <th scope="col">Last Updated</th>
-                <th scope="col" class="text-end">Action</th>
+                <th scope="col" class="recent-applications__heading">Full Name</th>
+                <th scope="col" class="recent-applications__heading">Status</th>
+                <th scope="col" class="recent-applications__heading">Submitted At</th>
+                <th scope="col" class="recent-applications__heading">Last Updated</th>
+                <th scope="col" class="recent-applications__heading text-end">Action</th>
               </tr>
             </thead>
-            <tbody id="recent-applications-body">
+            <tbody id="recent-applications-body" class="recent-applications__body-rows">
               {% for application in recent_applications %}
                 <tr data-consultant-id="{{ application.pk }}">
                   <td class="recent-applications__name">{{ application.full_name }}</td>
@@ -209,7 +222,7 @@
         </div>
         <p
           id="recent-applications-empty"
-          class="mb-0 text-muted{% if recent_applications %} d-none{% endif %}"
+          class="recent-applications__empty mb-0 text-muted{% if recent_applications %} d-none{% endif %}"
         >
           No recent applications available.
         </p>
