@@ -1,0 +1,58 @@
+# codex_tasks/fix_django42_wheelhouse.yml
+name: "Fix requirements for Django 4.2 LTS, build and archive wheelhouse"
+description: >
+  Ensures compatibility with Python 3.9 by pinning Django 4.2 LTS.
+  Builds a local wheelhouse of all dependencies for offline installations
+  and compresses it into a .tar.gz archive for easy transfer to AIX or Oracle Linux servers.
+
+steps:
+  - name: "Activate virtual environment"
+    run: |
+      if [ -d /opt/mlha/cams/venv ]; then
+        source /opt/mlha/cams/venv/bin/activate
+      else
+        echo "⚠️ Virtual environment not found at /opt/mlha/cams/venv"
+      fi
+
+  - name: "Patch requirements.txt for Django 4.2 LTS"
+    run: |
+      cd /opt/mlha/cams
+      if grep -q "Django==" requirements.txt; then
+        sed -i 's/Django==.*/Django==4.2.16/' requirements.txt
+      else
+        echo "Django==4.2.16" >> requirements.txt
+      fi
+      echo "✅ requirements.txt patched for Django 4.2.16 (LTS)"
+
+  - name: "Create and populate wheelhouse"
+    run: |
+      mkdir -p /opt/mlha/wheelhouse
+      cd /opt/mlha/cams
+      echo "⬇️ Downloading wheels for offline reuse..."
+      pip install --upgrade pip setuptools wheel
+      pip wheel -r requirements.txt -w /opt/mlha/wheelhouse
+      echo "✅ Wheelhouse built at /opt/mlha/wheelhouse"
+
+  - name: "Verify offline installation using wheelhouse"
+    run: |
+      echo "🧪 Testing offline wheelhouse installation..."
+      tmpenv="/opt/mlha/test_venv"
+      rm -rf "$tmpenv"
+      python3.9 -m venv "$tmpenv"
+      source "$tmpenv/bin/activate"
+      pip install --no-index --find-links=/opt/mlha/wheelhouse -r /opt/mlha/cams/requirements.txt
+      echo "✅ Offline installation verified successfully."
+
+  - name: "Compress wheelhouse for transfer"
+    run: |
+      cd /opt/mlha
+      tar -czf wheelhouse_django42_$(date +%Y%m%d).tar.gz wheelhouse
+      echo "🎁 Wheelhouse archive created at /opt/mlha/wheelhouse_django42_$(date +%Y%m%d).tar.gz"
+
+  - name: "Summary"
+    run: |
+      echo "🎯 Django pinned to 4.2.16 (LTS)."
+      echo "📦 Wheelhouse available at /opt/mlha/wheelhouse/"
+      echo "🗜️  Archive ready for transfer: /opt/mlha/wheelhouse_django42_$(date +%Y%m%d).tar.gz"
+      echo "You can install offline using:"
+      echo "pip install --no-index --find-links=/opt/mlha/wheelhouse -r requirements.txt"
