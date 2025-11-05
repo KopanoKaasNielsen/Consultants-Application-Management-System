@@ -388,6 +388,291 @@
     text-decoration: underline;
 }
 
+.staff-dashboard-section {
+    display: block;
+    margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.staff-dashboard-section__header {
+    gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.staff-dashboard-controls {
+    padding: clamp(0.75rem, 2vw, 1rem);
+    background-color: #ffffff;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 12px 35px -28px rgba(15, 23, 42, 0.35);
+}
+
+.staff-dashboard-controls__form {
+    background-color: rgba(248, 250, 252, 0.8);
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.staff-dashboard-controls__form .form-select,
+.staff-dashboard-controls__form .form-control {
+    min-width: 210px;
+}
+
+.staff-dashboard-controls__form .btn {
+    align-self: stretch;
+}
+
+.staff-dashboard-section--controls .btn {
+    white-space: nowrap;
+}
+
+.recent-applications {
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 18px 45px -32px rgba(15, 23, 42, 0.35);
+}
+
+.recent-applications__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.recent-applications__header {
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.recent-applications__description {
+    font-size: 0.9rem;
+}
+
+.recent-applications__table-wrapper {
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    overflow: hidden;
+}
+
+.recent-applications__table thead th {
+    background: linear-gradient(0deg, rgba(241, 245, 249, 0.95), rgba(248, 250, 252, 0.95));
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+    color: #334155;
+}
+
+.recent-applications__table tbody tr:nth-child(even) {
+    background-color: rgba(241, 245, 249, 0.6);
+}
+
+.recent-applications__table tbody tr:hover {
+    background-color: rgba(219, 234, 254, 0.6);
+}
+
+.recent-applications__name,
+.recent-applications__status,
+.recent-applications__submitted,
+.recent-applications__updated {
+    white-space: nowrap;
+}
+
+.recent-applications__action {
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.recent-applications__action:hover,
+.recent-applications__action:focus-visible {
+    color: #0f172a;
+    background-color: rgba(37, 99, 235, 0.12);
+    box-shadow: 0 10px 22px -18px rgba(37, 99, 235, 0.65);
+}
+
+.recent-applications__empty {
+    padding: 1rem;
+    border-radius: 12px;
+    background-color: rgba(226, 232, 240, 0.45);
+    text-align: center;
+}
+
+.consultant-results {
+    display: block;
+}
+
+.consultant-results__section {
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 20px 45px -32px rgba(15, 23, 42, 0.35);
+}
+
+.consultant-results__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.consultant-results__header {
+    gap: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.consultant-results__export {
+    align-self: flex-start;
+}
+
+.consultant-results__instructions {
+    margin-bottom: 0;
+}
+
+.consultant-results__table-wrapper {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 16px;
+    overflow: hidden;
+    background-color: #ffffff;
+}
+
+.staff-consultant-table {
+    margin-bottom: 0;
+    font-size: 0.95rem;
+}
+
+.staff-consultant-table__head th {
+    background: linear-gradient(0deg, rgba(241, 245, 249, 0.95), rgba(248, 250, 252, 0.95));
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    color: #1f2937;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+}
+
+.staff-consultant-table__sort {
+    color: inherit;
+    font-weight: 600;
+}
+
+.staff-consultant-table__sort:hover,
+.staff-consultant-table__sort:focus-visible {
+    color: #1a56db;
+    text-decoration: none;
+}
+
+.staff-consultant-table__body tr:nth-child(odd) {
+    background-color: rgba(248, 250, 252, 0.75);
+}
+
+.staff-consultant-table__body tr:hover {
+    background-color: rgba(219, 234, 254, 0.6);
+}
+
+.staff-consultant-table__cell {
+    vertical-align: top;
+}
+
+.staff-consultant-table__cell--actions {
+    min-width: 280px;
+}
+
+.staff-consultant-table__form {
+    background-color: rgba(248, 250, 252, 0.65);
+    border-radius: 12px;
+    padding: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.staff-consultant-table__comment {
+    resize: vertical;
+}
+
+.staff-consultant-table__actions .btn {
+    flex: 1 1 120px;
+}
+
+.consultant-results__pagination {
+    display: flex;
+    justify-content: center;
+}
+
+.consultant-results__pagination-list {
+    gap: 0.5rem;
+}
+
+.consultant-results__pagination .page-link {
+    border-radius: 999px !important;
+    padding-inline: 1rem;
+    padding-block: 0.45rem;
+    color: #1f2937;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.consultant-results__pagination .page-item.active .page-link {
+    background-color: #1a56db;
+    border-color: #1a56db;
+    color: #ffffff;
+    box-shadow: 0 12px 30px -20px rgba(26, 86, 219, 0.8);
+}
+
+.consultant-results__pagination .page-link:hover,
+.consultant-results__pagination .page-link:focus-visible {
+    background-color: rgba(37, 99, 235, 0.12);
+    color: #0f172a;
+    box-shadow: 0 10px 24px -18px rgba(37, 99, 235, 0.6);
+}
+
+.consultant-results__pagination .page-item.disabled .page-link {
+    border-color: rgba(148, 163, 184, 0.25);
+    color: rgba(100, 116, 139, 0.8);
+    background-color: rgba(248, 250, 252, 0.75);
+}
+
+.results-loading-indicator {
+    margin-top: 0.25rem;
+}
+
+.results-loading-indicator + .consultant-results,
+.recent-applications + .consultant-results {
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 992px) {
+    .staff-dashboard-controls {
+        box-shadow: none;
+    }
+
+    .staff-dashboard-controls__form {
+        width: 100%;
+    }
+
+    .staff-dashboard-controls__form .form-select,
+    .staff-dashboard-controls__form .form-control {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .staff-consultant-table__cell--actions {
+        min-width: auto;
+    }
+}
+
+@media (max-width: 576px) {
+    .staff-dashboard-controls {
+        padding: 0.75rem;
+    }
+
+    .staff-dashboard-controls__form {
+        padding: 0.75rem;
+    }
+
+    .recent-applications__header {
+        align-items: flex-start;
+    }
+
+    .recent-applications__table-wrapper,
+    .consultant-results__table-wrapper {
+        border-radius: 12px;
+    }
+
+    .staff-consultant-table__actions .btn {
+        flex: 1 1 100%;
+    }
+}
+
 .visually-hidden {
     position: absolute;
     width: 1px;
