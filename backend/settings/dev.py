@@ -33,7 +33,13 @@ DEBUG = get_env_bool("DJANGO_DEBUG", default=True)
 
 SECRET_KEY = get_secret_key(DEBUG)
 
+# Serve static files directly from the ``static`` directory during development
+# without requiring a ``collectstatic`` run. Using Django's default storage
+# avoids ManifestStaticFilesStorage lookups which break when the manifest is
+# missing (for example on a fresh checkout), resulting in blank pages when
+# rendering templates that load ``{% static %}`` assets.
 STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 ALLOWED_HOSTS = build_allowed_hosts(
     "DEV_ALLOWED_HOSTS",
