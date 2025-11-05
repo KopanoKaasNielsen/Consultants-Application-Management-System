@@ -100,30 +100,59 @@
     </span>
   </div>
 
-  <section class="row g-3 mb-4">
-    <div class="col-12 col-sm-6 col-lg-3">
-      <div class="border rounded p-3 bg-light h-100">
-        <p class="text-muted text-uppercase small mb-1">Draft</p>
-        <p class="h4 mb-0" id="status-count-draft">{{ status_counts.draft|default:0 }}</p>
-      </div>
-    </div>
-    <div class="col-12 col-sm-6 col-lg-3">
-      <div class="border rounded p-3 bg-light h-100">
-        <p class="text-muted text-uppercase small mb-1">Submitted</p>
-        <p class="h4 mb-0" id="status-count-submitted">{{ status_counts.submitted|default:0 }}</p>
-      </div>
-    </div>
-    <div class="col-12 col-sm-6 col-lg-3">
-      <div class="border rounded p-3 bg-light h-100">
-        <p class="text-muted text-uppercase small mb-1">Approved</p>
-        <p class="h4 mb-0" id="status-count-approved">{{ status_counts.approved|default:0 }}</p>
-      </div>
-    </div>
-    <div class="col-12 col-sm-6 col-lg-3">
-      <div class="border rounded p-3 bg-light h-100">
-        <p class="text-muted text-uppercase small mb-1">Rejected</p>
-        <p class="h4 mb-0" id="status-count-rejected">{{ status_counts.rejected|default:0 }}</p>
-      </div>
+  <section
+    class="staff-dashboard-metrics mb-4"
+    aria-label="Application status overview"
+  >
+    <div class="staff-dashboard-metrics__grid">
+      <article
+        class="staff-dashboard-metric"
+        role="group"
+        aria-labelledby="staff-metric-draft"
+        aria-describedby="status-count-draft"
+        tabindex="0"
+      >
+        <h3 class="staff-dashboard-metric__label" id="staff-metric-draft">Draft</h3>
+        <p class="staff-dashboard-metric__value" id="status-count-draft">
+          {{ status_counts.draft|default:0 }}
+        </p>
+      </article>
+      <article
+        class="staff-dashboard-metric"
+        role="group"
+        aria-labelledby="staff-metric-submitted"
+        aria-describedby="status-count-submitted"
+        tabindex="0"
+      >
+        <h3 class="staff-dashboard-metric__label" id="staff-metric-submitted">Submitted</h3>
+        <p class="staff-dashboard-metric__value" id="status-count-submitted">
+          {{ status_counts.submitted|default:0 }}
+        </p>
+      </article>
+      <article
+        class="staff-dashboard-metric"
+        role="group"
+        aria-labelledby="staff-metric-approved"
+        aria-describedby="status-count-approved"
+        tabindex="0"
+      >
+        <h3 class="staff-dashboard-metric__label" id="staff-metric-approved">Approved</h3>
+        <p class="staff-dashboard-metric__value" id="status-count-approved">
+          {{ status_counts.approved|default:0 }}
+        </p>
+      </article>
+      <article
+        class="staff-dashboard-metric"
+        role="group"
+        aria-labelledby="staff-metric-rejected"
+        aria-describedby="status-count-rejected"
+        tabindex="0"
+      >
+        <h3 class="staff-dashboard-metric__label" id="staff-metric-rejected">Rejected</h3>
+        <p class="staff-dashboard-metric__value" id="status-count-rejected">
+          {{ status_counts.rejected|default:0 }}
+        </p>
+      </article>
     </div>
   </section>
 
