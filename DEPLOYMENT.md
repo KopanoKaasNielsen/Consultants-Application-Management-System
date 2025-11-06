@@ -5,8 +5,15 @@
   - Each service consumes a Neon connection string injected via Render secrets (`NEON_DEV_DATABASE_URL`, `NEON_STAGING_DATABASE_URL`, `NEON_PROD_DATABASE_URL`). The blueprint maps those secrets onto both the shared `DATABASE_URL` and the environment-specific variables (`DEV_DATABASE_URL`, `STAGING_DATABASE_URL`, `PROD_DATABASE_URL`) expected by Django.
   - Create the secrets in the Render dashboard ("Environment" → "Secret Files & Environment Variables") before deploying. Paste the Neon `psql` connection strings (e.g., `postgresql://<user>:<password>@ep-...neon.tech/neondb?sslmode=require&channel_binding=require`) into the matching `NEON_*` secret for each environment.
   - The Django settings modules (`backend.settings.dev`, `.staging`, `.prod`) read dedicated `*_ALLOWED_HOSTS` and `*_CSRF_TRUSTED_ORIGINS` variables, preventing development or staging URLs from leaking into production.
-  - When running tests (detected via `PYTEST_CURRENT_TEST` or by setting `DJANGO_USE_TEST_DATABASE`), the development and staging settings automatically switch to the corresponding `*_TEST_DATABASE_URL` whenever it is provided. Configure those variables in CI to ensure pytest never touches live data.
-  - Developers should branch from `develop`. Promotion follows Git Flow semantics: merge feature branches into `develop`, raise promotion PRs from `develop` → `staging` for UAT, and only promote into `main` once staging validation is complete. Each merge triggers the matching Render deployment without impacting the other environments.
+- When running tests (detected via `PYTEST_CURRENT_TEST` or by setting `DJANGO_USE_TEST_DATABASE`), the development and staging settings automatically switch to the corresponding `*_TEST_DATABASE_URL` whenever it is provided. Configure those variables in CI to ensure pytest never touches live data.
+- Developers should branch from `develop`. Promotion follows Git Flow semantics: merge feature branches into `develop`, raise promotion PRs from `develop` → `staging` for UAT, and only promote into `main` once staging validation is complete. Each merge triggers the matching Render deployment without impacting the other environments.
+
+- **Render ⇄ Neon environment sync**
+  1. Ensure `curl` and `jq` are installed locally (the CI workflow bootstraps them automatically).
+  2. Export `RENDER_API_KEY` and `RENDER_SERVICE_ID` for the target Render service (find the service ID in the Render dashboard URL).
+  3. Supply the Neon connection string either by setting `NEON_CONNECTION_STRING` or piping the value via STDIN (e.g., `cat .neon_connection_string | ...`).
+  4. Run `./scripts/configure_render_neon.sh --env-var DATABASE_URL --deploy` to mirror the connection string into Render and trigger a fresh deploy. Omit `--deploy` if you only want to update the secret without redeploying.
+  5. To change a different environment variable, pass `--env-var <NAME>` and rerun the script. The CI helper in `codex_ci/configure_render_neon_ci.yml` wraps the same script for automation and verification inside Codex CI.
 
 - **Bootstrapping the staging environment**
   1. Create the `staging` branch in Git if it does not already exist (`git checkout -b staging` followed by `git push origin staging`). The Render blueprint will not trigger a build for the staging service until the branch exists remotely.
