@@ -25,15 +25,15 @@ services = {
 expected = {
     "cams-dev": {
         "settings_module": "backend.settings.dev",
-        "database": "cams-dev-db",
+        "database_secret": "NEON_DEV_DATABASE_URL",
     },
     "cams-staging": {
         "settings_module": "backend.settings.staging",
-        "database": "cams-staging-db",
+        "database_secret": "NEON_STAGING_DATABASE_URL",
     },
     "cams-prod": {
         "settings_module": "backend.settings.prod",
-        "database": "cams-prod-db",
+        "database_secret": "NEON_PROD_DATABASE_URL",
     },
 }
 
@@ -59,16 +59,11 @@ for name, requirements in expected.items():
         )
 
     db_entry = env_vars.get("DATABASE_URL")
-    db_source = (db_entry or {}).get("fromDatabase") if isinstance(db_entry, dict) else None
-    db_name = (db_source or {}).get("name")
-    if db_name != requirements["database"]:
+    db_secret = (db_entry or {}).get("fromSecret") if isinstance(db_entry, dict) else None
+    if db_secret != requirements["database_secret"]:
         errors.append(
-            f"Service '{name}' should source DATABASE_URL from database "
-            f"'{requirements['database']}', found '{db_name}'."
-        )
-    elif (db_source or {}).get("property") != "connectionString":
-        errors.append(
-            f"Service '{name}' DATABASE_URL should read the 'connectionString' property."
+            f"Service '{name}' should source DATABASE_URL from secret "
+            f"'{requirements['database_secret']}', found '{db_secret}'."
         )
 
 if errors:

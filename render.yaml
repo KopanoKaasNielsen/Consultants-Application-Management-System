@@ -21,13 +21,9 @@ services:
       - key: DJANGO_DEBUG
         value: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: cams-dev-db
-          property: connectionString
+        fromSecret: NEON_DEV_DATABASE_URL
       - key: DEV_DATABASE_URL
-        fromDatabase:
-          name: cams-dev-db
-          property: connectionString
+        fromSecret: NEON_DEV_DATABASE_URL
       - key: ALLOWED_HOSTS
         value: cams-dev.onrender.com
       - key: DEV_CSRF_TRUSTED_ORIGINS
@@ -55,13 +51,9 @@ services:
       - key: DJANGO_DEBUG
         value: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: cams-staging-db
-          property: connectionString
+        fromSecret: NEON_STAGING_DATABASE_URL
       - key: STAGING_DATABASE_URL
-        fromDatabase:
-          name: cams-staging-db
-          property: connectionString
+        fromSecret: NEON_STAGING_DATABASE_URL
       - key: ALLOWED_HOSTS
         value: cams-staging.onrender.com
       - key: STAGING_CSRF_TRUSTED_ORIGINS
@@ -89,15 +81,9 @@ services:
       - key: DJANGO_DEBUG
         value: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: cams-prod-db
-          property: connectionString
+        fromSecret: NEON_PROD_DATABASE_URL
       - key: PROD_DATABASE_URL
-        fromDatabase:
-          name: cams-prod-db
-          property: connectionString
-      - key: PROD_DATABASE_HOST_SUFFIX
-        value: .oregon-postgres.render.com
+        fromSecret: NEON_PROD_DATABASE_URL
       - key: ALLOWED_HOSTS
         value: .onrender.com
       - key: PROD_ALLOWED_HOSTS
@@ -135,15 +121,9 @@ services:
       - key: DJANGO_DEBUG
         value: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: cams-prod-db
-          property: connectionString
+        fromSecret: NEON_PROD_DATABASE_URL
       - key: PROD_DATABASE_URL
-        fromDatabase:
-          name: cams-prod-db
-          property: connectionString
-      - key: PROD_DATABASE_HOST_SUFFIX
-        value: .oregon-postgres.render.com
+        fromSecret: NEON_PROD_DATABASE_URL
       - key: PROD_ALLOWED_HOSTS
         value: consultant-app-156x.onrender.com,cams-websocket-worker.onrender.com
       - key: REDIS_URL
@@ -152,10 +132,3 @@ services:
           type: redis
           property: connectionString
 
-databases:
-  - name: cams-dev-db
-    plan: free
-  - name: cams-staging-db
-    plan: free
-  - name: cams-prod-db
-    plan: free
