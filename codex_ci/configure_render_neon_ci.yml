@@ -1,0 +1,60 @@
+name: "CI: Configure Render Neon Environment"
+description: >
+  Automates synchronization between Neon PostgreSQL and Render service environment.
+  Runs the configure_render_neon.sh script to update the DATABASE_URL (or any specified env var)
+  and optionally triggers a new deploy if requested.
+
+steps:
+  - name: "Ensure prerequisites and environment"
+    run: |
+      echo "📦 Ensuring jq and curl are available..."
+      if ! command -v jq >/dev/null; then
+        sudo dnf install -y jq
+      fi
+      if ! command -v curl >/dev/null; then
+        sudo dnf install -y curl
+      fi
+      echo "✅ Dependencies verified."
+
+      if [ -z "${RENDER_API_KEY:-}" ]; then
+        echo "❌ Missing RENDER_API_KEY environment variable."
+        exit 1
+      fi
+
+      if [ -z "${RENDER_SERVICE_ID:-}" ]; then
+        echo "❌ Missing RENDER_SERVICE_ID environment variable."
+        exit 1
+      fi
+
+  - name: "Run Render ⇄ Neon configuration script"
+    run: |
+      echo "🚀 Running Render ⇄ Neon automation..."
+      chmod +x scripts/configure_render_neon.sh
+
+      # Default: Use DATABASE_URL unless overridden
+      ENV_VAR_NAME="${ENV_VAR_NAME:-DATABASE_URL}"
+
+      # Read connection string
+      if [ -n "${NEON_CONNECTION_STRING:-}" ]; then
+        ./scripts/configure_render_neon.sh \
+          --connection-string "${NEON_CONNECTION_STRING}" \
+          --env-var "${ENV_VAR_NAME}" \
+          --deploy
+      elif [ -f ".neon_connection_string" ]; then
+        echo "📖 Reading connection string from .neon_connection_string"
+        ./scripts/configure_render_neon.sh \
+          --env-var "${ENV_VAR_NAME}" \
+          --deploy < .neon_connection_string
+      else
+        echo "❌ No Neon connection string provided (use NEON_CONNECTION_STRING or .neon_connection_string)."
+        exit 1
+      fi
+
+      echo "✅ Render service updated successfully."
+
+  - name: "Verification"
+    run: |
+      echo "🔎 Verifying applied environment variable..."
+      curl -fsS -H "Authorization: Bearer ${RENDER_API_KEY}" \
+        "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars" | jq -r ".[] | select(.key==\"${ENV_VAR_NAME:-DATABASE_URL}\")"
+      echo "✅ Verification complete."
