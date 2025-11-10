@@ -3,6 +3,21 @@ set -euo pipefail
 
 echo "🚀 Starting build sequence..."
 
+echo "🔧 Ensuring system dependencies for WeasyPrint are present..."
+if command -v apt-get >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y --no-install-recommends \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libcairo2 \
+    libffi-dev \
+    shared-mime-info
+  rm -rf /var/lib/apt/lists/*
+else
+  echo "⚠️  apt-get not available; skipping system dependency installation."
+fi
+
 echo "📦 Installing requirements..."
 
 # Render's build environment occasionally sits behind a proxy that refuses
