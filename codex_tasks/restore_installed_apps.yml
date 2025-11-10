@@ -1,0 +1,44 @@
+task_name: Restore INSTALLED_APPS block
+actions:
+  - type: shell
+    cmd: |
+      SETTINGS_FILE="backend/settings/base.py"
+      echo "🧩 Checking and restoring INSTALLED_APPS in $SETTINGS_FILE..."
+
+      # Only add block if not already present
+      if ! grep -q "INSTALLED_APPS" "$SETTINGS_FILE"; then
+        echo "⚠️  No INSTALLED_APPS block found — writing default one..."
+        {
+          echo ""
+          echo "# ============================================================================="
+          echo "# Django and local application registration"
+          echo "# ============================================================================="
+          echo "INSTALLED_APPS = ["
+          echo "    'django.contrib.admin',"
+          echo "    'django.contrib.auth',"
+          echo "    'django.contrib.contenttypes',"
+          echo "    'django.contrib.sessions',"
+          echo "    'django.contrib.messages',"
+          echo "    'django.contrib.staticfiles',"
+          echo ""
+          echo "    # Local apps"
+          echo "    'consultant_app',"
+          echo "    'apps.api',"
+          echo "    'apps.certificates',"
+          echo "    'apps.consultants',"
+          echo "    'apps.decisions',"
+          echo "    'apps.security',"
+          echo "    'apps.users',"
+          echo "    'apps.vetting',"
+          echo "]"
+        } >> "$SETTINGS_FILE"
+        echo "✅ INSTALLED_APPS block added."
+      else
+        echo "✔ INSTALLED_APPS already exists; confirm it’s populated."
+      fi
+
+      echo ""
+      echo "🏗️  Running system check..."
+      source venv/bin/activate || true
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+      python manage.py check

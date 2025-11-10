@@ -1,0 +1,26 @@
+task_name: Test Django Migrations
+actions:
+  # 1️⃣ Ensure venv active
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+
+  # 2️⃣ Run Django migrations
+  - type: shell
+    cmd: |
+      echo "🏗️  Running migrations..."
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+      python manage.py migrate --noinput
+
+  # 3️⃣ Verify PostgreSQL tables exist
+  - type: shell
+    cmd: |
+      echo "🔍 Checking tables in database..."
+      PGPASSWORD=password psql -U cams_user -h 127.0.0.1 -d cams -c "\dt" || echo "⚠️ Could not list tables"
+
+  # 4️⃣ Optional: check Django DB engine again for sanity
+  - type: shell
+    cmd: |
+      echo "🧠 Confirming database engine..."
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+      python -m django shell -c "from django.conf import settings; print(settings.DATABASES['default'])"

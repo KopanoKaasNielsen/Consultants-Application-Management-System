@@ -1,0 +1,25 @@
+task_name: Force PostgreSQL Migrations
+actions:
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+
+      echo "🧩 Checking app configs..."
+      grep -R "class .*Config" apps/*/apps.py || echo "⚠️ Could not detect app configs"
+
+      echo ""
+      echo "🗑️  Removing stale SQLite migration history if present..."
+      if [ -f db.sqlite3 ]; then
+        rm -f db.sqlite3 && echo "✅ Removed old db.sqlite3"
+      else
+        echo "✔ No SQLite file detected"
+      fi
+
+      echo ""
+      echo "🔄 Rebuilding migration history in PostgreSQL..."
+      python manage.py migrate --fake-initial
+
+      echo ""
+      echo "📋 Listing PostgreSQL tables..."
+      PGPASSWORD=password psql -U cams_user -h 127.0.0.1 -d cams -c "\\dt"

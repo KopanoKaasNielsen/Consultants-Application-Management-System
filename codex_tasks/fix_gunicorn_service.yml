@@ -1,0 +1,11 @@
+name: "Fix Gunicorn Service"
+description: "Ensures Gunicorn systemd service for CAMS is enabled and running."
+
+steps:
+  - name: "Start Gunicorn"
+    run: |
+      sudo systemctl daemon-reload
+      sudo systemctl enable cams
+      sudo systemctl restart cams
+      echo "✅ Gunicorn service fixed and restarted."
+

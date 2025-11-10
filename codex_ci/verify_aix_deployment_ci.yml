@@ -1,0 +1,26 @@
+name: "CI: Verify AIX Mimic Deployment"
+description: >
+  Runs Django health checks and applies auto-fixes if issues are detected.
+
+steps:
+  - name: "Run Django system checks"
+    run: |
+      set +e
+      echo "🩺 Running Django system check..."
+      source venv/bin/activate
+      python manage.py check
+      CHECK_STATUS=$?
+      set -e
+      if [ $CHECK_STATUS -ne 0 ]; then
+        echo "❌ Django check failed. Triggering codex fix task..."
+        codex custom codex_tasks/fix_django_deployment.yml --execute
+      else
+        echo "✅ Django check passed successfully."
+      fi
+
+  - name: "Validate server health"
+    run: |
+      echo "🔎 Checking if Gunicorn & Nginx are running..."
+      systemctl is-active --quiet cams && echo "✅ Gunicorn running" || codex custom codex_tasks/fix_gunicorn_service.yml --execute
+      systemctl is-active --quiet nginx && echo "✅ Nginx running" || codex custom codex_tasks/fix_nginx_service.yml --execute
+

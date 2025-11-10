@@ -1,0 +1,22 @@
+task_name: Regenerate Django Migrations Cleanly
+actions:
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+
+      echo "🧹 Removing old migration files (except __init__.py)..."
+      find apps -type f -path "*/migrations/*.py" ! -name "__init__.py" -delete
+      find consultant_app -type f -path "*/migrations/*.py" ! -name "__init__.py" -delete
+
+      echo ""
+      echo "🧩 Rebuilding migrations for all apps..."
+      python manage.py makemigrations
+
+      echo ""
+      echo "🏗️ Applying fresh migrations to PostgreSQL..."
+      python manage.py migrate --noinput
+
+      echo ""
+      echo "📋 Listing PostgreSQL tables..."
+      PGPASSWORD=password psql -U cams_user -h 127.0.0.1 -d cams -c "\\dt"

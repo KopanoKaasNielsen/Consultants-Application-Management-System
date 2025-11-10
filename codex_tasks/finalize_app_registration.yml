@@ -1,0 +1,35 @@
+task_name: Finalize Django App Registration and Migration
+actions:
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+
+      SETTINGS_FILE="backend/settings/base.py"
+      declare -a LOCAL_APPS=(
+        "consultant_app"
+        "apps.certificates"
+        "apps.consultants"
+        "apps.decisions"
+        "apps.security"
+        "apps.users"
+        "apps.vetting"
+      )
+
+      echo "🧩 Ensuring local apps are registered..."
+      for app in "${LOCAL_APPS[@]}"; do
+        if ! grep -q "$app" "$SETTINGS_FILE"; then
+          sed -i "/INSTALLED_APPS = \[/a\    '$app'," "$SETTINGS_FILE"
+          echo "✅ Added $app to INSTALLED_APPS"
+        else
+          echo "✔ $app already exists"
+        fi
+      done
+
+      echo ""
+      echo "🏗️ Applying migrations..."
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+      python manage.py migrate --noinput
+
+      echo ""
+      echo "🔍 Verifying PostgreSQL tables..."
+      PGPASSWORD=password psql -U cams_user -h 127.0.0.1 -d cams -c "\\dt"

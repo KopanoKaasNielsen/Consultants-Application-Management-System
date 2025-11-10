@@ -1,0 +1,25 @@
+task_name: Fix AppConfig Names and Apply Migrations
+actions:
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+
+      echo "🧩 Correcting AppConfig.name values..."
+      for appdir in apps/*; do
+        [ -d "$appdir" ] || continue
+        appname=$(basename "$appdir")
+        appfile="$appdir/apps.py"
+        if grep -q "class " "$appfile"; then
+          sed -i "s/name = .*/name = \"apps.$appname\"/g" "$appfile"
+          echo "✅ Fixed $appfile → name='apps.$appname'"
+        fi
+      done
+
+      echo ""
+      echo "🏗️ Re-running migrations..."
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+      python manage.py migrate --noinput
+
+      echo ""
+      echo "📋 Listing PostgreSQL tables..."
+      PGPASSWORD=password psql -U cams_user -h 127.0.0.1 -d cams -c "\\dt"

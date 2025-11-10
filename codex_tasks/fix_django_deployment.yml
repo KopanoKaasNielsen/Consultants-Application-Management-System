@@ -1,0 +1,17 @@
+name: "Fix Django Deployment Issues"
+description: >
+  Automatically applies migrations, collects static files, and restarts Gunicorn
+  when Django reports check failures.
+
+steps:
+  - name: "Apply migrations and static files"
+    run: |
+      source venv/bin/activate
+      python manage.py migrate --noinput
+      python manage.py collectstatic --noinput
+
+  - name: "Restart Gunicorn service"
+    run: |
+      sudo systemctl restart cams
+      echo "✅ Gunicorn restarted successfully."
+

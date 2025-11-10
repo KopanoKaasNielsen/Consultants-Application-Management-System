@@ -1,0 +1,45 @@
+task_name: Verify Installed Django Apps
+actions:
+  # 1️⃣ Ensure virtualenv is active and Django settings module is defined
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+
+  # 2️⃣ Verify Django can load settings and print INSTALLED_APPS
+  - type: shell
+    cmd: |
+      echo "🔍 Checking INSTALLED_APPS from Django settings..."
+      python -m django shell -c "from django.conf import settings; print('\\n'.join(settings.INSTALLED_APPS))"
+
+  # 3️⃣ Detect model files in project structure
+  - type: shell
+    cmd: |
+      echo "🧩 Scanning project structure for model files..."
+      find apps consultant_app -type f -name 'models.py' 2>/dev/null || echo "⚠️ No models.py files found"
+
+  # 4️⃣ Cross-check if local apps are missing in INSTALLED_APPS
+  - type: python
+    script: |
+      import os
+      import sys
+      from django.conf import settings
+      from django.core.management import setup_environ
+
+      print("🔎 Cross-checking local apps vs INSTALLED_APPS...")
+      project_root = os.getcwd()
+      local_apps = []
+
+      # Detect local app directories
+      for root, dirs, files in os.walk(project_root):
+          if "models.py" in files and "migrations" in dirs:
+              app_name = os.path.basename(root)
+              local_apps.append(app_name)
+
+      installed = set(settings.INSTALLED_APPS)
+      missing = [app for app in local_apps if app not in installed]
+
+      if missing:
+          print(f"⚠️ Missing from INSTALLED_APPS: {missing}")
+      else:
+          print("✅ All local apps are registered correctly.")
