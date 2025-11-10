@@ -1,0 +1,57 @@
+"""Initial schema for certificate renewal tracking."""
+
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ("consultants", "0001_initial"),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="CertificateRenewal",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("requested_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("pending", "Pending"),
+                            ("approved", "Approved"),
+                            ("denied", "Denied"),
+                        ],
+                        default="pending",
+                        max_length=20,
+                    ),
+                ),
+                ("processed_at", models.DateTimeField(blank=True, null=True)),
+                ("processed_by", models.CharField(blank=True, max_length=255)),
+                ("notes", models.TextField(blank=True)),
+                (
+                    "consultant",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="certificate_renewals",
+                        to="consultants.consultant",
+                    ),
+                ),
+            ],
+            options={
+                "ordering": ["-requested_at"],
+            },
+        ),
+    ]
