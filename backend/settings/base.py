@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -381,6 +382,97 @@ def _apply_host_suffix(config: dict[str, object], host_suffix: str) -> None:
         _apply_host_suffix(test_settings, host_suffix)
 
 
+def _component_prefix_from_env_var(env_var: str) -> str:
+    """Return the base prefix used for discrete database env vars."""
+
+    if env_var.endswith("_URL"):
+        return env_var[: -len("_URL")]
+    return env_var
+
+
+def _load_options_from_env(env_var: str) -> dict[str, object] | None:
+    """Parse JSON database OPTIONS from ``env_var`` if present."""
+
+    raw_value = os.getenv(env_var)
+    if not raw_value:
+        return None
+    try:
+        loaded = json.loads(raw_value)
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive path
+        raise ImproperlyConfigured(
+            f"Environment variable {env_var} must contain valid JSON."
+        ) from exc
+    if not isinstance(loaded, dict):
+        raise ImproperlyConfigured(
+            f"Environment variable {env_var} must decode to a JSON object."
+        )
+    return loaded
+
+
+def _normalise_engine_name(value: str | None) -> str | None:
+    """Normalise shorthand engine identifiers to Django backend paths."""
+
+    if not value:
+        return None
+    candidate = value.strip()
+    if not candidate:
+        return None
+    lowered = candidate.lower()
+    if lowered in {"postgres", "postgresql", "psql"}:
+        return "django.db.backends.postgresql"
+    if lowered in {
+        "postgresql_psycopg2",
+        "django.db.backends.postgresql_psycopg2",
+    }:
+        return "django.db.backends.postgresql"
+    return candidate
+
+
+def _build_component_config(prefix: str, *, conn_max_age: int) -> dict[str, object] | None:
+    """Construct a database config from discrete environment variables."""
+
+    prefix = prefix.rstrip("_")
+    keys = ("NAME", "USER", "PASSWORD", "HOST", "PORT")
+    config: dict[str, object] = {}
+
+    for key in keys:
+        env_value = os.getenv(f"{prefix}_{key}")
+        if env_value:
+            config[key] = env_value
+
+    engine = _normalise_engine_name(os.getenv(f"{prefix}_ENGINE"))
+    if engine:
+        config["ENGINE"] = engine
+    elif config:
+        # Assume PostgreSQL when connection components are provided but the
+        # engine is omitted. This mirrors the project's deployment defaults.
+        config["ENGINE"] = "django.db.backends.postgresql"
+
+    options = _load_options_from_env(f"{prefix}_OPTIONS")
+    if options:
+        config["OPTIONS"] = options
+
+    if not config.get("ENGINE") or not config.get("NAME"):
+        return None
+
+    config["CONN_MAX_AGE"] = conn_max_age
+    return config
+
+
+def _find_component_config(
+    prefixes: Sequence[str],
+    *,
+    conn_max_age: int,
+) -> dict[str, object] | None:
+    """Return the first component-based database config that resolves."""
+
+    for prefix in prefixes:
+        component = _build_component_config(prefix, conn_max_age=conn_max_age)
+        if component:
+            return component
+    return None
+
+
 def build_database_config(
     primary_env_var: str,
     *,
@@ -400,6 +492,12 @@ def build_database_config(
         "DATABASE_HOST_SUFFIX",
     ]
 
+    host_suffix = _first_env_value(host_suffix_candidates)
+
+    use_test_database = bool(
+        os.getenv("PYTEST_CURRENT_TEST") or os.getenv("DJANGO_USE_TEST_DATABASE")
+    )
+
     database_url = os.getenv(primary_env_var)
     if not database_url:
         for candidate_var in fallback_env_vars:
@@ -407,15 +505,38 @@ def build_database_config(
             if database_url:
                 break
     if not database_url:
+        component_prefixes = [
+            _component_prefix_from_env_var(primary_env_var),
+            *[_component_prefix_from_env_var(candidate) for candidate in fallback_env_vars],
+        ]
+        component_config = _find_component_config(
+            component_prefixes,
+            conn_max_age=conn_max_age,
+        )
+
+        if component_config:
+            if host_suffix:
+                _apply_host_suffix(component_config, host_suffix)
+
+            test_component = _find_component_config(
+                [_component_prefix_from_env_var(candidate) for candidate in test_env_vars],
+                conn_max_age=0,
+            )
+
+            if test_component:
+                if host_suffix:
+                    _apply_host_suffix(test_component, host_suffix)
+                if use_test_database:
+                    return test_component
+                component_config["TEST"] = _build_test_settings(test_component)
+
+            return component_config
+
         database_url = default_url
     if not database_url:
         raise ImproperlyConfigured(
             "A database connection string is required."
         )
-
-    use_test_database = bool(
-        os.getenv("PYTEST_CURRENT_TEST") or os.getenv("DJANGO_USE_TEST_DATABASE")
-    )
 
     test_url: str | None = None
     for candidate in test_env_vars:
@@ -428,15 +549,26 @@ def build_database_config(
         return parsed
 
     parsed = dj_database_url.parse(database_url, conn_max_age=conn_max_age)
-    host_suffix = _first_env_value(host_suffix_candidates)
     if host_suffix:
         _apply_host_suffix(parsed, host_suffix)
+    component_test_config = None
+    if not test_url:
+        component_test_config = _find_component_config(
+            [_component_prefix_from_env_var(candidate) for candidate in test_env_vars],
+            conn_max_age=0,
+        )
+        if component_test_config and host_suffix:
+            _apply_host_suffix(component_test_config, host_suffix)
+        if use_test_database and component_test_config:
+            return component_test_config
     if test_url:
         parsed["TEST"] = _build_test_settings(
             dj_database_url.parse(test_url, conn_max_age=0)
         )
         if host_suffix:
             _apply_host_suffix(parsed["TEST"], host_suffix)
+    elif component_test_config:
+        parsed["TEST"] = _build_test_settings(component_test_config)
     return parsed
 
 
