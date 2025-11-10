@@ -3,5 +3,5 @@ from django.apps import AppConfig
 
 class ApiConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.api'
-    verbose_name = 'Consultant API'
+    name = "apps.api"
+    verbose_name = "apps.api"

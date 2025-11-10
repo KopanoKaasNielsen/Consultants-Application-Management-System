@@ -1,0 +1,25 @@
+task_name: Fix Django Environ
+actions:
+  # 1️⃣ Ensure virtual environment is active
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+
+  # 2️⃣ Install django-environ in current venv
+  - type: shell
+    cmd: |
+      echo "📦 Installing django-environ..."
+      pip install django-environ
+
+  # 3️⃣ Confirm installation worked
+  - type: python
+    script: |
+      import environ
+      print("✅ django-environ is installed and importable")
+
+  # 4️⃣ Test Django settings recognition of PostgreSQL database
+  - type: shell
+    cmd: |
+      echo "🔍 Checking Django database configuration..."
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+      python -m django shell -c "from django.conf import settings; print(settings.DATABASES['default'])"

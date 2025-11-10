@@ -1,0 +1,43 @@
+# codex_tasks/fix_python39_compatibility.yml
+name: "Fix Python 3.9 Compatibility for Type Hints"
+description: >
+  Converts Python 3.10+ union type hints (using '|') to typing.Optional or
+  typing.Union so the codebase runs on Python 3.9 (Oracle Linux 8 / AIX 7.3 mimic).
+
+steps:
+  - name: "Scan for 3.10+ type hints"
+    run: |
+      echo "🔍 Searching for type hints using the '|' operator..."
+      grep -RIn "-> .*|.*" apps backend || true
+      echo "✅ Scan complete."
+
+  - name: "Apply compatibility transformation"
+    run: |
+      echo "🧠 Converting 'X | None' → 'Optional[X]' and similar unions..."
+      find apps backend -type f -name "*.py" -print0 | xargs -0 sed -i \
+        -E 's/-> *([^|]+)\s*\|\s*None/-> Optional[\1]/g'
+      find apps backend -type f -name "*.py" -print0 | xargs -0 sed -i \
+        -E 's/-> *None\s*\|\s*([^:]+)/-> Optional[\1]/g'
+      find apps backend -type f -name "*.py" -print0 | xargs -0 sed -i \
+        -E 's/-> *([^|]+)\s*\|\s*([^:]+)/-> Union[\1, \2]/g'
+      echo "✅ Conversion complete."
+
+  - name: "Ensure typing imports exist"
+    run: |
+      echo "🧩 Ensuring 'from typing import Optional, Union' is present..."
+      for f in $(find apps backend -type f -name "*.py"); do
+        if grep -q "Optional\[" "$f" || grep -q "Union\[" "$f"; then
+          if ! grep -q "from typing import" "$f"; then
+            sed -i '1ifrom typing import Optional, Union' "$f"
+          fi
+        fi
+      done
+      echo "✅ Typing imports ensured."
+
+  - name: "Run Django syntax check"
+    run: |
+      echo "⚙️ Running syntax check..."
+      source venv/bin/activate
+      python manage.py check
+      echo "✅ Python 3.9 compatibility verified."
+

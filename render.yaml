@@ -106,6 +106,40 @@ services:
     name: cams-prod-redis
     plan: free
 
+  - type: worker
+    name: cams-prod-worker
+    env: python
+    plan: free
+    branch: main
+    buildCommand: "./build.sh"
+    startCommand: "celery -A consultant_app worker --loglevel=info"
+    envVarGroups:
+      - django-shared-secret
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: backend.settings.prod
+      - key: DJANGO_DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromSecret: NEON_PROD_DATABASE_URL
+      - key: PROD_DATABASE_URL
+        fromSecret: NEON_PROD_DATABASE_URL
+      - key: PROD_ALLOWED_HOSTS
+        value: consultant-app-156x.onrender.com
+      - key: PROD_CSRF_TRUSTED_ORIGINS
+        value: https://consultant-app-156x.onrender.com
+      - key: SENTRY_DSN
+        value: ""
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.2"
+      - key: SENTRY_PROFILES_SAMPLE_RATE
+        value: "0.0"
+      - key: REDIS_URL
+        fromService:
+          name: cams-prod-redis
+          type: redis
+          property: connectionString
+
   - type: web
     name: cams-websocket-worker
     env: python

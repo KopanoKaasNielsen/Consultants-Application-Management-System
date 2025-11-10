@@ -1,0 +1,45 @@
+task_name: Show Project Structure
+actions:
+  # 1️⃣ Ensure virtualenv is active
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+
+  # 2️⃣ Display top-level directories and file sizes
+  - type: shell
+    cmd: |
+      echo "📂 Project structure overview (top level):"
+      ls -lh --group-directories-first
+
+  # 3️⃣ Show full directory tree up to 4 levels deep
+  - type: shell
+    cmd: |
+      echo ""
+      echo "🌳 Full directory tree (depth 4):"
+      find . -maxdepth 4 -type d | sort
+
+  # 4️⃣ Highlight Django-related directories
+  - type: shell
+    cmd: |
+      echo ""
+      echo "🧩 Django app directories:"
+      find apps -type d -maxdepth 2 -print 2>/dev/null || echo "⚠️ No 'apps' directory found"
+
+      echo ""
+      echo "🧱 Backend (settings + core):"
+      find backend -type f -maxdepth 3 -print 2>/dev/null || echo "⚠️ No 'backend' directory found"
+
+  # 5️⃣ Display migrations and template folders for sanity check
+  - type: shell
+    cmd: |
+      echo ""
+      echo "📜 Migration files:"
+      find . -type f -path "*/migrations/*.py" ! -name "__init__.py" 2>/dev/null || echo "⚠️ No migration files found"
+
+      echo ""
+      echo "🎨 Template directories:"
+      find . -type d -name "templates" 2>/dev/null || echo "⚠️ No template directories found"
+
+      echo ""
+      echo "🗂️ Static directories:"
+      find . -type d -name "static" 2>/dev/null || echo "⚠️ No static directories found"

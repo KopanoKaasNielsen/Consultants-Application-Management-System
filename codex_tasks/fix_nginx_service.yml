@@ -1,0 +1,9 @@
+name: "Fix Nginx Service"
+description: "Ensures Nginx configuration is valid and restarted."
+
+steps:
+  - name: "Check Nginx config and restart"
+    run: |
+      sudo nginx -t && sudo systemctl restart nginx
+      echo "✅ Nginx service validated and restarted."
+
