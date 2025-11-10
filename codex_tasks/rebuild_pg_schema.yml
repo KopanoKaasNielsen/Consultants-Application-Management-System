@@ -1,0 +1,33 @@
+task_name: Rebuild PostgreSQL Schema from Current Models
+actions:
+  # 1️⃣ Ensure virtualenv active and Django env set
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate your virtualenv manually before rerun"
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+
+  # 2️⃣ Clean up old migration files (leave __init__.py)
+  - type: shell
+    cmd: |
+      echo "🧹 Cleaning previous migration files..."
+      find apps -type f -path "*/migrations/*.py" ! -name "__init__.py" -delete
+      find consultant_app -type f -path "*/migrations/*.py" ! -name "__init__.py" -delete
+      echo "✅ Old migrations removed."
+
+  # 3️⃣ Regenerate migrations from all registered models
+  - type: shell
+    cmd: |
+      echo "🧩 Generating new migrations..."
+      python manage.py makemigrations || echo "⚠️ makemigrations encountered issues"
+
+  # 4️⃣ Apply migrations to PostgreSQL
+  - type: shell
+    cmd: |
+      echo "🏗️  Applying migrations to PostgreSQL..."
+      python manage.py migrate --noinput
+
+  # 5️⃣ Confirm new schema exists
+  - type: shell
+    cmd: |
+      echo "📋 Listing tables to confirm schema..."
+      PGPASSWORD=password psql -U cams_user -h 127.0.0.1 -d cams -c "\\dt"

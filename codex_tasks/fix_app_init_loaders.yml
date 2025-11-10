@@ -1,0 +1,41 @@
+task_name: Add default_app_config to all Django apps
+actions:
+  - type: shell
+    cmd: |
+      echo "🧩 Ensuring each app has proper __init__.py with default_app_config..."
+      for appdir in apps/* consultant_app; do
+        [ -d "$appdir" ] || continue
+        init_file="$appdir/__init__.py"
+        app_name=$(basename "$appdir")
+        config_class="$(echo $app_name | sed 's/.*/\u&/')Config"
+        app_path="apps.$app_name"
+        if [ ! -f "$init_file" ]; then
+          touch "$init_file"
+          echo "✅ Created $init_file"
+        fi
+        if ! grep -q "default_app_config" "$init_file"; then
+          echo "default_app_config = \"$app_path.apps.$config_class\"" >> "$init_file"
+          echo "✅ Added default_app_config for $app_name"
+        else
+          echo "✔ $app_name already has default_app_config"
+        fi
+      done
+
+      echo ""
+      echo "🏗️  Running makemigrations..."
+      source venv/bin/activate || true
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+      python manage.py makemigrations || echo "⚠️ makemigrations failed"
+
+      echo ""
+      echo "📋 Verifying models now visible to Django..."
+      python - <<'PY'
+import os, django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings.dev")
+django.setup()
+from django.apps import apps
+for app in apps.get_app_configs():
+    models = [m.__name__ for m in app.get_models()]
+    if models:
+        print(f"✅ {app.name}: {models}")
+PY
