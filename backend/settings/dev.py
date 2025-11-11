@@ -11,6 +11,12 @@ import sys
 import logging
 import environ
 
+from .base import *  # noqa: F401,F403
+
+# Explicit re-export for tools that expect these helpers to be available directly
+# within the dev settings module. ``import *`` above ensures core settings such as
+# ``ROOT_URLCONF`` are defined, while the names below keep IDE type checking happy
+# and make their usage obvious in this file.
 from .base import (  # noqa: F401,F403
     BASE_DIR,
     build_allowed_hosts,
