@@ -32,6 +32,37 @@ from urllib.parse import urlencode
 from PyPDF2 import PdfReader, PdfWriter
 from weasyprint import HTML
 
+
+_WEASYPRINT_COMPAT_INITIALISED = False
+
+
+def _ensure_weasyprint_compat() -> None:
+    """Apply runtime guards for WeasyPrint on systems with older Pango."""
+
+    global _WEASYPRINT_COMPAT_INITIALISED
+    if _WEASYPRINT_COMPAT_INITIALISED:
+        return
+
+    _WEASYPRINT_COMPAT_INITIALISED = True
+
+    try:
+        from weasyprint.compat import pango as _pango  # type: ignore
+    except Exception:  # pragma: no cover - defensive fallback
+        logger.debug("Unable to import WeasyPrint Pango compatibility shim.")
+        return
+
+    if hasattr(_pango, "pango_context_set_round_glyph_positions"):
+        return
+
+    def _noop_pango_round_glyph_positions(*_args, **_kwargs):
+        return None
+
+    _pango.pango_context_set_round_glyph_positions = _noop_pango_round_glyph_positions
+    logger.warning(
+        "WeasyPrint Pango compatibility shim applied: missing "
+        "pango_context_set_round_glyph_positions symbol."
+    )
+
 from apps.consultants.emails import send_status_update_email
 from apps.consultants.forms import DocumentUploadForm
 from apps.consultants.models import Consultant, Notification
@@ -184,6 +215,8 @@ def get_supporting_documents(consultant) -> List[Dict[str, object]]:
 
 
 def _render_consultant_pdf(request, consultant) -> Tuple[bytes, str]:
+    _ensure_weasyprint_compat()
+
     document_fields, decision_documents = get_consultant_documents(consultant)
     context = {
         "consultant": consultant,
