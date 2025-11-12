@@ -1,0 +1,20 @@
+task_name: Create or Reset Django Superuser
+actions:
+  - type: shell
+    cmd: |
+      source venv/bin/activate || echo "⚠️ Activate virtualenv manually"
+      export DJANGO_SETTINGS_MODULE=backend.settings.dev
+
+  - type: python
+    script: |
+      from django.contrib.auth import get_user_model
+      User = get_user_model()
+      username = "admin"
+      password = "StrongPass123!"  # <-- change this before running
+      email = "admin@example.com"
+      user, created = User.objects.get_or_create(username=username, defaults={"email": email})
+      user.is_staff = True
+      user.is_superuser = True
+      user.set_password(password)
+      user.save()
+      print(f"{'Created' if created else 'Updated'} superuser: {username}")
