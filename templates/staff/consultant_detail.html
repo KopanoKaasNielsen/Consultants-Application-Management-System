@@ -3,126 +3,105 @@
 {% block title %}Consultant Application{% endblock %}
 
 {% block content %}
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb mb-0">
-      <li class="breadcrumb-item"><a href="{% url 'staff_dashboard' %}">Staff dashboard</a></li>
-      <li class="breadcrumb-item active" aria-current="page">Consultant application</li>
-    </ol>
-  </nav>
+<div class="consultant-detail-shell">
+  <div class="consultant-detail-container consultant-fade-in">
+    <nav class="consultant-detail-breadcrumb" aria-label="Breadcrumb">
+      <a href="{% url 'staff_dashboard' %}">Staff Dashboard</a>
+      <span aria-hidden="true">/</span>
+      <span aria-current="page">Consultant Application</span>
+    </nav>
 
-  <header class="mb-4 d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3">
-    <div>
-      <h1 class="h3 mb-1">{{ consultant.full_name }}</h1>
-      <p class="mb-0 text-muted">
-        Application #{{ consultant.id }} · Status: {{ consultant.get_status_display }}
-        {% if consultant.submitted_at %}
-          · Submitted {{ consultant.submitted_at|date:"M d, Y" }}
+    <header class="consultant-detail-header">
+      <div class="consultant-detail-header__text">
+        <p class="consultant-detail-meta">
+          Application #{{ consultant.pk }} · Status: {{ consultant.get_status_display }}
+          {% if consultant.submitted_at %}
+            · Submitted {{ consultant.submitted_at|date:"M d, Y" }}
+          {% endif %}
+        </p>
+        <h1 class="consultant-detail-title">Consultant: {{ consultant.full_name }}</h1>
+      </div>
+      <a href="{% url 'staff_consultant_pdf' consultant.pk %}" class="consultant-detail-download">Download PDF</a>
+    </header>
+
+    <section class="consultant-summary-grid">
+      <article class="consultant-summary-card consultant-summary-card--indigo">
+        <h2>Personal Information</h2>
+        <ul class="consultant-summary-list">
+          <li><strong>Full name:</strong> {{ consultant.full_name }}</li>
+          <li><strong>ID number:</strong> {{ consultant.id_number }}</li>
+          <li><strong>Date of birth:</strong> {{ consultant.dob|date:"M d, Y" }}</li>
+          <li><strong>Gender:</strong> {{ consultant.get_gender_display }}</li>
+          <li><strong>Nationality:</strong> {{ consultant.nationality }}</li>
+          <li><strong>Email:</strong> <a href="mailto:{{ consultant.email }}">{{ consultant.email }}</a></li>
+          <li><strong>Phone number:</strong> {{ consultant.phone_number }}</li>
+        </ul>
+      </article>
+
+      <article class="consultant-summary-card consultant-summary-card--blue">
+        <h2>Business Information</h2>
+        <ul class="consultant-summary-list">
+          <li><strong>Business name:</strong> {{ consultant.business_name }}</li>
+          <li><strong>Registration number:</strong> {{ consultant.registration_number|default:"—" }}</li>
+        </ul>
+      </article>
+
+      <article class="consultant-summary-card consultant-summary-card--purple">
+        <h2>Primary Documents</h2>
+        {% if document_fields %}
+          <ul class="consultant-document-list">
+            {% for document in document_fields %}
+              <li>
+                <span class="consultant-document-label">{{ document.label }}</span>
+                <a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.name }}</a>
+                <span class="consultant-document-meta">{{ document.type }} · {{ document.size }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="consultant-card-empty">No documents have been uploaded.</p>
         {% endif %}
-      </p>
-    </div>
-    <a href="{% url 'staff_consultant_pdf' consultant.pk %}" class="btn btn-primary">Download PDF</a>
-  </header>
+      </article>
 
-  <section class="card mb-4">
-    <div class="card-body">
-      <h2 class="h5 mb-3">Personal information</h2>
-      <dl class="row mb-0">
-        <dt class="col-sm-4 col-lg-3">Full name</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.full_name }}</dd>
-
-        <dt class="col-sm-4 col-lg-3">ID number</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.id_number }}</dd>
-
-        <dt class="col-sm-4 col-lg-3">Date of birth</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.dob|date:"M d, Y" }}</dd>
-
-        <dt class="col-sm-4 col-lg-3">Gender</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.get_gender_display }}</dd>
-
-        <dt class="col-sm-4 col-lg-3">Nationality</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.nationality }}</dd>
-
-        <dt class="col-sm-4 col-lg-3">Email</dt>
-        <dd class="col-sm-8 col-lg-9">
-          <a href="mailto:{{ consultant.email }}">{{ consultant.email }}</a>
-        </dd>
-
-        <dt class="col-sm-4 col-lg-3">Phone number</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.phone_number }}</dd>
-      </dl>
-    </div>
-  </section>
-
-  <section class="card mb-4">
-    <div class="card-body">
-      <h2 class="h5 mb-3">Business information</h2>
-      <dl class="row mb-0">
-        <dt class="col-sm-4 col-lg-3">Business name</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.business_name }}</dd>
-
-        <dt class="col-sm-4 col-lg-3">Registration number</dt>
-        <dd class="col-sm-8 col-lg-9">{{ consultant.registration_number|default:"—" }}</dd>
-      </dl>
-    </div>
-  </section>
-
-  <section class="card mb-4">
-    <div class="card-body">
-      <h2 class="h5 mb-3">Documents</h2>
-      {% if document_fields %}
-        <ul class="list-unstyled mb-0">
-          {% for document in document_fields %}
-            <li class="mb-2">
-              <span class="fw-semibold d-block">{{ document.label }}</span>
-              <a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.name }}</a>
-              <small class="text-muted d-block">{{ document.type }} · {{ document.size }}</small>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="mb-0 text-muted">No documents have been uploaded.</p>
-      {% endif %}
-    </div>
-  </section>
-
-  {% include "consultants/documents/section.html" with
-    section_class="card mb-4"
-    content_class="card-body"
-    title="Supporting documents"
-    documents=supporting_documents
-    upload_form=document_upload_form
-    upload_url=document_upload_url
-    next_url=document_next_url
-    can_upload=can_manage_documents
-    can_delete=can_manage_documents
-    empty_message="No supporting documents uploaded yet."
-  %}
-
-  {% if decision_documents %}
-    <section class="card mb-4">
-      <div class="card-body">
-        <h2 class="h5 mb-3">Decision documents</h2>
-        <ul class="list-unstyled mb-0">
-          {% for document in decision_documents %}
-            <li class="mb-2">
-              <span class="fw-semibold d-block">{{ document.label }}</span>
-              <a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.name }}</a>
-              <small class="text-muted d-block">{{ document.type }} · {{ document.size }}</small>
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
+      <article class="consultant-summary-card consultant-summary-card--pink">
+        <h2>Staff Comment</h2>
+        <p class="consultant-comment">{{ consultant.staff_comment|default:'Please remind the applicant to upload all supporting documents before final approval.' }}</p>
+      </article>
     </section>
-  {% endif %}
 
-  {% if consultant.staff_comment %}
-    <section class="card mb-4">
-      <div class="card-body">
-        <h2 class="h5 mb-3">Staff comment</h2>
-        <p class="mb-0">{{ consultant.staff_comment }}</p>
-      </div>
-    </section>
-  {% endif %}
+    {% include "consultants/documents/section.html" with
+      section_class="consultant-panel consultant-panel--supporting"
+      content_class="consultant-panel__body"
+      title="Supporting documents"
+      documents=supporting_documents
+      upload_form=document_upload_form
+      upload_url=document_upload_url
+      next_url=document_next_url
+      can_upload=can_manage_documents
+      can_delete=can_manage_documents
+      empty_message="No supporting documents uploaded yet."
+    %}
 
-  <a href="{% url 'staff_dashboard' %}" class="btn btn-outline-secondary">Back to dashboard</a>
+    {% if decision_documents %}
+      <section class="consultant-panel consultant-panel--decision">
+        <div class="consultant-panel__body">
+          <h2>Decision documents</h2>
+          <ul class="consultant-document-list">
+            {% for document in decision_documents %}
+              <li>
+                <span class="consultant-document-label">{{ document.label }}</span>
+                <a href="{{ document.url }}" target="_blank" rel="noopener">{{ document.name }}</a>
+                <span class="consultant-document-meta">{{ document.type }} · {{ document.size }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+    {% endif %}
+
+    <div class="consultant-detail-footer">
+      <a class="consultant-detail-back" href="{% url 'staff_dashboard' %}">← Back to dashboard</a>
+    </div>
+  </div>
+</div>
 {% endblock %}

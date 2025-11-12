@@ -1046,3 +1046,381 @@
         min-height: 260px;
     }
 }
+
+/* Consultant detail revamp */
+.consultant-detail-shell {
+    width: min(100%, 1100px);
+    background: linear-gradient(135deg, #eff6ff, #ede9fe 45%, #fce7f3);
+    border-radius: 28px;
+    padding: clamp(2rem, 5vw, 3rem);
+    box-shadow: 0 35px 70px -45px rgba(79, 70, 229, 0.65);
+}
+
+.consultant-detail-container {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.consultant-fade-in {
+    animation: consultantFadeIn 0.7s ease both;
+}
+
+@keyframes consultantFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.consultant-detail-breadcrumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: #4338ca;
+    font-weight: 500;
+}
+
+.consultant-detail-breadcrumb a {
+    color: #4f46e5;
+    text-decoration: none;
+}
+
+.consultant-detail-breadcrumb a:hover,
+.consultant-detail-breadcrumb a:focus-visible {
+    text-decoration: underline;
+}
+
+.consultant-detail-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.25);
+    padding-bottom: 1.25rem;
+}
+
+.consultant-detail-title {
+    margin: 0.35rem 0 0;
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
+    color: #312e81;
+    font-weight: 700;
+}
+
+.consultant-detail-meta {
+    margin: 0;
+    color: #3730a3;
+    font-weight: 500;
+}
+
+.consultant-detail-download {
+    align-self: center;
+    background: linear-gradient(135deg, #4f46e5, #2563eb);
+    color: #ffffff;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 999px;
+    box-shadow: 0 18px 45px -30px rgba(37, 99, 235, 0.65);
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.consultant-detail-download:hover,
+.consultant-detail-download:focus-visible {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: 0 24px 55px -28px rgba(30, 64, 175, 0.65);
+}
+
+.consultant-summary-grid {
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 2.25rem);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.consultant-summary-card {
+    background: #ffffff;
+    border-radius: 22px;
+    padding: clamp(1.5rem, 4vw, 2rem);
+    box-shadow: 0 26px 50px -40px rgba(30, 64, 175, 0.55);
+    border-top: 4px solid #6366f1;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.consultant-summary-card h2 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    color: #312e81;
+}
+
+.consultant-summary-card--indigo {
+    border-top-color: #4f46e5;
+}
+
+.consultant-summary-card--blue {
+    border-top-color: #2563eb;
+}
+
+.consultant-summary-card--purple {
+    border-top-color: #7c3aed;
+}
+
+.consultant-summary-card--pink {
+    border-top-color: #db2777;
+}
+
+.consultant-summary-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.45rem;
+    color: #1f2937;
+    font-size: 0.95rem;
+}
+
+.consultant-summary-list a {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.consultant-summary-list a:hover,
+.consultant-summary-list a:focus-visible {
+    text-decoration: underline;
+}
+
+.consultant-comment {
+    margin: 0;
+    color: #4c1d95;
+    line-height: 1.6;
+}
+
+.consultant-document-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.85rem;
+}
+
+.consultant-document-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.consultant-document-label {
+    font-weight: 600;
+    color: #312e81;
+}
+
+.consultant-document-list a {
+    color: #1d4ed8;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.consultant-document-list a:hover,
+.consultant-document-list a:focus-visible {
+    text-decoration: underline;
+}
+
+.consultant-document-meta {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.consultant-card-empty {
+    margin: 0;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.consultant-panel {
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 22px;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    box-shadow: 0 26px 50px -42px rgba(30, 64, 175, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.consultant-panel--supporting {
+    border-top: 4px solid #2563eb;
+}
+
+.consultant-panel--decision {
+    border-top: 4px solid #7c3aed;
+}
+
+.consultant-panel__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.consultant-panel__body h2 {
+    margin: 0;
+    color: #312e81;
+}
+
+.consultant-detail-footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.consultant-detail-back {
+    color: #4338ca;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.consultant-detail-back:hover,
+.consultant-detail-back:focus-visible {
+    text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+    .consultant-detail-shell {
+        padding: clamp(1.5rem, 8vw, 2rem);
+        border-radius: 20px;
+    }
+
+    .consultant-detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .consultant-detail-download {
+        width: 100%;
+        text-align: center;
+    }
+
+    .consultant-detail-footer {
+        justify-content: center;
+    }
+}
+.consultant-panel__body .card-header {
+    margin: 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.consultant-panel__body .card-header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #312e81;
+}
+
+.consultant-panel__body .card-header .text-muted {
+    color: #64748b;
+}
+
+.consultant-panel__body .document-upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.consultant-panel__body .input-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.consultant-panel__body .input-group input[type="file"] {
+    flex: 1 1 220px;
+    padding: 0.65rem;
+    border: 1px dashed rgba(99, 102, 241, 0.45);
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+}
+
+.consultant-panel__body .document-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 1rem;
+}
+
+.consultant-panel__body .document-list__item {
+    padding-top: 1rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.consultant-panel__body .document-list__item:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.consultant-panel__body .document-list__item .d-flex {
+    display: flex;
+}
+
+.consultant-panel__body .document-list__item .d-flex {
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+@media (min-width: 992px) {
+    .consultant-panel__body .document-list__item .d-flex {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+.consultant-panel__body .document-list__item .fw-semibold {
+    font-weight: 600;
+    color: #312e81;
+}
+
+.consultant-panel__body .document-list__item .text-muted {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.consultant-panel__body .document-list__item .btn {
+    text-decoration: none;
+}
+
+.consultant-panel__body .document-list__item .btn-outline-secondary,
+.consultant-panel__body .document-list__item .btn-outline-danger {
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.85rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    color: #1f2937;
+    background: rgba(255, 255, 255, 0.85);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.consultant-panel__body .document-list__item .btn-outline-secondary:hover,
+.consultant-panel__body .document-list__item .btn-outline-secondary:focus-visible {
+    background-color: rgba(59, 130, 246, 0.12);
+    color: #1d4ed8;
+}
+
+.consultant-panel__body .document-list__item .btn-outline-danger:hover,
+.consultant-panel__body .document-list__item .btn-outline-danger:focus-visible {
+    background-color: rgba(248, 113, 113, 0.12);
+    color: #b91c1c;
+}
+
+.consultant-panel__body .document-list__item .btn-outline-danger {
+    border-color: rgba(248, 113, 113, 0.45);
+}
+
+.consultant-panel__body .document-list__item .d-flex.flex-wrap {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
