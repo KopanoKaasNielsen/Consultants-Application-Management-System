@@ -9,6 +9,7 @@ from apps.users.constants import (
     UserRole,
     groups_for_roles,
 )
+from apps.users.forms import AdminUserCreationForm
 
 
 @pytest.mark.django_db
@@ -123,3 +124,32 @@ def test_invalid_submission_renders_errors(client, user_factory):
     assert "This field is required." in response.content.decode()
     user_model = get_user_model()
     assert not user_model.objects.filter(username="invalid").exists()
+
+
+@pytest.mark.django_db
+def test_admin_user_creation_form_assigns_staff_role_groups():
+    form = AdminUserCreationForm(
+        data={
+            "username": "staffer",
+            "first_name": "Staff",
+            "last_name": "Member",
+            "email": "staffer@example.com",
+            "password1": "ComplexPass123",
+            "password2": "ComplexPass123",
+            "roles": [UserRole.STAFF.value],
+        }
+    )
+
+    assert form.is_valid(), form.errors
+
+    created_user = form.save()
+
+    assert created_user.is_staff is True
+    assert created_user.is_superuser is False
+    assert tuple(form.selected_roles) == (UserRole.STAFF,)
+
+    group_names = set(created_user.groups.values_list("name", flat=True))
+    expected_groups = groups_for_roles([UserRole.STAFF])
+    expected_groups.discard(ADMINS_GROUP_NAME)
+
+    assert group_names == expected_groups
