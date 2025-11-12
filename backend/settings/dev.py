@@ -62,13 +62,10 @@ STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 ALLOWED_HOSTS = build_allowed_hosts(
     "DEV_ALLOWED_HOSTS",
     "ALLOWED_HOSTS",
-    default=("localhost", "127.0.0.1"),
+    default=("*", "100.90.15.57"),
 )
 
-CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
-    "DEV_CSRF_TRUSTED_ORIGINS",
-    default=("http://localhost", "http://127.0.0.1"),
-)
+CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins("DEV_CSRF_TRUSTED_ORIGINS", default=("http://localhost", "http://127.0.0.1"))
 
 # ---------------------------------------------------------------------------
 # Database (PostgreSQL only)
