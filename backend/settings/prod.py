@@ -34,7 +34,6 @@ CSRF_TRUSTED_ORIGINS = get_csrf_trusted_origins(
 DATABASES["default"] = build_database_config(
     "PROD_DATABASE_URL",
     fallback_env_vars=("DATABASE_URL",),
-    default_url="sqlite:///db.sqlite3",
     test_env_vars=("PROD_TEST_DATABASE_URL", "TEST_DATABASE_URL"),
     conn_max_age=600,
 )
