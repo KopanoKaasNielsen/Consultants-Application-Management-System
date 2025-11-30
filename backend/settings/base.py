@@ -259,6 +259,7 @@ INSTALLED_APPS = [
     'apps.consultants',
     'apps.vetting',
     'apps.decisions',
+    'apps.officer_workflow',
     'apps.certificates',
     'apps.security',
     'apps.users',
