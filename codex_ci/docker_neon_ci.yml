@@ -1,0 +1,86 @@
+version: 1
+tasks:
+  - id: docker-neon-ci
+    description: >
+      CI pipeline for the Consultants Application Management System using
+      Docker + Neon PostgreSQL. Validates that the project installs
+      dependencies, Django boots correctly with backend.settings.prod,
+      tests run, and the Docker image builds successfully.
+
+    instructions: |
+      You are in the Django project root:
+        ~/CAMS/consultant_app/Consultants-Application-Management-System
+
+      The project uses:
+      - manage.py at the root
+      - backend/ as the Django project module (backend.wsgi, backend.settings.*)
+      - requirements.txt for Python dependencies
+      - Dockerfile for Render/Docker deployment
+      - Neon PostgreSQL for DATABASE_URL (provided via environment in CI)
+
+      Your CI job must perform, in order:
+
+      1) Set up a clean virtual environment and install Python deps
+      ----------------------------------------------------------------
+      - Create a fresh virtual environment in ./venv_ci (do NOT touch the
+        developer's local venv directory).
+      - Install dependencies from requirements.txt.
+
+      Concretely, run commands equivalent to:
+
+          python -m venv venv_ci
+          source venv_ci/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      2) Run Django system checks in production mode
+      ----------------------------------------------
+      - Use DJANGO_SETTINGS_MODULE=backend.settings.prod.
+      - Ensure DATABASE_URL is respected (it will be provided as an environment
+        variable by the CI environment; do not hard-code it).
+      - Run:
+
+          python manage.py check
+
+      The command must succeed without errors.
+
+      3) Run tests
+      ------------
+      - Prefer pytest if it is configured (pytest.ini is present).
+      - If pytest is available, run:
+
+          pytest -q
+
+      - If pytest is not available, fall back to:
+
+          python manage.py test
+
+      The test command must exit with a success status for CI to pass.
+
+      4) Build the Docker image
+      -------------------------
+      - Build a Docker image using the Dockerfile at the project root.
+      - Tag it with a simple name such as "cams-ci".
+
+      Equivalent command:
+
+          docker build -t cams-ci .
+
+      - The Docker build must complete successfully. Do not run the container
+        in CI; just ensure the image builds.
+
+      5) Clean up
+      ----------
+      - Deactivate the virtual environment.
+      - Optionally remove venv_ci to keep the workspace clean if the CI
+        environment is reused.
+
+      Notes / constraints:
+      --------------------
+      - Do not modify any project files in this CI task; this is a pure
+        validation pipeline.
+      - Assume that DATABASE_URL and SECRET_KEY are provided by CI as
+        environment variables when using backend.settings.prod.
+      - Do not attempt to run apt-get or install system packages here; the
+        Dockerfile is responsible for system dependencies. The CI job should
+        only verify that the Dockerfile builds successfully.

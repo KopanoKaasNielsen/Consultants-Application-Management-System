@@ -39,6 +39,10 @@ tasks:
     description: "Verify access to the Render Services API using the configured credentials."
     command: |
       codex task check_render_api
+   version: 1
+    ci:
+  - id: docker-neon-ci
+    task: codex_ci/docker_neon_ci.yml
 
 
   # -------------------------------
