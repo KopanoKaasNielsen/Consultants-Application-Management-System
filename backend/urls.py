@@ -35,6 +35,7 @@ urlpatterns = [
     path('officer/', include('apps.decisions.urls')),  # 👈 staff review routes
     path('vetting/', include('apps.vetting.urls')),
     path('search-certificate/', search_certificate, name='certificate-search'),
+    path('api/officer-workflow/', include('apps.officer_workflow.urls')),
     path('api/', include(('apps.api.urls', 'api'), namespace='api')),
     path('verify/<uuid:certificate_uuid>/', verify_certificate, name='consultant-certificate-verify'),
 
