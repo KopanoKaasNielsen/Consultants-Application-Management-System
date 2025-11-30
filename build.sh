@@ -3,9 +3,25 @@ set -e
 
 echo "🚀 Starting build sequence..."
 
-# Detect Render environment and skip apt-get there
-if [ -n "${RENDER:-}" ]; then
-  echo "Running on Render – skipping apt-get (read-only filesystem)."
+echo "🔧 Ensuring system dependencies for WeasyPrint are present..."
+if command -v apt-get >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+
+  if [ -w /var/lib/apt/lists ]; then
+    if apt-get update; then
+      apt-get install -y --no-install-recommends \
+        libpango-1.0-0 \
+        libpangocairo-1.0-0 \
+        libcairo2 \
+        libffi-dev \
+        shared-mime-info
+      rm -rf /var/lib/apt/lists/*
+    else
+      echo "⚠️  Failed to update apt cache; skipping system dependency installation."
+    fi
+  else
+    echo "⚠️  apt cache directory is not writable; skipping system dependency installation."
+  fi
 else
   echo "🔧 Ensuring system dependencies for WeasyPrint are present (local/dev only)..."
 
