@@ -1,0 +1,175 @@
+version: 1
+tasks:
+  - id: officer-workflow-ci
+    description: >
+      CI pipeline focused on the officer_workflow app. Validates Django
+      boots with production settings, migrations for officer_workflow are
+      clean and applied, and optional tests for this app pass.
+
+    instructions: |
+      You are in the Django project root:
+        ~/CAMS/consultant_app/Consultants-Application-Management-System
+
+      Project layout (relevant parts):
+      - manage.py at the root
+      - backend/ as the Django project module (backend.wsgi, backend.settings.*)
+      - apps/officer_workflow as the new workflow app for officer-driven
+        consultant applications.
+      - requirements.txt for Python dependencies.
+      - DATABASE_URL points to a PostgreSQL (Neon) instance in CI via
+        environment variable.
+      - DJANGO_SETTINGS_MODULE should be backend.settings.prod for CI.
+
+      The goal of this CI job is to verify that the officer_workflow app is
+      structurally sound:
+
+      - Django loads with backend.settings.prod.
+      - officer_workflow migrations are in sync and can be applied.
+      - Optional tests for officer_workflow run and pass.
+      - A small smoke script can import the officer_workflow models and use
+        key enums/choices without errors.
+
+      -------------------------------------------------------------------
+      1) Set up a clean virtual environment and install dependencies
+      -------------------------------------------------------------------
+
+      - Create a fresh virtual environment in ./venv_ci_officer. Do NOT reuse
+        or modify any developer local venv.
+
+      - Install dependencies from requirements.txt.
+
+      Commands to run (or equivalent):
+
+          python -m venv venv_ci_officer
+          source venv_ci_officer/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      -------------------------------------------------------------------
+      2) Run Django system checks with production settings
+      -------------------------------------------------------------------
+
+      - Ensure the environment variable DJANGO_SETTINGS_MODULE is set to:
+            backend.settings.prod
+
+      - Ensure DATABASE_URL is respected and points to PostgreSQL (Neon) in
+        the CI environment. Do not hard-code DATABASE_URL; assume CI provides it.
+
+      - Run:
+
+            python manage.py check
+
+      This must succeed without errors.
+
+      -------------------------------------------------------------------
+      3) Validate migrations for officer_workflow
+      -------------------------------------------------------------------
+
+      - First, verify that there are no pending model changes for the
+        officer_workflow app that would require new migrations.
+
+        Run the equivalent of:
+
+            python manage.py makemigrations officer_workflow --check --dry-run
+
+        - If this command indicates that new migrations would be created, the
+          CI job should fail, since this means the developer has changed
+          models.py without committing migrations.
+
+      - Then, apply migrations for officer_workflow:
+
+            python manage.py migrate officer_workflow
+
+        - This must succeed without errors.
+
+      -------------------------------------------------------------------
+      4) Run tests for officer_workflow if present
+      -------------------------------------------------------------------
+
+      - Check if there is a test module/directory under apps/officer_workflow,
+        such as:
+
+            apps/officer_workflow/tests.py
+            apps/officer_workflow/tests/
+
+      - If pytest is configured (pytest.ini present and pytest importable),
+        run a focused test suite for this app:
+
+            pytest apps/officer_workflow -q
+
+        - If pytest is not available, fall back to:
+
+            python manage.py test officer_workflow
+
+      - If no tests for officer_workflow are present at all, skip this step
+        gracefully and note that tests are missing, but do not fail CI solely
+        because of missing tests.
+
+      -------------------------------------------------------------------
+      5) Smoke-test officer_workflow models
+      -------------------------------------------------------------------
+
+      - Run a small Python snippet through manage.py shell or an equivalent
+        one-off script to ensure the officer_workflow models can be imported
+        and basic operations work.
+
+      - The script should:
+
+          - Import:
+                from apps.officer_workflow.models import (
+                    ConsultantApplication,
+                    ApplicationStatus,
+                    ApplicationType,
+                    VettingResult,
+                    BoardDecision,
+                    Certificate,
+                    ApplicationHistory,
+                )
+
+          - Access at least a couple of enum members to ensure they exist, e.g.:
+
+                ApplicationStatus.DRAFT
+                ApplicationStatus.SUBMITTED_FOR_VETTING
+                ApplicationType.NEW
+                ApplicationType.RENEWAL
+
+          - Optionally create a ConsultantApplication instance in memory
+            WITHOUT saving (to avoid assumptions about existing Consultant
+            rows), just to check field defaults and __str__ do not crash.
+
+            For example:
+
+                app = ConsultantApplication(
+                    consultant_id=1,  # do NOT save; this is just to construct
+                    created_by_id=1,
+                    status=ApplicationStatus.DRAFT,
+                )
+                str(app)
+
+          - The script must not fail with ImportError, AttributeError, or
+            obvious model misconfigurations. If it does, CI should fail.
+
+      - This can be implemented with:
+
+            python manage.py shell -c "..." 
+
+        or by running a temporary inline Python script.
+
+      -------------------------------------------------------------------
+      6) Clean up
+      -------------------------------------------------------------------
+
+      - Deactivate the virtual environment.
+      - Optionally remove venv_ci_officer to keep the CI workspace clean if
+        the environment is reused.
+
+      -------------------------------------------------------------------
+      7) Constraints
+      -------------------------------------------------------------------
+
+      - This CI task must NOT modify any project files. It is purely for
+        validation.
+      - Do not run apt-get or install system libraries; that is handled by the
+        Dockerfile in other CI/deploy tasks.
+      - Assume DATABASE_URL and SECRET_KEY are provided externally by the CI
+        environment.
