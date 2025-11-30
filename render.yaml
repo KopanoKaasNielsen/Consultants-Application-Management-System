@@ -7,11 +7,10 @@ envVarGroups:
 services:
   - type: web
     name: cams-dev
-    env: python
+    env: docker
     plan: free
     branch: develop
-    buildCommand: "./build.sh"
-    startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    dockerfilePath: ./Dockerfile
     postDeploy: "python manage.py migrate"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
@@ -37,11 +36,10 @@ services:
 
   - type: web
     name: cams-staging
-    env: python
+    env: docker
     plan: free
     branch: staging
-    buildCommand: "./build.sh"
-    startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    dockerfilePath: ./Dockerfile
     postDeploy: "python manage.py migrate"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
@@ -67,11 +65,10 @@ services:
 
   - type: web
     name: cams-prod
-    env: python
+    env: docker
     plan: free
     branch: main
-    buildCommand: "./build.sh"
-    startCommand: "gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"
+    dockerfilePath: ./Dockerfile
     postDeploy: "python manage.py migrate"
     envVarGroups:
       - django-shared-secret
@@ -142,10 +139,10 @@ services:
 
   - type: web
     name: cams-websocket-worker
-    env: python
+    env: docker
     plan: free
     branch: main
-    buildCommand: "./build.sh"
+    dockerfilePath: ./Dockerfile
     startCommand: "daphne backend.asgi:application --bind 0.0.0.0 --port $PORT"
     envVarGroups:
       - django-shared-secret
