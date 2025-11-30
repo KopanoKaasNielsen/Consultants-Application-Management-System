@@ -576,15 +576,15 @@ def build_database_config(
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "OPTIONS": {
-            "sslmode": "require",
-            "channel_binding": "require",
-        },
         "NAME": "neondb",
         "USER": "neondb_owner",
         "PASSWORD": "npg_oZL6Dp1TEWsS",
         "HOST": "ep-bitter-shape-ad6378oo-pooler.c-2.us-east-1.aws.neon.tech",
         "PORT": 5432,
+        "OPTIONS": {
+            "sslmode": "require",
+            "channel_binding": "require",
+        },
     }
 }
 
