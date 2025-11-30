@@ -574,13 +574,18 @@ def build_database_config(
 
 
 DATABASES = {
-    'default': build_database_config(
-        'DATABASE_URL',
-        default_url='sqlite:///db.sqlite3',
-        test_env_vars=(
-            'TEST_DATABASE_URL',
-        ),
-    )
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "OPTIONS": {
+            "sslmode": "require",
+            "channel_binding": "require",
+        },
+        "NAME": "neondb",
+        "USER": "neondb_owner",
+        "PASSWORD": "npg_oZL6Dp1TEWsS",
+        "HOST": "ep-bitter-shape-ad6378oo-pooler.c-2.us-east-1.aws.neon.tech",
+        "PORT": 5432,
+    }
 }
 
 AUTH_PASSWORD_VALIDATORS = [
