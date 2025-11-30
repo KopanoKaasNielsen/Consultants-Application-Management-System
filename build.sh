@@ -1,62 +1,32 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
 
 echo "🚀 Starting build sequence..."
 
-echo "🔧 Ensuring system dependencies for WeasyPrint are present..."
-if command -v apt-get >/dev/null 2>&1; then
-  export DEBIAN_FRONTEND=noninteractive
-  apt-get update
-  apt-get install -y --no-install-recommends \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libcairo2 \
-    libffi-dev \
-    shared-mime-info
-  rm -rf /var/lib/apt/lists/*
+# Detect Render environment and skip apt-get there
+if [ -n "${RENDER:-}" ]; then
+  echo "Running on Render – skipping apt-get (read-only filesystem)."
 else
-  echo "⚠️  apt-get not available; skipping system dependency installation."
+  echo "🔧 Ensuring system dependencies for WeasyPrint are present (local/dev only)..."
+
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends \
+      libpango-1.0-0 \
+      libpangoft2-1.0-0 \
+      libcairo2 \
+      libcairo2-dev \
+      libffi-dev \
+      libjpeg-dev \
+      zlib1g-dev \
+      libssl-dev || echo "⚠️ apt-get failed locally; continuing anyway."
+  else
+    echo "apt-get not available; skipping system dependency installation."
+  fi
 fi
 
-echo "📦 Installing requirements..."
+echo "📦 Installing Python dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
 
-# Render's build environment occasionally sits behind a proxy that refuses
-# connections to PyPI which makes a straight "pip install" brittle. We retry a
-# couple of times and, if we still cannot reach the index, we continue so that
-# builds running in an offline CI environment can still succeed when the
-# dependencies are already cached on disk.
-retry_count=0
-max_retries=3
-while true; do
-  if python -m pip install --no-input -r requirements.txt; then
-    break
-  fi
-
-  retry_count=$((retry_count + 1))
-  if [ "$retry_count" -ge "$max_retries" ]; then
-    echo "⚠️  Failed to reach the package index after ${max_retries} attempts."
-    echo "⚠️  Continuing with whatever dependencies are already available."
-    break
-  fi
-
-  echo "🔁  Retrying in 5 seconds (attempt ${retry_count}/${max_retries})..."
-  sleep 5
-done
-
-if python - <<'PY' >/dev/null 2>&1
-import importlib
-import sys
-
-try:
-    importlib.import_module("django")
-except ImportError:
-    sys.exit(1)
-PY
-then
-  echo "🧺 Collecting static files..."
-  python manage.py collectstatic --noinput
-else
-  echo "⚠️  Django is not available; skipping collectstatic step."
-fi
-
-echo "✅ Build sequence complete."
+echo "✅ build.sh completed."
