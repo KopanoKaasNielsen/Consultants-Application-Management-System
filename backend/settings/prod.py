@@ -41,6 +41,6 @@ DATABASES["default"] = build_database_config(
 STORAGES = {
     **getattr(global_settings, "STORAGES", {}),
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "backend.storage.LenientCompressedManifestStaticFilesStorage",
     },
 }
