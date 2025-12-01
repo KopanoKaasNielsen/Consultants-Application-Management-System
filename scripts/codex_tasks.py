@@ -3,8 +3,8 @@
 
 Historically the script assumed the repository was checked out to
 ``~/CAMS/consultant_app`` which breaks on staging environments where the code
-lives elsewhere.  Paths are now resolved relative to this file so the tooling is
-portable regardless of where the repo is cloned.
+lives elsewhere. Paths are now resolved relative to the repository root so the
+tooling is portable regardless of where the repo is cloned.
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ from typing import Dict
 
 import yaml
 
-BASE_DIR = Path(__file__).resolve().parent
-TASK_FILE = BASE_DIR / "codex_ci_tasks.yml"
-LOG_DIR = BASE_DIR / "results" / "tasks"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+TASK_FILE = REPO_ROOT / "codex_tasks.yml"
+LOG_DIR = REPO_ROOT / "codex" / "results" / "tasks"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -29,7 +29,7 @@ def log(message: str) -> None:
 
 
 def create_task(args: Dict[str, str]) -> None:
-    """Create a new Codex task entry and append it to ``codex_ci_tasks.yml``."""
+    """Create a new Codex task entry and append it to ``codex_tasks.yml``."""
     if not TASK_FILE.exists():
         TASK_FILE.write_text("tasks:\n", encoding="utf-8")
 
@@ -64,7 +64,7 @@ def create_task(args: Dict[str, str]) -> None:
 
 
 def load_tasks() -> Dict[str, Dict[str, str]]:
-    """Return the task mapping from ``codex_ci_tasks.yml``."""
+    """Return the task mapping from ``codex_tasks.yml``."""
     if not TASK_FILE.exists():
         log(f"❗ Task file not found: {TASK_FILE}")
         sys.exit(1)
@@ -104,7 +104,7 @@ def run_task(task_name: str) -> None:
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                cwd=str(BASE_DIR),
+                cwd=str(REPO_ROOT),
             )
             if process.stdout is None:
                 raise RuntimeError("Failed to capture task output stream")
@@ -120,7 +120,7 @@ def run_task(task_name: str) -> None:
 def run_all_tasks() -> None:
     tasks = load_tasks()
     if not tasks:
-        log("❗No tasks defined in codex_ci_tasks.yml")
+        log("❗No tasks defined in codex_tasks.yml")
         sys.exit(1)
 
     log("🧠 Running all Codex tasks sequentially...")

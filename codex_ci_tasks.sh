@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$SCRIPT_DIR"
+SCRIPTS_DIR="$BASE_DIR/scripts"
 
 # Detect a Python interpreter to use for running the helper scripts.
 if [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python" ]]; then
@@ -39,10 +40,10 @@ PR_URL="${1:-}"
 if [[ -z "$PR_URL" ]]; then
   log "No PR URL provided — running local tests and lint."
   log "🧪 Running pytest..."
-  "$PYTHON_BIN" "$BASE_DIR/codex_agent.py" "Run pytest in this project and summarize results." >> "$RESULTS_DIR/test_summary.txt"
+  "$PYTHON_BIN" "$SCRIPTS_DIR/codex_agent.py" "Run pytest in this project and summarize results." >> "$RESULTS_DIR/test_summary.txt"
 
   log "🧹 Running flake8 lint check..."
-  "$PYTHON_BIN" "$BASE_DIR/codex_agent.py" "Run flake8 and summarize key issues." >> "$RESULTS_DIR/lint_summary.txt"
+  "$PYTHON_BIN" "$SCRIPTS_DIR/codex_agent.py" "Run flake8 and summarize key issues." >> "$RESULTS_DIR/lint_summary.txt"
 
   log "✅ Local Codex CI checks complete. Results saved to $RESULTS_DIR/"
   exit 0
@@ -51,20 +52,20 @@ fi
 log "🚀 Codex CI Review Triggered for: $PR_URL"
 
 # --- Step 1: Run GPT-5 Review ---
-"$PYTHON_BIN" "$BASE_DIR/codex_review.py" "$PR_URL"
+"$PYTHON_BIN" "$SCRIPTS_DIR/codex_review.py" "$PR_URL"
 REVIEW_FILE=$(ls -t "$REVIEWS_DIR"/*.md 2>/dev/null | head -n 1)
 log "🧠 Review complete — saved to $REVIEW_FILE"
 
 # --- Step 2: Run Tests ---
-"$PYTHON_BIN" "$BASE_DIR/codex_agent.py" "Run pytest and summarize test outcomes." >> "$RESULTS_DIR/test_summary.txt"
+"$PYTHON_BIN" "$SCRIPTS_DIR/codex_agent.py" "Run pytest and summarize test outcomes." >> "$RESULTS_DIR/test_summary.txt"
 log "🧪 Test summary saved."
 
 # --- Step 3: Run Lint Check ---
-"$PYTHON_BIN" "$BASE_DIR/codex_agent.py" "Run flake8 and summarize findings." >> "$RESULTS_DIR/lint_summary.txt"
+"$PYTHON_BIN" "$SCRIPTS_DIR/codex_agent.py" "Run flake8 and summarize findings." >> "$RESULTS_DIR/lint_summary.txt"
 log "🧹 Lint summary saved."
 
 # --- Step 4: Generate Fix Proposal (optional) ---
-"$PYTHON_BIN" "$BASE_DIR/codex_fix.py" "$PR_URL" | tee "$RESULTS_DIR/fix_output.log"
+"$PYTHON_BIN" "$SCRIPTS_DIR/codex_fix.py" "$PR_URL" | tee "$RESULTS_DIR/fix_output.log"
 
 log "✅ Codex CI run complete for: $PR_URL"
 log "Results stored under: $RESULTS_DIR/"
