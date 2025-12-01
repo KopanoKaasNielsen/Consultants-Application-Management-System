@@ -10,6 +10,7 @@ expects while remaining self-contained within this repository.
 from __future__ import annotations
 
 import argparse
+import py_compile
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -40,7 +41,11 @@ class ReviewResult:
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="codex")
+    """Build and parse CLI arguments for the Codex automation helper."""
+
+    parser = argparse.ArgumentParser(
+        prog="codex", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     review_parser = subparsers.add_parser(
@@ -80,6 +85,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def run_review(repo_path: Path, *, apply_fixes: bool, skip_compile: bool) -> ReviewResult:
+    """Run repository checks and return a summary of the results."""
+
     repo = repo_path.expanduser().resolve()
     if not repo.exists() or not repo.is_dir():
         raise SystemExit(f"❌ Repository path does not exist: {repo}")
@@ -93,7 +100,7 @@ def run_review(repo_path: Path, *, apply_fixes: bool, skip_compile: bool) -> Rev
     compile_success = True
     compile_output = ""
     if not skip_compile and python_files:
-        compile_success, compile_output = run_compileall(repo)
+        compile_success, compile_output = compile_python_files(python_files)
 
     total_lines = sum(count_lines(path) for path in python_files)
     status_output = run_git_status(repo)
@@ -110,6 +117,8 @@ def run_review(repo_path: Path, *, apply_fixes: bool, skip_compile: bool) -> Rev
 
 
 def iter_python_files(repo: Path) -> Iterable[Path]:
+    """Yield Python files under ``repo`` while honoring the excluded directories."""
+
     for path in repo.rglob("*"):
         if not path.is_file():
             continue
@@ -125,6 +134,8 @@ def iter_python_files(repo: Path) -> Iterable[Path]:
 
 
 def apply_trailing_whitespace_fix(files: Iterable[Path]) -> List[Path]:
+    """Trim trailing whitespace across provided files and return the modified paths."""
+
     changed_files: List[Path] = []
     for path in files:
         try:
@@ -137,22 +148,29 @@ def apply_trailing_whitespace_fix(files: Iterable[Path]) -> List[Path]:
         if stripped_lines:
             new_text += "\n"
         if new_text != original:
-            path.write_text(new_text)
+            path.write_text(new_text, encoding="utf-8")
             changed_files.append(path)
     return changed_files
 
 
-def run_compileall(repo: Path) -> tuple[bool, str]:
-    process = subprocess.run(
-        [sys.executable, "-m", "compileall", "-q", str(repo)],
-        capture_output=True,
-        text=True,
-    )
-    output = process.stdout + process.stderr
-    return process.returncode == 0, output.strip()
+def compile_python_files(files: Iterable[Path]) -> tuple[bool, str]:
+    """Compile provided Python files to bytecode, returning success and diagnostics."""
+
+    failures: list[str] = []
+    for path in files:
+        try:
+            py_compile.compile(str(path), doraise=True)
+        except (py_compile.PyCompileError, SyntaxError) as exc:  # pragma: no cover - exercised in tests
+            failures.append(f"{path}: {exc}")
+
+    if failures:
+        return False, "\n".join(failures)
+    return True, ""
 
 
 def count_lines(path: Path) -> int:
+    """Count the number of lines in a text file, ignoring binary files."""
+
     try:
         with path.open("r", encoding="utf-8") as fh:
             return sum(1 for _ in fh)
@@ -161,6 +179,8 @@ def count_lines(path: Path) -> int:
 
 
 def run_git_status(repo: Path) -> str:
+    """Return a concise git status for the repository, handling common errors."""
+
     try:
         process = subprocess.run(
             ["git", "-C", str(repo), "status", "--short"],
