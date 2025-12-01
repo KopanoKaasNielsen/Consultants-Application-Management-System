@@ -5,6 +5,11 @@ GitHub's Codex automation so the same workflows run reliably on developer
 machines, CI, and staging environments. This manual explains how to install the
 helper, run the available commands, and interpret their output.
 
+> **What changed in this release?** The `codex review` command now compiles each
+> Python file individually so syntax errors report precise filenames. Argument
+> parsing has been tightened, and unit tests are available for quick regression
+> checks.
+
 ## 1. Installation and prerequisites
 
 1. **Python 3.9 or newer** — the CLI uses the system Python to compile the
@@ -36,7 +41,7 @@ The `codex` executable exposes two families of functionality:
 
 `codex review` provides a local safety net when the hosted Codex service is not
 available. It scans Python files, optionally applies trailing whitespace fixes,
-and can compile the codebase to surface syntax errors before they hit CI.
+and compiles each file to bytecode to surface syntax errors before they hit CI.
 
 ### Syntax
 
@@ -49,11 +54,19 @@ codex review [--repo <path>] [--apply-fixes] [--no-compile]
 - `--repo <path>` — Override the repository path. The default is the current
   working directory. The path is resolved before running any checks, so you can
   provide relative or absolute values.
-- `--apply-fixes` — Enable safe auto-fixes. At present the CLI trims trailing
-  whitespace and appends a newline at the end of each Python file it touches.
-  Modified files are listed in the output.
+- `--apply-fixes` — Enable safe auto-fixes. The CLI trims trailing whitespace
+  and appends a newline at the end of each Python file it touches. Modified
+  files are listed in the output.
 - `--no-compile` — Skip the bytecode compilation step. Use this flag if you only
   need lint-style feedback or if the target directory is not a Python project.
+
+### Quick start recipes
+
+- **Run a hygiene pass with fixes:** `codex review --apply-fixes`
+- **Check a different checkout:** `codex review --repo ../other-repo`
+- **Skip compilation (non-Python project):** `codex review --no-compile`
+- **Preview changes without touching files:** `codex review` (omit
+  `--apply-fixes`)
 
 ### Output
 
@@ -61,8 +74,8 @@ A typical run prints:
 
 1. **Repository and file statistics** — number of Python files and total lines.
 2. **Fix summary** — which files changed when `--apply-fixes` is enabled.
-3. **Compile results** — success/failure banner with the captured `compileall`
-   output unless suppressed with `--no-compile` or no Python files exist.
+3. **Compile results** — success/failure banner. When compilation fails, the
+   output lists each file path and the associated syntax error.
 4. **Git status** — the short status from `git status --short`. If Git is not
    installed, the command gracefully reports that the executable is unavailable.
 
@@ -70,13 +83,25 @@ The process exits with status code `0` when compilation succeeds (or is skipped)
 and `1` when compilation fails. This makes it safe to wire the command into CI
 pipelines.
 
-## 4. Codex task catalogue (`codex_tasks.py`)
+## 4. Local validation
+
+After updating the CLI, you can run the focused regression suite without
+bootstrapping the full Django stack:
+
+```bash
+SKIP_DJANGO_SETUP=1 pytest tests/test_codex_cli.py
+```
+
+The `SKIP_DJANGO_SETUP` flag bypasses optional app imports so the tests execute
+quickly on a vanilla Python environment.
+
+## 5. Codex task catalogue (`codex_tasks.py`)
 
 The repository also includes a lightweight task runner that stores Codex
 instructions in `codex_ci_tasks.yml`. Tasks capture a reusable prompt or
 workflow you can run locally with one command.
 
-### 4.1 Listing and running tasks
+### 5.1 Listing and running tasks
 
 Run a saved task by name:
 
@@ -97,7 +122,7 @@ runs or attach logs to support tickets.
 If you reference an unknown task, the helper prints the list of available names
 from `codex_ci_tasks.yml` so you can pick the right entry.
 
-### 4.2 Creating new tasks
+### 5.2 Creating new tasks
 
 Use the `create` sub-command to append a task definition to the catalogue. Each
 flag maps to a property in the generated YAML block.
@@ -129,7 +154,7 @@ resulting command is ready to run locally or in staging:
       Perform the requested review or fix and output result."
 ```
 
-### 4.3 Log locations and troubleshooting
+### 5.3 Log locations and troubleshooting
 
 - **Log directory:** `codex/results/tasks/`. Each file is named using the task
   and timestamp (for example, `security_audit_2024-05-01_12-30-00.log`).
@@ -139,7 +164,7 @@ resulting command is ready to run locally or in staging:
 - **External commands:** Because tasks often wrap other CLIs, ensure any required
   tools are available on your `PATH` before running them locally or on staging.
 
-## 5. Automation shell helper (`codex_ci_tasks.sh`)
+## 6. Automation shell helper (`codex_ci_tasks.sh`)
 
 For CI systems that prefer shell entry points, use the provided wrapper:
 
@@ -153,7 +178,7 @@ root, and executes `python codex_tasks.py <task-name>`. When you run it with
 Because the script only relies on relative paths, it works the same way in
 staging checkouts.
 
-## 6. Recommended workflows
+## 7. Recommended workflows
 
 - **Quick hygiene check:** `codex review --apply-fixes` before opening a pull
   request to catch trailing whitespace or syntax issues.
