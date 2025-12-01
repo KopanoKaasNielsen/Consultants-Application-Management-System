@@ -614,6 +614,11 @@ STATICFILES_DIRS: list[str] = [
 ]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Allow deployments to keep serving static assets even if the manifest is
+# temporarily out of sync, avoiding runtime errors when a file entry is
+# missing. WhiteNoise will fall back to the original file name instead of
+# raising a ValueError.
+WHITENOISE_MANIFEST_STRICT = False
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
