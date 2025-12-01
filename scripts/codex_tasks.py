@@ -15,12 +15,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict
 
-import yaml
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TASK_FILE = REPO_ROOT / "codex_tasks.yml"
-LOG_DIR = REPO_ROOT / "codex" / "results" / "tasks"
+LOG_DIR = REPO_ROOT / "codex_results" / "tasks"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+HELP_TEXT = """
+Usage:
+  python codex_tasks.py --help              Show this message
+  python codex_tasks.py list                List available tasks
+  python codex_tasks.py all                 Run all tasks sequentially
+  python codex_tasks.py <task-name>         Run a specific task
+  python codex_tasks.py create [options]    Create a new task entry
+
+Examples:
+  python codex_tasks.py list
+  python codex_tasks.py check-render-api
+  python codex_tasks.py create --name demo --description "Example task"
+"""
 
 
 def log(message: str) -> None:
@@ -65,6 +78,8 @@ def create_task(args: Dict[str, str]) -> None:
 
 def load_tasks() -> Dict[str, Dict[str, str]]:
     """Return the task mapping from ``codex_tasks.yml``."""
+    import yaml
+
     if not TASK_FILE.exists():
         log(f"❗ Task file not found: {TASK_FILE}")
         sys.exit(1)
@@ -73,6 +88,19 @@ def load_tasks() -> Dict[str, Dict[str, str]]:
         data = yaml.safe_load(handle) or {}
 
     return data.get("tasks", {})
+
+
+def list_tasks() -> None:
+    """Display all tasks with their descriptions."""
+    tasks = load_tasks()
+    if not tasks:
+        log("❗No tasks defined in codex_tasks.yml")
+        return
+
+    log("🧾 Available tasks:")
+    for name, data in tasks.items():
+        description = data.get("description", "(no description provided)")
+        print(f"  - {name}: {description}")
 
 
 def run_task(task_name: str) -> None:
@@ -143,11 +171,15 @@ def parse_create_args(argv: list[str]) -> Dict[str, str]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2:
-        log("❗Usage: codex task <task-name> | codex task all | codex task create ...")
-        return 1
+    if len(argv) < 2 or argv[1] in {"-h", "--help", "help"}:
+        print(HELP_TEXT.strip())
+        return 0
 
     cmd = argv[1]
+
+    if cmd == "list":
+        list_tasks()
+        return 0
 
     if cmd == "create":
         create_task(parse_create_args(argv[2:]))
