@@ -21,7 +21,7 @@ helper, run the available commands, and interpret their output.
    root. All examples below assume commands are executed from this directory.
 
 If you plan to run the Codex task catalogue you also need a writable
-`codex/results/tasks/` directory. The CLI creates it automatically the first
+`codex_results/tasks/` directory. The CLI creates it automatically the first
 time you execute a task, so no manual setup is required.
 
 ## 2. Command overview
@@ -116,7 +116,7 @@ python codex_tasks.py all
 ```
 
 Each run streams the task's output to your terminal and writes a timestamped log
-under `codex/results/tasks/`. This makes it easy to diff outputs across staging
+under `codex_results/tasks/`. This makes it easy to diff outputs across staging
 runs or attach logs to support tickets.
 
 If you reference an unknown task, the helper prints the list of available names
@@ -156,7 +156,7 @@ resulting command is ready to run locally or in staging:
 
 ### 5.3 Log locations and troubleshooting
 
-- **Log directory:** `codex/results/tasks/`. Each file is named using the task
+- **Log directory:** `codex_results/tasks/`. Each file is named using the task
   and timestamp (for example, `security_audit_2024-05-01_12-30-00.log`).
 - **Missing YAML file:** If `codex_ci_tasks.yml` does not exist, the helper
   creates a minimal shell when you run `create`. Running or listing tasks before
