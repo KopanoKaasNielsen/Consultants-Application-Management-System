@@ -4,3 +4,5 @@ ci:
     task: codex_ci/docker_neon_ci.yml
   - id: officer-workflow-ci
     task: codex_ci/officer_workflow_ci.yml
+  - id: fix-render-runtime-ci
+    task: codex_ci/fix_render_runtime_ci.yml

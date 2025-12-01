@@ -1,0 +1,144 @@
+version: 1
+
+instructions: |
+  You are in the Django project root:
+
+    ~/CAMS/consultant_app/Consultants-Application-Management-System
+
+  The project is deployed to Render.com as a Python web service using:
+
+    - build command: ./build.sh
+    - start command: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT
+
+  Recent Render failures were:
+
+    1) Build-level:
+       - apt-get failing due to read-only filesystem (WeasyPrint/system deps).
+       - Resolved by making build.sh skip apt-get when the apt cache is not writable
+         or when running on Render.
+
+    2) Runtime-level:
+       - gunicorn command not found.
+       - ModuleNotFoundError: No module named 'environ' coming from backend.settings.dev.
+
+  The goal of this task is to make the repository "Render-safe" and verifiable in CI:
+
+    - Ensure all required Python dependencies for Render are pinned in requirements.txt
+      (gunicorn and django-environ in particular).
+    - Ensure build.sh is idempotent and safe on Render (no apt-get on read-only FS).
+    - Sanity check that Django boots with production settings (backend.settings.prod)
+      and that the settings module does not crash on missing django-environ.
+
+  ----------------------------------------------------------------------
+  1) Ensure Render dependencies are present in requirements.txt
+  ----------------------------------------------------------------------
+
+  - Open requirements.txt in the project root.
+  - Ensure the following packages are present with these exact pins
+    (add them if missing, or replace existing lines if they use other versions):
+
+      pillow==10.3.0
+      pytest==8.2.2
+      pytest-django==4.8.0
+      pytest-asyncio==0.23.7
+      channels-redis==4.2.0
+      ruff==0.5.4
+      black==24.8.0
+      isort==5.13.2
+      mypy==1.10.1
+      bandit==1.7.9
+      gunicorn==21.2.0
+      django-environ==0.11.2
+
+  - Keep the file sorted in a reasonable, human-friendly way (for example, alphabetic),
+    but do not introduce unrelated package changes.
+
+  ----------------------------------------------------------------------
+  2) Harden build.sh for Render and local dev
+  ----------------------------------------------------------------------
+
+  - Open build.sh in the project root.
+
+  - Replace its contents with the following idempotent, Render-safe script:
+
+      #!/usr/bin/env bash
+      set -e
+
+      echo "🚀 Starting build sequence..."
+
+      echo "🔧 Ensuring system dependencies for WeasyPrint are present..."
+      # On Render, the filesystem is read-only for apt caches. Detect this upfront.
+      if [ -n "${RENDER:-}" ] || [ ! -w "/var/lib/apt/lists" ]; then
+        echo "⚠️  apt cache directory is not writable; skipping system dependency installation."
+      else
+        if command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 \
+            libpangoft2-1.0-0 \
+            libcairo2 \
+            libcairo2-dev \
+            libffi-dev \
+            libjpeg-dev \
+            zlib1g-dev \
+            libssl-dev || echo "⚠️ apt-get failed locally; continuing anyway."
+        else
+          echo "apt-get not available; skipping system dependency installation."
+        fi
+      fi
+
+      echo "📦 Installing Python dependencies..."
+      pip install --upgrade pip
+      pip install -r requirements.txt
+
+      echo "✅ build.sh completed."
+
+  - Ensure build.sh is marked as executable:
+
+      chmod +x build.sh
+
+  ----------------------------------------------------------------------
+  3) Sanity-check Django with production settings
+  ----------------------------------------------------------------------
+
+  - In this repository, production settings live under backend.settings.prod.
+    On Render, we expect to set:
+
+      DJANGO_SETTINGS_MODULE=backend.settings.prod
+
+  - In CI, simulate the Render environment by running:
+
+      export DJANGO_SETTINGS_MODULE=backend.settings.prod
+      export RENDER=1
+
+      python manage.py check
+      python manage.py migrate --check --plan
+
+  - If any of these commands fail due to missing imports (for example, environ),
+    fix the cause by ensuring the appropriate dependency is present in
+    requirements.txt (django-environ) and that there are no hard-coded local paths
+    in backend/settings/dev.py or backend/settings/prod.py.
+
+  - Do NOT change the semantics of backend.settings.dev or backend.settings.prod
+    beyond what is necessary to make them importable in a clean environment.
+    The goal is that:
+
+      - backend.settings.dev remains suitable for local development.
+      - backend.settings.prod is importable and usable for Render deployments.
+
+  ----------------------------------------------------------------------
+  4) Final verification
+  ----------------------------------------------------------------------
+
+  - Re-run:
+
+      export DJANGO_SETTINGS_MODULE=backend.settings.prod
+      export RENDER=1
+
+      python manage.py check
+
+  - Confirm that Django loads successfully and no ImportError/ModuleNotFoundError
+    is raised from the settings package.
+
+  - Summarize all edits made (requirements.txt, build.sh, any settings tweaks)
+    in a short note suitable for inclusion in a PR description.

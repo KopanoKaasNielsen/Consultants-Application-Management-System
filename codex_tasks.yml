@@ -77,3 +77,10 @@ tasks:
       codex task security-suite
       codex task ci-suite
       codex task maintenance-suite
+
+
+  fix-render-runtime-ci:
+    description: "Fix Render build/runtime issues and verify Django prod settings."
+    command: |
+      codex custom codex_ci/fix_render_runtime_ci.yml --execute
+     
