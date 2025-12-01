@@ -11,6 +11,7 @@ import sys
 import logging
 import environ
 
+from .base import *  # noqa: F401,F403
 from .base import (  # noqa: F401,F403
     BASE_DIR,
     build_allowed_hosts,
