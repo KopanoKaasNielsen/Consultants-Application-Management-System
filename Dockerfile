@@ -35,4 +35,7 @@ RUN python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-CMD ["gunicorn", "backend.wsgi:application", "--bind", "0.0.0.0:8000", "--timeout", "120", "--workers", "3"]
+# Respect Render's dynamically assigned PORT while defaulting to 8000 for local use
+ENV PORT=8000
+
+CMD ["sh", "-c", "gunicorn backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --timeout 120 --workers 3"]
