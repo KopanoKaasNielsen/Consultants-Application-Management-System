@@ -11,39 +11,39 @@ commands:
         -H "Authorization: Bearer $RENDER_API_KEY" \
         https://api.render.com/v1/services \
         | python - <<'PY'
-import json
-import sys
+          import json
+          import sys
 
-try:
-    payload = json.load(sys.stdin)
-except json.JSONDecodeError as exc:
-    print("❌ Failed to parse JSON response from Render API:", exc)
-    raise SystemExit(1)
+          try:
+              payload = json.load(sys.stdin)
+          except json.JSONDecodeError as exc:
+              print("❌ Failed to parse JSON response from Render API:", exc)
+              raise SystemExit(1)
 
-if isinstance(payload, dict):
-    services = payload.get("data") or payload.get("services") or []
-elif isinstance(payload, list):
-    services = payload
-else:
-    services = []
+          if isinstance(payload, dict):
+              services = payload.get("data") or payload.get("services") or []
+          elif isinstance(payload, list):
+              services = payload
+          else:
+              services = []
 
-count = len(services)
-print(f"✅ Retrieved {count} service(s) from Render API.")
+          count = len(services)
+          print(f"✅ Retrieved {count} service(s) from Render API.")
 
-for service in services:
-    name = service.get("name", "<unnamed>")
-    service_type = service.get("service_type") or service.get("serviceType") or "unknown"
-    service_id = service.get("id", "<no-id>")
-    state = (
-        service.get("suspended") and "suspended"
-        or service.get("service")
-        or service.get("status")
-        or service.get("state")
-        or "unknown"
-    )
-    print(f" - {name} [{service_type}] id={service_id} status={state}")
+          for service in services:
+              name = service.get("name", "<unnamed>")
+              service_type = service.get("service_type") or service.get("serviceType") or "unknown"
+              service_id = service.get("id", "<no-id>")
+              state = (
+                  service.get("suspended") and "suspended"
+                  or service.get("service")
+                  or service.get("status")
+                  or service.get("state")
+                  or "unknown"
+              )
+              print(f" - {name} [{service_type}] id={service_id} status={state}")
 
-if not services:
-    print("⚠️ No services were returned. Verify your API key permissions and account.")
-PY
+          if not services:
+              print("⚠️ No services were returned. Verify your API key permissions and account.")
+      PY
   - echo "🎉 Render API verification completed."
