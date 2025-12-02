@@ -12,6 +12,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from datetime import datetime
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Dict
 
@@ -96,6 +97,13 @@ def create_task(args: Dict[str, str]) -> None:
 
 def load_tasks() -> Dict[str, Dict[str, str]]:
     """Return the task mapping from ``codex_tasks.yml``."""
+    if find_spec("yaml") is None:
+        log(
+            "❗ Missing dependency: PyYAML is required. Install with "
+            "'pip install -r requirements.txt' or 'pip install PyYAML'."
+        )
+        sys.exit(1)
+
     import yaml
 
     path = task_file()
