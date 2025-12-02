@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
-import subprocess, sys, os, psycopg2
+import os
+import subprocess
+import sys
+
+
+def install_python_dependencies():
+    requirements_path = os.path.join(os.getcwd(), "requirements.txt")
+    if os.path.exists(requirements_path):
+        print("🔍 Installing Python dependencies from requirements.txt...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_path])
+    else:
+        print("⚠️ requirements.txt not found — skipping Python dependency installation.")
+
 
 # === 1. Python dependencies ===
-python_packages = [
-    "django", "djangorestframework", "django-crontab", "channels",
-    "daphne", "openai", "psycopg2-binary", "gunicorn", "PyPDF2", "weasyprint"
-]
-
-
-
-print("🔍 Checking Python dependencies...")
-for pkg in python_packages:
-    try:
-        __import__(pkg.split('-')[0])
-        print(f"✅ {pkg} already installed.")
-    except ImportError:
-        print(f"📦 Installing missing package: {pkg}...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+install_python_dependencies()
 
 # === 2. Node.js / React dependencies ===
 frontend_path = os.path.join(os.getcwd(), "frontend")
@@ -33,16 +31,20 @@ else:
 # === 3. PostgreSQL connection check ===
 print("\n🔍 Checking PostgreSQL connection...")
 try:
+    import psycopg2
+
     conn = psycopg2.connect(
         dbname=os.getenv("DB_NAME", "cams_db"),
         user=os.getenv("DB_USER", "postgres"),
         password=os.getenv("DB_PASS", "postgres"),
         host=os.getenv("DB_HOST", "localhost"),
         port=os.getenv("DB_PORT", "5432"),
-        connect_timeout=5
+        connect_timeout=5,
     )
     conn.close()
     print("✅ PostgreSQL connection successful.")
+except ImportError:
+    print("⚠️ psycopg2 is not installed; skip database connectivity check.")
 except Exception as e:
     print(f"⚠️ PostgreSQL connection failed: {e}")
 
