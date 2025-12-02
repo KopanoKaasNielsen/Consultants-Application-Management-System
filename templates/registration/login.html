@@ -3,19 +3,55 @@
 {% block title %}Sign in{% endblock %}
 
 {% block content %}
-<section class="form-card">
-  <h1>Welcome back</h1>
-  <p class="description">Sign in to manage your consultant applications and stay up to date.</p>
-  {% if form.errors %}
-    <div class="alert-error">We couldn’t sign you in with those details. Please try again.</div>
+<div class="form-card">
+  <p class="text-muted">Staff &amp; Board Login</p>
+  <h1>Consultants Application Management System</h1>
+  <p class="form-description">Access your dashboard to review applications, approvals, and certificates.</p>
+
+  {% if messages %}
+  <div class="form-error" aria-live="polite">
+    {% for message in messages %}
+    <div>{{ message }}</div>
+    {% endfor %}
+  </div>
   {% endif %}
+
+  {% if form.non_field_errors %}
+  <div class="form-error" aria-live="polite">
+    {% for error in form.non_field_errors %}
+    <div>{{ error }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <form method="post">
     {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn-primary">Sign in</button>
+    <div class="form-group">
+      <label class="form-label" for="id_username">{{ form.username.label|default:"Username" }}</label>
+      {{ form.username }}
+      {% if form.username.errors %}
+      <div class="form-error">
+        {% for error in form.username.errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="id_password">{{ form.password.label|default:"Password" }}</label>
+      {{ form.password }}
+      {% if form.password.errors %}
+      <div class="form-error">
+        {% for error in form.password.errors %}
+        <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Sign in</button>
   </form>
   <div class="helper-link">
     Need an account? <a href="{% url 'register' %}">Create one</a>
   </div>
-</section>
+</div>
 {% endblock %}

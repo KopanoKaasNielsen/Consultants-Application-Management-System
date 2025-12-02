@@ -3,19 +3,45 @@
 {% block title %}Home{% endblock %}
 
 {% block content %}
-  <div class="text-center">
-      <h2>Welcome to the Consultant Application Management System</h2>
+<section class="home-hero">
+  <div class="hero-card">
+    <p class="text-muted">Welcome</p>
+    <h2>Consultant Application Management System</h2>
+    <p>Submit, track, and review consultant applications in one secure place. Our streamlined process keeps agencies and consultants aligned.</p>
+    <div class="hero-actions">
       {% if user.is_authenticated %}
-          <p>You are logged in as <strong>{{ user.username }}</strong>.</p>
-          <p>You belong to the following group(s): 
-              {% for group in user.groups.all %}
-                  {{ group.name }}{% if not forloop.last %}, {% endif %}
-              {% endfor %}
-          </p>
-          <a class="btn-primary" href="{% url 'dashboard' %}">Go to Dashboard</a>
+        <a class="btn btn-primary" href="{% url 'dashboard' %}">Go to Dashboard</a>
+        {% if user.groups.all %}
+        <a class="btn btn-secondary" href="{% url 'logout' %}">Logout</a>
+        {% endif %}
       {% else %}
-          <a class="btn-primary" href="{% url 'login' %}">Login</a>
-          <a class="btn-secondary" href="{% url 'register' %}">Register</a>
+        <a class="btn btn-primary" href="{% url 'login' %}">Login</a>
+        <a class="btn btn-secondary" href="{% url 'register' %}">Register</a>
       {% endif %}
+    </div>
   </div>
+  <div class="hero-card">
+    {% if user.is_authenticated %}
+      <h3>Signed in as {{ user.username }}</h3>
+      <p class="text-muted">You're ready to continue your work.</p>
+      {% if user.groups.all %}
+      <p>Group memberships:
+        {% for group in user.groups.all %}
+          <span class="badge">{{ group.name }}</span>{% if not forloop.last %} {% endif %}
+        {% empty %}
+          <span class="text-muted">None</span>
+        {% endfor %}
+      </p>
+      {% endif %}
+    {% else %}
+      <h3>Why use this service?</h3>
+      <ul>
+        <li>Clear status visibility for every application.</li>
+        <li>Responsive design that works on mobile and desktop.</li>
+        <li>Secure authentication for staff, board, and consultants.</li>
+      </ul>
+    {% endif %}
+  </div>
+</section>
+<div class="footer">Managed by the Consultant Oversight team.</div>
 {% endblock %}

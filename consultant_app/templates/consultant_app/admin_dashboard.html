@@ -4,114 +4,166 @@
 {% block title %}Admin dashboard{% endblock %}
 
 {% block content %}
-{% if messages %}
-<div class="flash-messages">
-    {% for message in messages %}
-    <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}" role="status">{{ message }}</div>
-    {% endfor %}
-</div>
-{% endif %}
-
-<section class="page-header">
-    <div class="page-header__intro">
-        <h1>Admin dashboard</h1>
-        <p class="text-muted">Operational analytics and audit insights for platform administrators.</p>
+<div class="page-stack">
+    {% if messages %}
+    <div class="card" aria-live="polite">
+        <ul class="message-list">
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
     </div>
-    {% if can_send_manual_report %}
-    <form method="post" action="{% url 'admin_dashboard_send_report' %}" class="page-header__action">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-primary">Send analytics report now</button>
-    </form>
     {% endif %}
-</section>
 
-<section class="analytics-panel" aria-label="Application analytics overview">
-    <div
-        id="admin-dashboard-root"
-        class="admin-dashboard-app"
-        data-endpoint="{{ stats_endpoint }}"
-        data-initial='{{ stats_json|escapejs }}'
-    ></div>
-    <noscript>
-        <div class="data-card">
-            <h2>Analytics overview</h2>
-            <p class="text-muted">JavaScript is disabled, showing aggregated metrics without charts.</p>
-            <dl class="metric-list">
-                <div>
-                    <dt>Total applications</dt>
-                    <dd>{{ stats.total_applications }}</dd>
-                </div>
-                <div>
-                    <dt>Approved</dt>
-                    <dd>{{ stats.status_breakdown.approved }}</dd>
-                </div>
-                <div>
-                    <dt>Pending</dt>
-                    <dd>{{ stats.status_breakdown.pending }}</dd>
-                </div>
-                <div>
-                    <dt>Rejected</dt>
-                    <dd>{{ stats.status_breakdown.rejected }}</dd>
-                </div>
-                <div>
-                    <dt>Revoked certificates</dt>
-                    <dd>{{ stats.status_breakdown.revoked }}</dd>
-                </div>
-            </dl>
+    <section class="page-header">
+        <div>
+            <p class="text-muted">Administration</p>
+            <h1>Control centre</h1>
+            <p class="text-muted">Monitor applications, certificates, and recent activity at a glance.</p>
         </div>
-    </noscript>
-</section>
-
-{% if can_manage_users %}
-<section class="panel" aria-label="User management">
-    <header class="panel__header">
-        <h2>Create users</h2>
-        <p class="text-muted">Provision new team members and assign their platform roles.</p>
-    </header>
-    <form method="post" action="{% url 'admin_dashboard' %}" class="user-management-form">
-        {% csrf_token %}
-        <input type="hidden" name="form" value="create_user">
-        {% if user_creation_form.non_field_errors %}
-        <div class="alert alert-danger" role="alert">
-            {% for error in user_creation_form.non_field_errors %}
-            <div>{{ error }}</div>
-            {% endfor %}
-        </div>
+        {% if can_send_manual_report %}
+        <form method="post" action="{% url 'admin_dashboard_send_report' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">Send analytics report</button>
+        </form>
         {% endif %}
-        <div class="form-grid">
-            {% for field in user_creation_form %}
-            <div class="form-field{% if field.errors %} has-error{% endif %}">
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.help_text %}
-                <p class="text-muted">{{ field.help_text }}</p>
-                {% endif %}
-                {% if field.errors %}
-                <ul class="errorlist" aria-live="polite">
-                    {% for error in field.errors %}
-                    <li>{{ error }}</li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Create user</button>
-        </div>
-    </form>
-</section>
-{% endif %}
+    </section>
 
-<section class="panel">
-    <header class="panel__header">
-        <h2>Audit log</h2>
-        <p class="text-muted">Filter and review privileged activity across the platform.</p>
-    </header>
-    <form method="get" class="filter-form" aria-label="Audit log filters">
-        <div class="filter-grid">
+    <section class="card-grid" aria-label="Key metrics">
+        <div class="metric-card">
+            <h3>Total consultants</h3>
+            <div class="metric-value">{{ stats.total_applications|default:"0" }}</div>
+            <p class="text-muted">Submitted applications (excludes drafts).</p>
+        </div>
+        <div class="metric-card">
+            <h3>Pending approvals</h3>
+            <div class="metric-value">{{ stats.status_breakdown.pending|default:"0" }}</div>
+            <p class="text-muted">Awaiting review or additional information.</p>
+        </div>
+        <div class="metric-card">
+            <h3>Approved</h3>
+            <div class="metric-value">{{ stats.status_breakdown.approved|default:"0" }}</div>
+            <p class="text-muted">Fully approved consultant applications.</p>
+        </div>
+        <div class="metric-card">
+            <h3>Expiring / Revoked certificates</h3>
+            <div class="metric-value">{{ stats.status_breakdown.revoked|default:"0" }}</div>
+            <p class="text-muted">Certificates needing attention.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <header class="panel__header">
+            <div>
+                <h2>Status overview</h2>
+                <p class="text-muted">Filter by state to quickly focus on priority work.</p>
+            </div>
+            <div class="table-filter">
+                <label for="status-filter" class="form-label">Status</label>
+                <select id="status-filter" data-status-filter>
+                    <option value="all">All</option>
+                    <option value="approved">Approved</option>
+                    <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="revoked">Revoked</option>
+                </select>
+            </div>
+        </header>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" data-dashboard-table>
+                <thead>
+                    <tr>
+                        <th scope="col">Category</th>
+                        <th scope="col">Count</th>
+                        <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr data-status="approved">
+                        <td>Approved applications</td>
+                        <td>{{ stats.status_breakdown.approved|default:"0" }}</td>
+                        <td><span class="status-pill is-approved">Approved</span></td>
+                    </tr>
+                    <tr data-status="pending">
+                        <td>Pending reviews</td>
+                        <td>{{ stats.status_breakdown.pending|default:"0" }}</td>
+                        <td><span class="status-pill is-pending">Pending</span></td>
+                    </tr>
+                    <tr data-status="rejected">
+                        <td>Rejected applications</td>
+                        <td>{{ stats.status_breakdown.rejected|default:"0" }}</td>
+                        <td><span class="status-pill is-rejected">Rejected</span></td>
+                    </tr>
+                    <tr data-status="revoked">
+                        <td>Revoked certificates</td>
+                        <td>{{ stats.status_breakdown.revoked|default:"0" }}</td>
+                        <td><span class="status-pill is-revoked">Revoked</span></td>
+                    </tr>
+                    {% if stats.certificate_statuses %}
+                        {% for certificate in stats.certificate_statuses %}
+                        <tr data-status="{{ certificate.status|default:'unknown'|lower }}">
+                            <td>Certificates: {{ certificate.label }}</td>
+                            <td>{{ certificate.count }}</td>
+                            <td><span class="badge">{{ certificate.label }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% if can_manage_users %}
+    <section class="panel" aria-label="User management">
+        <header class="panel__header">
+            <div>
+                <h2>Create users</h2>
+                <p class="text-muted">Provision new team members and assign their platform roles.</p>
+            </div>
+        </header>
+        <form method="post" action="{% url 'admin_dashboard' %}">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="create_user">
+            {% if user_creation_form.non_field_errors %}
+            <div class="form-error" role="alert">
+                {% for error in user_creation_form.non_field_errors %}
+                <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="form-grid">
+                {% for field in user_creation_form %}
+                <div class="form-group">
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<p class="text-muted">{{ field.help_text }}</p>{% endif %}
+                    {% if field.errors %}
+                    <div class="form-error">
+                        {% for error in field.errors %}
+                        <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Create user</button>
+            </div>
+        </form>
+    </section>
+    {% endif %}
+
+    <section class="panel">
+        <header class="panel__header">
+            <div>
+                <h2>Audit log</h2>
+                <p class="text-muted">Filter and review privileged activity across the platform.</p>
+            </div>
+        </header>
+        <form method="get" class="table-filter" aria-label="Audit log filters">
             <label>
-                <span>Action</span>
+                <span class="form-label">Action</span>
                 <select name="action_type">
                     <option value="">All actions</option>
                     {% for value, label in action_choices %}
@@ -120,7 +172,7 @@
                 </select>
             </label>
             <label>
-                <span>User</span>
+                <span class="form-label">User</span>
                 <select name="user">
                     <option value="">All users</option>
                     {% for candidate in users %}
@@ -131,86 +183,83 @@
                 </select>
             </label>
             <label>
-                <span>From</span>
-                <input type="date" name="start" value="{{ filters.start }}">
+                <span class="form-label">From</span>
+                <input type="date" name="start" value="{{ filters.start }}" class="form-control">
             </label>
             <label>
-                <span>To</span>
-                <input type="date" name="end" value="{{ filters.end }}">
+                <span class="form-label">To</span>
+                <input type="date" name="end" value="{{ filters.end }}" class="form-control">
             </label>
-        </div>
-        <div class="filter-actions">
-            <button type="submit" class="btn btn-primary">Apply filters</button>
-            <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">Reset</a>
-        </div>
-    </form>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Apply filters</button>
+                <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">Reset</a>
+            </div>
+        </form>
 
-    <div class="table-responsive">
-        <table class="table audit-table">
-            <thead>
-                <tr>
-                    <th scope="col">Timestamp</th>
-                    <th scope="col">User</th>
-                    <th scope="col">Role</th>
-                    <th scope="col">Action</th>
-                    <th scope="col">Endpoint</th>
-                    <th scope="col">Client IP</th>
-                    <th scope="col">Target</th>
-                    <th scope="col">Context</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if logs %}
-                {% for log in logs %}
-                <tr>
-                    <td>{{ log.timestamp }}</td>
-                    <td>
-                        {% if log.user %}
-                        {{ log.user.get_full_name|default:log.user.username }}
-                        {% else %}
-                        <span class="text-muted">Anonymous</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ log.resolved_role|default:"—" }}</td>
-                    <td>{{ log.get_action_code_display }}</td>
-                    <td>{{ log.endpoint|default:"—" }}</td>
-                    <td>{{ log.client_ip|default:"—" }}</td>
-                    <td>{{ log.target|default:"—" }}</td>
-                    <td>
-                        {% if log.context_pretty %}
-                        <pre class="metadata">{{ log.context_pretty }}</pre>
-                        {% else %}
-                        <span class="text-muted">No metadata</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                {% else %}
-                <tr>
-                    <td colspan="8" class="text-muted">No audit log entries match the selected filters.</td>
-                </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover audit-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Timestamp</th>
+                        <th scope="col">User</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Action</th>
+                        <th scope="col">Endpoint</th>
+                        <th scope="col">Client IP</th>
+                        <th scope="col">Target</th>
+                        <th scope="col">Context</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if logs %}
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.timestamp }}</td>
+                        <td>
+                            {% if log.user %}
+                            {{ log.user.get_full_name|default:log.user.username }}
+                            {% else %}
+                            <span class="text-muted">Anonymous</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.resolved_role|default:"—" }}</td>
+                        <td>{{ log.get_action_code_display }}</td>
+                        <td>{{ log.endpoint|default:"—" }}</td>
+                        <td>{{ log.client_ip|default:"—" }}</td>
+                        <td>{{ log.target|default:"—" }}</td>
+                        <td>
+                            {% if log.context_pretty %}
+                            <pre class="metadata">{{ log.context_pretty }}</pre>
+                            {% else %}
+                            <span class="text-muted">No metadata</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-muted">No audit log entries match the selected filters.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
 
-    {% if page_obj.has_other_pages %}
-    <nav class="pagination">
-        {% if page_obj.has_previous %}
-        <a class="pagination__link" href="?{% if filters.action_type %}action_type={{ filters.action_type }}&amp;{% endif %}{% if filters.user %}user={{ filters.user }}&amp;{% endif %}{% if filters.start %}start={{ filters.start }}&amp;{% endif %}{% if filters.end %}end={{ filters.end }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+        {% if page_obj.has_other_pages %}
+        <nav class="pagination">
+            {% if page_obj.has_previous %}
+            <a class="pagination__link" href="?{% if filters.action_type %}action_type={{ filters.action_type }}&amp;{% endif %}{% if filters.user %}user={{ filters.user }}&amp;{% endif %}{% if filters.start %}start={{ filters.start }}&amp;{% endif %}{% if filters.end %}end={{ filters.end }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+            <span class="pagination__status">Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a class="pagination__link" href="?{% if filters.action_type %}action_type={{ filters.action_type }}&amp;{% endif %}{% if filters.user %}user={{ filters.user }}&amp;{% endif %}{% if filters.start %}start={{ filters.start }}&amp;{% endif %}{% if filters.end %}end={{ filters.end }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+            {% endif %}
+        </nav>
         {% endif %}
-        <span class="pagination__status">Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
-        {% if page_obj.has_next %}
-        <a class="pagination__link" href="?{% if filters.action_type %}action_type={{ filters.action_type }}&amp;{% endif %}{% if filters.user %}user={{ filters.user }}&amp;{% endif %}{% if filters.start %}start={{ filters.start }}&amp;{% endif %}{% if filters.end %}end={{ filters.end }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Next</a>
-        {% endif %}
-    </nav>
-    {% endif %}
-</section>
+    </section>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/recharts/umd/Recharts.min.js" crossorigin="anonymous"></script>
-<script src="{% static 'js/admin-dashboard.js' %}"></script>
+<script src="{% static 'js/admin-dashboard.js' %}" defer></script>
 {% endblock %}
