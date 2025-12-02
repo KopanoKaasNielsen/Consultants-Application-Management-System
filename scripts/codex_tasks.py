@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Dict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TASK_FILE = REPO_ROOT / "codex_tasks.yml"
+PRIMARY_TASK_FILE = REPO_ROOT / "codex_tasks.yml"
+LEGACY_TASK_FILE = REPO_ROOT / "codex_task.yml"
 LOG_DIR = REPO_ROOT / "codex_results" / "tasks"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -41,10 +42,27 @@ def log(message: str) -> None:
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
 
+def task_file() -> Path:
+    """Return the primary task file, falling back to the legacy name if needed."""
+
+    if PRIMARY_TASK_FILE.exists():
+        return PRIMARY_TASK_FILE
+
+    if LEGACY_TASK_FILE.exists():
+        log(
+            "ℹ️ Found legacy codex_task.yml; using it for compatibility. "
+            "Rename to codex_tasks.yml when convenient."
+        )
+        return LEGACY_TASK_FILE
+
+    return PRIMARY_TASK_FILE
+
+
 def create_task(args: Dict[str, str]) -> None:
     """Create a new Codex task entry and append it to ``codex_tasks.yml``."""
-    if not TASK_FILE.exists():
-        TASK_FILE.write_text("tasks:\n", encoding="utf-8")
+    task_path = task_file()
+    if not task_path.exists():
+        task_path.write_text("tasks:\n", encoding="utf-8")
 
     name = args.get("--name")
     desc = args.get("--description", "")
@@ -58,7 +76,7 @@ def create_task(args: Dict[str, str]) -> None:
         log("❗Missing required parameter: --name")
         sys.exit(1)
 
-    with TASK_FILE.open("a", encoding="utf-8") as handle:
+    with task_path.open("a", encoding="utf-8") as handle:
         handle.write(
             f"""
   {name}:
@@ -73,18 +91,22 @@ def create_task(args: Dict[str, str]) -> None:
 """
         )
 
-    log(f"✅ Task '{name}' created and saved to {TASK_FILE}.")
+    log(f"✅ Task '{name}' created and saved to {task_path}.")
 
 
 def load_tasks() -> Dict[str, Dict[str, str]]:
     """Return the task mapping from ``codex_tasks.yml``."""
     import yaml
 
-    if not TASK_FILE.exists():
-        log(f"❗ Task file not found: {TASK_FILE}")
+    path = task_file()
+
+    if not path.exists():
+        log(
+            "❗ Task file not found. Expected codex_tasks.yml (or legacy codex_task.yml) in the repo root."
+        )
         sys.exit(1)
 
-    with TASK_FILE.open("r", encoding="utf-8") as handle:
+    with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle) or {}
 
     return data.get("tasks", {})

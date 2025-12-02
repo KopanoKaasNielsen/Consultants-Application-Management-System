@@ -98,8 +98,9 @@ quickly on a vanilla Python environment.
 ## 5. Codex task catalogue (`codex_tasks.py`)
 
 The repository also includes a lightweight task runner that stores Codex
-instructions in `codex_ci_tasks.yml`. Tasks capture a reusable prompt or
-workflow you can run locally with one command.
+instructions in `codex_tasks.yml` (with backward compatibility for the legacy
+`codex_task.yml` name). Tasks capture a reusable prompt or workflow you can run
+locally with one command.
 
 ### 5.1 Listing and running tasks
 
@@ -120,7 +121,7 @@ under `codex_results/tasks/`. This makes it easy to diff outputs across staging
 runs or attach logs to support tickets.
 
 If you reference an unknown task, the helper prints the list of available names
-from `codex_ci_tasks.yml` so you can pick the right entry.
+from `codex_tasks.yml` so you can pick the right entry.
 
 ### 5.2 Creating new tasks
 
@@ -139,7 +140,7 @@ python codex_tasks.py create \
 ```
 
 The helper validates the required `--name` argument, scaffolds the
-`codex_ci_tasks.yml` file when missing, and appends the formatted task block. The
+`codex_tasks.yml` file when missing, and appends the formatted task block. The
 resulting command is ready to run locally or in staging:
 
 ```yaml
@@ -158,9 +159,9 @@ resulting command is ready to run locally or in staging:
 
 - **Log directory:** `codex_results/tasks/`. Each file is named using the task
   and timestamp (for example, `security_audit_2024-05-01_12-30-00.log`).
-- **Missing YAML file:** If `codex_ci_tasks.yml` does not exist, the helper
-  creates a minimal shell when you run `create`. Running or listing tasks before
-  the file exists exits with a helpful error message.
+- **Missing YAML file:** If `codex_tasks.yml` (or `codex_task.yml`) does not exist,
+  the helper creates a minimal shell when you run `create`. Running or listing
+  tasks before the file exists exits with a helpful error message.
 - **External commands:** Because tasks often wrap other CLIs, ensure any required
   tools are available on your `PATH` before running them locally or on staging.
 
