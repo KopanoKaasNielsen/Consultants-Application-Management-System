@@ -1,5 +1,30 @@
 # Consultants Application Management System
 
+## Local setup
+
+The Django tools will raise `ModuleNotFoundError: No module named 'django'` if
+dependencies have not been installed. Use a virtual environment and install the
+project requirements before running `manage.py` commands:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+# Optional: run the convenience bootstrapper to apply migrations and install
+# frontend packages in one step.
+python bootstrap_env.py
+```
+
+Once dependencies are installed you can run migrations and start the server
+normally:
+
+```bash
+python manage.py migrate
+python manage.py runserver
+```
+
 ## Asynchronous confirmation emails
 
 The consultant onboarding flow now ships with a lightweight Celery worker so the
