@@ -13,6 +13,10 @@
         data-last-saved="{% if last_saved_at %}{{ last_saved_at|date:'c' }}{% endif %}"
         {% endif %}>
     {% csrf_token %}
+    <div class="form-error" data-validation-summary role="alert" aria-live="polite" hidden>
+      <p data-validation-summary-text>Complete the highlighted fields to submit your application.</p>
+      <ul class="message-list" data-validation-summary-list></ul>
+    </div>
     {{ form.non_field_errors }}
     <div class="wizard" data-total-steps="4">
       <header class="wizard-header">
