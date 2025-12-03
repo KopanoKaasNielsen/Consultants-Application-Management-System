@@ -321,6 +321,52 @@
         }
       }
 
+      var pollingHandle = null;
+
+      function fetchNotificationSnapshot() {
+        return fetch("{% url 'staff_notification_feed' %}", {
+          headers: { Accept: "application/json" },
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error("Non-OK response");
+            }
+            return response.json();
+          })
+          .then(function (data) {
+            if (typeof data.unseen_count === "number") {
+              updateUnseenIndicator(data.unseen_count);
+            }
+
+            if (data.status_counts) {
+              updateStatusCounts(data.status_counts);
+            }
+
+            if (data.recent_applications) {
+              updateRecentApplications(data.recent_applications);
+            }
+          })
+          .catch(function () {
+            /* silent fallback */
+          });
+      }
+
+      function startNotificationPolling() {
+        if (pollingHandle !== null) {
+          return;
+        }
+
+        fetchNotificationSnapshot();
+        pollingHandle = window.setInterval(fetchNotificationSnapshot, 10000);
+      }
+
+      function stopNotificationPolling() {
+        if (pollingHandle !== null) {
+          window.clearInterval(pollingHandle);
+          pollingHandle = null;
+        }
+      }
+
       function showToast(message, detailUrl) {
         var container = document.getElementById("staff-toast-container");
         if (!container) {
@@ -408,6 +454,7 @@
 
       function connectWebSocket() {
         if (!("WebSocket" in window)) {
+          startNotificationPolling();
           return;
         }
 
@@ -417,6 +464,10 @@
 
         function establish() {
           socket = new WebSocket(endpoint);
+
+          socket.addEventListener("open", function () {
+            stopNotificationPolling();
+          });
 
           socket.addEventListener("message", function (event) {
             try {
@@ -428,7 +479,12 @@
           });
 
           socket.addEventListener("close", function () {
+            startNotificationPolling();
             window.setTimeout(establish, 5000);
+          });
+
+          socket.addEventListener("error", function () {
+            startNotificationPolling();
           });
         }
 

@@ -28,6 +28,11 @@ urlpatterns = [
         name='admin_dashboard_send_report',
     ),
     path('staff-dashboard/', staff_dashboard, name='staff_dashboard'),
+    path(
+        'staff-dashboard/notifications-feed/',
+        views.staff_notification_feed,
+        name='staff_notification_feed',
+    ),
     path('staff-dashboard/export/', staff_dashboard_export_csv, name='staff_dashboard_export'),
     path('staff/analytics/', staff_analytics, name='staff_analytics'),
     path('staff/analytics/data/', staff_analytics_data, name='staff_analytics_data'),
