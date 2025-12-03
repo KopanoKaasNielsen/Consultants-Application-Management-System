@@ -13,7 +13,7 @@ from apps.users.permissions import role_required
 RENEWAL_REQUEST_WINDOW_DAYS = 90
 
 
-@role_required(Roles.CONSULTANT)
+@role_required(Roles.CONSULTANT, Roles.STAFF)
 def certificates_dashboard(request):
     consultant = Consultant.objects.filter(user=request.user).first()
 

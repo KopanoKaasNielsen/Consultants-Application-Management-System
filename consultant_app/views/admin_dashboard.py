@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from ast import literal_eval
 from dataclasses import dataclass
 from typing import Dict
 
@@ -81,10 +82,21 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
     def _serialise_log_context(self, page_obj) -> None:
         for entry in page_obj.object_list:
+            context = entry.context
+
             try:
-                entry.context_pretty = json.dumps(entry.context, indent=2, sort_keys=True)
-            except TypeError:
-                entry.context_pretty = str(entry.context)
+                if isinstance(context, str):
+                    try:
+                        context = json.loads(context)
+                    except ValueError:
+                        # Handle legacy stringified Python dicts
+                        context = literal_eval(context)
+
+                entry.context_pretty = json.dumps(
+                    context, indent=2, sort_keys=True, default=str
+                )
+            except (TypeError, ValueError, SyntaxError):
+                entry.context_pretty = str(context)
 
     def get_filter_payload(self, filters: AuditLogFilters) -> Dict[str, str]:
         return {
