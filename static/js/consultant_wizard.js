@@ -10,6 +10,9 @@
   const prevButton = form.querySelector('.wizard-prev');
   const nextButton = form.querySelector('.wizard-next');
   const finalActions = form.querySelector('[data-final-actions]');
+  const summaryElement = form.querySelector('[data-validation-summary]');
+  const summaryList = form.querySelector('[data-validation-summary-list]');
+  const summaryText = form.querySelector('[data-validation-summary-text]');
   const totalSteps = steps.length;
 
   if (!totalSteps || !prevButton || !nextButton) {
@@ -20,6 +23,15 @@
   if (currentStepIndex < 0) {
     currentStepIndex = 0;
   }
+
+  const clearValidationSummary = () => {
+    if (summaryElement) {
+      summaryElement.hidden = true;
+    }
+    if (summaryList) {
+      summaryList.innerHTML = '';
+    }
+  };
 
   const focusStep = (step) => {
     if (!step) {
@@ -166,11 +178,176 @@
     goToStep(currentStepIndex + 1);
   });
 
-  form.addEventListener('submit', () => {
-    if (finalActions && finalActions.hidden) {
-      finalActions.hidden = false;
+  form.addEventListener('input', (event) => {
+    if (!(event.target instanceof HTMLElement)) {
+      return;
+    }
+
+    const field = event.target.closest('input, select, textarea');
+    if (!field) {
+      return;
+    }
+
+    field.removeAttribute('aria-invalid');
+    const container = field.closest('.form-field');
+    if (container) {
+      container.classList.remove('has-error');
     }
   });
 
+  const collectServerErrors = () => {
+    const errors = [];
+
+    steps.forEach((step, stepIndex) => {
+      const errorItems = Array.from(step.querySelectorAll('.errorlist li'));
+
+      errorItems.forEach((item) => {
+        const fieldContainer = item.closest('.form-field');
+        const field = fieldContainer
+          ? fieldContainer.querySelector('input, select, textarea')
+          : null;
+        const label = fieldContainer ? fieldContainer.querySelector('label') : null;
+
+        if (field) {
+          field.setAttribute('aria-invalid', 'true');
+        }
+        if (fieldContainer) {
+          fieldContainer.classList.add('has-error');
+        }
+
+        errors.push({
+          label: label ? label.textContent.trim() : field?.name || 'This field',
+          message: item.textContent.trim(),
+          stepIndex,
+          field,
+        });
+      });
+    });
+
+    return errors;
+  };
+
+  const describeField = (field) => {
+    if (!field) {
+      return 'This field';
+    }
+
+    if (field.labels && field.labels.length) {
+      return field.labels[0].textContent.trim();
+    }
+
+    const label = form.querySelector(`label[for="${field.id}"]`);
+    if (label) {
+      return label.textContent.trim();
+    }
+
+    return field.name || 'This field';
+  };
+
+  const renderValidationSummary = (items, introText) => {
+    if (!summaryElement || !summaryList) {
+      return;
+    }
+
+    if (introText && summaryText) {
+      summaryText.textContent = introText;
+    }
+
+    summaryList.innerHTML = '';
+    items.forEach((item) => {
+      const li = document.createElement('li');
+      li.textContent = `${item.label}: ${item.message}`;
+      summaryList.appendChild(li);
+    });
+
+    summaryElement.hidden = items.length === 0;
+    if (!summaryElement.hidden) {
+      summaryElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const collectInvalidFields = () => {
+    const fields = Array.from(form.querySelectorAll('input, select, textarea')).filter(
+      (field) => !field.disabled,
+    );
+
+    const invalid = [];
+
+    fields.forEach((field) => {
+      field.removeAttribute('aria-invalid');
+      const container = field.closest('.form-field');
+      if (container) {
+        container.classList.remove('has-error');
+      }
+
+      if (!field.checkValidity()) {
+        const stepIndex = steps.findIndex((step) => step.contains(field));
+        invalid.push({
+          field,
+          stepIndex,
+          label: describeField(field),
+          message: field.validationMessage || 'Please fill out this field.',
+        });
+        field.setAttribute('aria-invalid', 'true');
+        if (container) {
+          container.classList.add('has-error');
+        }
+      }
+    });
+
+    return invalid;
+  };
+
+  form.addEventListener('submit', (event) => {
+    if (finalActions && finalActions.hidden) {
+      finalActions.hidden = false;
+    }
+
+    const submitter = event.submitter;
+    const isFinalSubmission = submitter && submitter.value === 'submit';
+
+    if (!isFinalSubmission) {
+      clearValidationSummary();
+      return;
+    }
+
+    const invalidFields = collectInvalidFields();
+
+    if (invalidFields.length) {
+      event.preventDefault();
+      const firstInvalid = invalidFields[0];
+
+      if (typeof firstInvalid.stepIndex === 'number' && firstInvalid.stepIndex !== currentStepIndex) {
+        currentStepIndex = firstInvalid.stepIndex;
+        updateStepsVisibility(false, true);
+      }
+
+      renderValidationSummary(
+        invalidFields.map((item) => ({
+          label: item.label,
+          message: item.message,
+        })),
+        'Complete the highlighted fields before submitting your application.',
+      );
+
+      if (firstInvalid.field) {
+        firstInvalid.field.reportValidity();
+        firstInvalid.field.focus();
+      }
+    } else {
+      clearValidationSummary();
+    }
+  });
+
+  const serverErrors = collectServerErrors();
+  const firstErrorStepIndex = serverErrors.find((item) => typeof item.stepIndex === 'number');
+  if (firstErrorStepIndex && typeof firstErrorStepIndex.stepIndex === 'number') {
+    currentStepIndex = firstErrorStepIndex.stepIndex;
+  }
+
   updateStepsVisibility(false, false);
+
+  if (serverErrors.length) {
+    renderValidationSummary(serverErrors, 'Complete the highlighted fields to submit your application.');
+  }
 })();

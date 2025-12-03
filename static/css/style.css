@@ -291,6 +291,21 @@ textarea {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.form-field.has-error .form-control,
+.form-field.has-error input,
+.form-field.has-error select,
+.form-field.has-error textarea {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 1px #fecaca;
+}
+
+.form-field .errorlist {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.35rem 0 0;
+  color: #b91c1c;
+}
+
 .form-control:focus,
 input[type='text']:focus,
 input[type='email']:focus,

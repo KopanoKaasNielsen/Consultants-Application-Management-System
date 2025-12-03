@@ -13,6 +13,10 @@
         data-last-saved="{% if last_saved_at %}{{ last_saved_at|date:'c' }}{% endif %}"
         {% endif %}>
     {% csrf_token %}
+    <div class="form-error" data-validation-summary role="alert" aria-live="polite" hidden>
+      <p data-validation-summary-text>Complete the highlighted fields to submit your application.</p>
+      <ul class="message-list" data-validation-summary-list></ul>
+    </div>
     {{ form.non_field_errors }}
     <div class="wizard" data-total-steps="4">
       <header class="wizard-header">
@@ -99,6 +103,10 @@
 
         <section class="section wizard-step" data-step="4" aria-labelledby="wizard-step-4-title" hidden>
           <h2 id="wizard-step-4-title" class="wizard-step-title" tabindex="-1" data-step-focus>Required Documents</h2>
+          <p class="form-hint">
+            Upload clear PDF, JPG, or PNG files under 2MB for each document. All documents are required when submitting;
+            save a draft if you need to return later to finish uploads.
+          </p>
           <div class="form-field">
             {{ form.photo.label_tag }}
             {{ form.photo }}
