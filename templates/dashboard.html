@@ -75,18 +75,6 @@
       <a class="btn-secondary" href="{% url 'submit_application' %}">Edit your application</a>
     </div>
     {% endif %}
-    {% include "documents/section.html" with
-      section_class="data-card"
-      content_class=""
-      title="Supporting documents"
-      documents=supporting_documents
-      upload_form=document_upload_form
-      upload_url=document_upload_url
-      next_url=document_next_url
-      can_upload=can_manage_documents
-      can_delete=can_manage_documents
-      empty_message="No supporting documents uploaded yet."
-    %}
     {% else %}
     <p class="card-subtitle">No application submitted yet.</p>
     <div class="form-actions">
