@@ -86,6 +86,16 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
             try:
                 if isinstance(context, str):
+                    try:
+                        context = json.loads(context)
+                    except ValueError:
+                        # Handle legacy stringified Python dicts
+                        context = literal_eval(context)
+
+                entry.context_pretty = json.dumps(
+                    context, indent=2, sort_keys=True, default=str
+                )
+            except (TypeError, ValueError, SyntaxError):
                     context = json.loads(context)
 
                 entry.context_pretty = json.dumps(context, indent=2, sort_keys=True)

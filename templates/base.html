@@ -23,6 +23,7 @@
                 {% endif %}
                 {% if has_staff_role %}
                     <a class="nav-link" href="{% url 'staff_dashboard' %}">Staff dashboard</a>
+                    <a class="nav-link" href="{% url 'certificates:certificates_dashboard' %}">Certificates</a>
                 {% endif %}
                 {% if has_board_role or has_staff_role %}
                     <a class="nav-link" href="{% url 'board_dashboard' %}">Board dashboard</a>
