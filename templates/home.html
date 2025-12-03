@@ -12,7 +12,10 @@
       {% if user.is_authenticated %}
         <a class="btn btn-primary" href="{% url 'dashboard' %}">Go to Dashboard</a>
         {% if user.groups.all %}
-        <a class="btn btn-secondary" href="{% url 'logout' %}">Logout</a>
+        <form method="post" action="{% url 'logout' %}" class="logout-form">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary">Logout</button>
+        </form>
         {% endif %}
       {% else %}
         <a class="btn btn-primary" href="{% url 'login' %}">Login</a>
