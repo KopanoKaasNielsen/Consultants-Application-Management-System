@@ -81,10 +81,15 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
     def _serialise_log_context(self, page_obj) -> None:
         for entry in page_obj.object_list:
+            context = entry.context
+
             try:
-                entry.context_pretty = json.dumps(entry.context, indent=2, sort_keys=True)
-            except TypeError:
-                entry.context_pretty = str(entry.context)
+                if isinstance(context, str):
+                    context = json.loads(context)
+
+                entry.context_pretty = json.dumps(context, indent=2, sort_keys=True)
+            except (TypeError, ValueError):
+                entry.context_pretty = str(context)
 
     def get_filter_payload(self, filters: AuditLogFilters) -> Dict[str, str]:
         return {
