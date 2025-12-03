@@ -85,18 +85,69 @@
     </div>
   </section>
 
-  {% include "documents/section.html" with
-    section_class="card mb-4"
-    content_class="card-body"
-    title="Supporting documents"
-    documents=supporting_documents
-    upload_form=document_upload_form
-    upload_url=document_upload_url
-    next_url=document_next_url
-    can_upload=can_manage_documents
-    can_delete=can_manage_documents
-    empty_message="No supporting documents uploaded yet."
-  %}
+  <section class="card mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Supporting documents</h2>
+        {% if can_manage_documents %}
+          <span class="text-muted small">Allowed: PDF, DOCX, JPG, PNG</span>
+        {% endif %}
+      </div>
+
+      {% if can_manage_documents and document_upload_form and document_upload_url %}
+        <form method="post" action="{{ document_upload_url }}" enctype="multipart/form-data" class="document-upload-form mb-3">
+          {% csrf_token %}
+          {% if document_next_url %}
+            <input type="hidden" name="next" value="{{ document_next_url }}">
+          {% endif %}
+          <div class="input-group">
+            {{ document_upload_form.file }}
+            <button type="submit" class="btn btn-primary">Upload</button>
+          </div>
+        </form>
+      {% endif %}
+
+      {% if supporting_documents %}
+        <ul class="document-list list-unstyled mb-0">
+          {% for document in supporting_documents %}
+            <li class="document-list__item py-2 border-top">
+              <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2">
+                <div>
+                  <span class="fw-semibold">{{ document.name }}</span>
+                  <div class="text-muted small">
+                    {{ document.type }} · {{ document.size }}
+                    {% if document.uploaded_at %}
+                      · Uploaded {{ document.uploaded_at|date:"M d, Y H:i" }}
+                    {% endif %}
+                    {% if document.uploaded_by %}
+                      · {{ document.uploaded_by }}
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% if document.preview_url %}
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ document.preview_url }}" target="_blank" rel="noopener">Preview</a>
+                  {% endif %}
+                  <a class="btn btn-outline-secondary btn-sm" href="{{ document.download_url }}">Download</a>
+                  {% if can_manage_documents %}
+                    <form method="post" action="{{ document.delete_url }}" class="d-inline">
+                      {% csrf_token %}
+                      {% if document_next_url %}
+                        <input type="hidden" name="next" value="{{ document_next_url }}">
+                      {% endif %}
+                      <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-muted mb-0">No supporting documents uploaded yet.</p>
+      {% endif %}
+    </div>
+  </section>
 
   {% if decision_documents %}
     <section class="card mb-4">
