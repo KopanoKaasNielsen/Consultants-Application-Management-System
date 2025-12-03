@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from ast import literal_eval
 from dataclasses import dataclass
 from typing import Dict
 
