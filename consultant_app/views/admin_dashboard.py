@@ -86,16 +86,10 @@ class AdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
             try:
                 if isinstance(context, str):
-                    try:
-                        context = json.loads(context)
-                    except ValueError:
-                        # Handle legacy stringified Python dicts
-                        context = literal_eval(context)
+                    context = json.loads(context)
 
-                entry.context_pretty = json.dumps(
-                    context, indent=2, sort_keys=True, default=str
-                )
-            except (TypeError, ValueError, SyntaxError):
+                entry.context_pretty = json.dumps(context, indent=2, sort_keys=True)
+            except (TypeError, ValueError):
                 entry.context_pretty = str(context)
 
     def get_filter_payload(self, filters: AuditLogFilters) -> Dict[str, str]:
