@@ -35,6 +35,7 @@ from weasyprint import HTML
 from apps.consultants.emails import send_status_update_email
 from apps.consultants.forms import DocumentUploadForm
 from apps.consultants.models import Consultant, Notification
+from apps.consultants.services.dashboard import build_recent_applications, build_status_counts
 from apps.users.constants import CONSULTANTS_GROUP_NAME, UserRole as Roles
 from apps.users.forms import BoardSignatureForm
 from apps.users.models import BoardMemberProfile
@@ -801,6 +802,19 @@ def staff_dashboard(request):
         return render(request, "staff_dashboard/_consultant_results.html", context)
 
     return render(request, "staff_dashboard.html", context)
+
+
+@role_required(Roles.STAFF)
+def staff_notification_feed(request):
+    """Provide a JSON snapshot for staff alerts when websockets are unavailable."""
+
+    data = {
+        "unseen_count": Consultant.objects.filter(is_seen_by_staff=False).count(),
+        "status_counts": build_status_counts(),
+        "recent_applications": build_recent_applications(),
+    }
+
+    return JsonResponse(data)
 
 
 @role_required(Roles.STAFF)

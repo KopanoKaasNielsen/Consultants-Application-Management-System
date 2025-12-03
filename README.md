@@ -18,7 +18,9 @@ python bootstrap_env.py
 ```
 
 Once dependencies are installed you can run migrations and start the server
-normally:
+normally. For local testing keep the default Django Channels ASGI server by
+using `python manage.py runserver`; it boots the ASGI entrypoint so WebSocket
+endpoints like `/ws/staff/notifications/` respond correctly.
 
 ```bash
 python manage.py migrate
