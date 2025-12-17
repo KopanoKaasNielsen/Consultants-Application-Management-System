@@ -84,3 +84,127 @@ tasks:
     command: |
       codex custom codex_ci/fix_render_runtime_ci.yml --execute
      
+  verify-django-prod-settings:
+  
+    description: "Ensure Django production settings are correctly configured."
+    command: |
+      codex custom "Audit settings.py for production best practices: DEBUG=False, secure cookies, allowed hosts, proper logging, static/media handling, security middleware."
+  codex-ci-full:
+    description: "Run full Codex CI including Render fixes and Django prod settings verification."
+    command: |
+      codex task fix-render-runtime-ci
+      codex task verify-django-prod-settings  
+      codex task full-suite 
+
+        frontend-static-refresh:
+    description: "Create Render-friendly static CSS/JS/favicon and modernize login + admin dashboard UI."
+    command: |
+      codex custom "
+      You are GPT-5 Codex working on a Django project deployed to Render.
+      Repository root: /opt/render/project/src (or repo root locally).
+      Goal:
+      - Fix repeated 404s for /static/css/style.css, /static/js/admin-dashboard.js, and /favicon.ico.
+      - Provide a clean, professional, responsive UI for:
+        * The public landing page (/)
+        * The login page (/login/)
+        * The admin dashboard (/admin-dashboard/)
+      - All assets must work with Django's staticfiles + WhiteNoise on Render (no Node/Tailwind build steps).
+
+      Constraints:
+      - Do NOT change STATIC_URL, STATIC_ROOT, or Django storage classes.
+      - Keep existing template structure and URLs wherever possible.
+      - Use {% load static %} and {% static '...' %} correctly.
+      - Use plain CSS and vanilla JS (no bundlers, no external build pipeline).
+      - Keep design lightweight so it loads fast over slow government networks.
+
+      Tasks:
+
+      1) Static asset scaffolding
+      - Create a stylesheet at: static/css/style.css
+        Include:
+        - Base reset + typography
+        - Layout helpers: .container, .card, .btn, .btn-primary, .btn-secondary, .badge, .pill, .table, .table-striped, .alert, .alert-success, .alert-danger
+        - Responsive grid / flex utilities for simple dashboards
+        - Light grey background, white cards, soft shadows, rounded corners
+        - A simple top-navbar style that can be reused across templates
+        - Make sure buttons and text inputs look good on both desktop and laptop resolutions.
+
+      - Create a dashboard script at: static/js/admin-dashboard.js
+        Include:
+        - DOMContentLoaded listener
+        - Mobile menu toggle for small screens (hamburger -> show/hide sidebar or top-nav)
+        - Simple filter toggle logic for tables (e.g., show/hide rows by status via data-status attribute)
+        - A safe placeholder hook for future charts (e.g., window.CAMS.initDashboardCharts = function() { ... }).
+
+      - Create a favicon file at: static/favicon.ico
+        - If an actual ICO is not possible to generate, create a minimal placeholder:
+          * For example, a small PNG converted to ICO or a simple in-repo ICO asset.
+        - Ensure it is referenced via {% static 'favicon.ico' %}.
+
+      2) Template wiring
+      - Find the base layout template that other pages extend (e.g., templates/base.html or templates/consultant_app/base.html).
+        * If multiple base templates exist, prioritize the one used by the landing page (/), login page, and admin dashboard.
+      - In the <head> section:
+        * Ensure {% load static %} is present.
+        * Add: <link rel='icon' href='{% static \"favicon.ico\" %}' type='image/x-icon'>
+        * Add: <link rel='stylesheet' href='{% static \"css/style.css\" %}'>
+      - For admin dashboard pages (e.g., templates/consultant_app/admin_dashboard.html or similar):
+        * Ensure admin dashboard template extends the base template.
+        * At the bottom of the <body>, before </body>, include:
+          <script src='{% static \"js/admin-dashboard.js\" %}'></script>
+
+      - Make sure there are NO hard-coded /static/... URLs without {% static %}.
+        Replace any <link href=\"/static/css/style.css\"> and <script src=\"/static/js/admin-dashboard.js\"> with the Django static template tag.
+
+      3) Login page UX improvements
+      - Locate the login template (e.g., templates/registration/login.html or templates/users/login.html).
+      - Style it as a centered card:
+        * Full-height background with subtle gradient or flat light color.
+        * Centered form with a card container, ministry name, subheading, and inputs.
+        * Clear error message styling if form errors exist.
+      - Ensure the form uses standard CSS classes defined in static/css/style.css for:
+        * .card, .card-header, .card-body
+        * .form-group, .form-label, .form-control, .btn-primary
+      - Add subtle helper text: e.g., 'For authorized staff users only'.
+
+      4) Admin dashboard UX improvements
+      - Locate the admin dashboard template (e.g., templates/consultant_app/admin_dashboard.html).
+      - Implement:
+        * A fixed or sticky top navbar with app title and user info (e.g., username, role).
+        * A responsive layout:
+          - On desktop: sidebar (filters / navigation) + main content area with cards.
+          - On mobile: stacked layout with a hamburger menu toggling nav visibility (wired via admin-dashboard.js).
+        * Dashboard cards summarizing:
+          - Total consultants
+          - Pending applications
+          - Approved consultants
+          - Expiring certificates
+          (Use placeholder counts wired from the existing context; if not available, use safe placeholders and comments.)
+        * A table styled with .table and .table-striped classes for recent applications/certificates.
+
+      5) Landing page polish (/)
+      - Find the template used for the root URL ('/').
+      - Make sure it:
+        * Uses the base layout.
+        * Has a short project description: 'Consultants Application Management System'.
+        * Includes a clear 'Staff Login' button linking to {% url 'login' %} if available, or /login/.
+
+      6) Staticfiles sanity
+      - Ensure that all new static assets live under the configured STATICFILES_DIRS or the app static/ folders so Django collectstatic will pick them up.
+      - Do NOT modify STATIC_ROOT or STATICFILES_STORAGE in backend/settings/base.py.
+
+      7) Verification notes
+      - After edits, include at the end of your output a short checklist:
+        * Files created/updated (full paths).
+        * Commands the developer should run locally:
+          - python manage.py collectstatic --noinput
+          - python manage.py runserver
+        * What to check visually on Render:
+          - Favicon visible.
+          - Login page styled.
+          - Admin dashboard styled with working JS toggles.
+
+      When you are done, output a concise Markdown summary of:
+      - What you changed.
+      - Any follow-up actions required by the developer.
+      "
