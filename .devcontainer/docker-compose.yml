@@ -1,19 +1,20 @@
-version: "3.8"
 services:
   app:
     image: mcr.microsoft.com/devcontainers/python:3.12
     volumes:
       - ..:/workspaces:cached
     command: sleep infinity
-    network_mode: service:db
+    depends_on:
+      db:
+        condition: service_healthy
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app
+      POSTGRES_USER: cams
+      POSTGRES_PASSWORD: cams
+      POSTGRES_DB: cams
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U cams"]
       interval: 5s
       timeout: 5s
       retries: 10
