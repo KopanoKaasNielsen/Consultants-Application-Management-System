@@ -2,8 +2,9 @@
   "name": "Django + Node",
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
-  "workspaceFolder": "/workspaces",
+  "workspaceFolder": "/workspaces/Consultants-Application-Management-System",
   "containerEnv": {
+    "CAMS_AUTO_INSTALL": "1",
     "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
     "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
     "NO_PROXY": "${localEnv:NO_PROXY}",
@@ -12,7 +13,9 @@
     "no_proxy": "${localEnv:NO_PROXY}",
     "PIP_CERT": "/etc/ssl/certs/ca-certificates.crt",
     "REQUESTS_CA_BUNDLE": "/etc/ssl/certs/ca-certificates.crt",
-    "SSL_CERT_FILE": "/etc/ssl/certs/ca-certificates.crt"
+    "SSL_CERT_FILE": "/etc/ssl/certs/ca-certificates.crt",
+    "NODE_EXTRA_CA_CERTS": "/etc/ssl/certs/ca-certificates.crt",
+    "NPM_CONFIG_CAFILE": "/etc/ssl/certs/ca-certificates.crt"
   },
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "20" }

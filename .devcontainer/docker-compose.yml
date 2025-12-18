@@ -2,7 +2,7 @@ services:
   app:
     image: mcr.microsoft.com/devcontainers/python:3.12
     volumes:
-      - ..:/workspaces:cached
+      - ..:/workspaces/Consultants-Application-Management-System:cached
     command: sleep infinity
     depends_on:
       db:
